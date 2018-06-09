@@ -6,7 +6,7 @@ library(invgamma)
 library(INLA)
 library(latex2exp)
 library(xtable)
-setwd("~/Google Drive/UW/Wakefield/WakefieldShared/LK-INLA/code/")
+setwd("~/git/LK-INLA/")
 # source('~/git/M9/exploratoryAnalysisFuns.R')
 
 ## code for calculating precision and basis matrices for coding LatticeKrig into INLA:

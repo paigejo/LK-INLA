@@ -21,7 +21,7 @@ inla.rgeneric.lk.model.test = function(
     library(spam)
     library(Matrix)
     library(fields)
-    source("~/Google Drive/UW/Wakefield/WakefieldShared/LK-INLA/code/LKinla.R")
+    source("~/git/LK-INLA/LKinla.R")
     
     first.time <<- FALSE
   }
@@ -502,8 +502,8 @@ inla.rgeneric.lk.model.simple = function(
     library(spam)
     library(Matrix)
     library(fields)
-    source("~/Google Drive/UW/Wakefield/WakefieldShared/LK-INLA/code/LKinla.R")
-    source("~/Google Drive/UW/Wakefield/WakefieldShared/LK-INLA/code/LKinla_rgeneric.R")
+    source("~/git/LKinla.R")
+    source("~/git/LKinla_rgeneric.R")
     browser()
     ## build marginal variance to kappa transformation (make it on a log scale):
     # first we need to know over what scale to build the original estimator.  Base this on 
