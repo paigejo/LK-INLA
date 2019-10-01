@@ -21,7 +21,7 @@ library(raster)
 # generate simulations on rectangular domain (e.g. unit square) from a 
 # Matern Gaussian Process with zero mean
 genSimsMatern = function(xRange=c(0,1), yRange=c(0,1), n=100, nsim=100, 
-              beta=(xRange[2]-xRange[1])/10, nu=1.5, sigmaSq=1, tauSq=sigmaSq/10) {
+                         beta=(xRange[2]-xRange[1])/10, nu=1.5, sigmaSq=1, tauSq=sigmaSq/10) {
   # generate locations of data
   xs = matrix(runif(n*nsim)*(xRange[2] - xRange[1]) + xRange[1], ncol=nsim)
   ys = matrix(runif(n*nsim)*(yRange[2] - yRange[1]) + yRange[1], ncol=nsim)
@@ -52,73 +52,8 @@ genSimsMatern = function(xRange=c(0,1), yRange=c(0,1), n=100, nsim=100,
 # range = beta (this is the effective range for 99% correlation, roughly)
 # all other parameters are the same as in ?Matern from fields package
 MaternLR = function (d, range = 1, beta=range, alpha = 1/beta, smoothness = 0.5, nu = smoothness, 
-          phi = 1) {
+                     phi = 1) {
   Matern(sqrt(8*nu)*d*alpha, range, alpha, smoothness, nu, phi)
-}
-
-# given a dataset, fit LatticeKrig with package
-# coords and obs: coordinates (nx2 matrix) and observed values (n-vector)
-# nDat: resolution of coarsest lattice in largest direction over the domain 
-# of the data (including the buffer there are more lattice points though)
-# nLayer: number of layers to include
-# Details: includes a first order linear polynomial in spatial coordinates
-fitLK = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
-                nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE) {
-  if(!simpleMod)
-    stop("non simple models not yet supported for LatticeKrig prediction function")
-  
-  # set up (the lattice, the arguments to LatticeKrig)
-  LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=nu, NC=NC, normalize=normalize, 
-                      lambda=lambdaStart, a.wght=a.wghtStart)
-  
-  # if are missing the predictive covariates, predict them using the observation covariates
-  if(!is.null(XObs) && is.null(XPred)) {
-    if(!is.matrix(XObs))
-      XObs = as.matrix(XObs)
-    XPred = matrix(nrow=nrow(predCoords), ncol=ncol(XObs))
-    
-    # make LatticeKrig predictive model for each covariate
-    print(paste0("predicting covariates..."))
-    for(i in 1:ncol(XObs)) {
-      print(paste0("predicting covariate ", i, "/", ncol(XObs)))
-      thisCov = XObs[,i]
-      out = fitLK(coords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
-                  nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
-                  a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
-      XPred[,i] = out$preds
-    }
-  }
-  
-  # Maximum Likelihood
-  if(verbose)
-    print("Beginning LatticeKrig MLE fit...")
-  # LKMLE = LKrig.MLE(coords, obs, LKinfo=LKinfo)
-  if(is.null(XObs) || is.null(XPred))
-    LKMLE = LKrigFindLambdaAwght(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
-  else
-    LKMLE = LKrigFindLambdaAwght(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit, Z=XObs)
-  if(verbose)
-    print(LKMLE$summary)
-  
-  # final fit
-  if(is.null(XObs) || is.null(XPred)) {
-    out = LKrig(coords, obs, LKinfo=LKMLE$LKinfo)
-    preds = predict.LKrig(out, predCoords)
-    if(doSEs)
-      predSEs = predictSE.LKrig(out, predCoords)
-    else
-      predSEs = NULL
-  }
-  else {
-    out = LKrig(coords, obs, LKinfo=LKMLE$LKinfo, Z=XObs)
-    preds = predict.LKrig(out, predCoords, Znew=XPred)
-    if(doSEs)
-      predSEs = predictSE.LKrig(out, predCoords, Znew=XPred)
-    else
-      predSEs=NULL
-  }
-  
-  return(list(mod=out, preds=preds, SEs=predSEs))
 }
 
 # fit North American rainfall data set
