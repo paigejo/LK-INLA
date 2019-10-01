@@ -15,7 +15,7 @@
 # otherArgs: a list of other arguments to the input fitModelFun aside from the standard. Examples 
 #            include "betas" for the GPpreds function
 fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVariableNames=NULL, otherArgs=NULL, 
-                              maxDataSets=NULL) {
+                              maxDataSets=NULL, parClust=cl) {
   # generate random seeds for each data set
   if(is.null(randomSeeds))
     randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
