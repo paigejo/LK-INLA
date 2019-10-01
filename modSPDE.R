@@ -22,12 +22,12 @@ getSPDEPrior = function(mesh, sigma0=1, strictPrior=FALSE, U=3, alpha=0.01) {
 }
 
 # get a reasonable default mesh triangulation for the SPDE model
-getSPDEMesh = function(locs, n=1500, max.n=2000, doPlot=TRUE, max.edge=c(25, 250), 
-                            offset=-.08, cutoff=15) {
+getSPDEMesh = function(locs, n=3500, max.n=5000, doPlot=TRUE, max.edge=c(.01, .1), 
+                            offset=-.08, cutoff=.005) {
   
   
   # generate mesh on R2
-  mesh = inla.mesh.2d(loc=locs, n=n, max.n=max.n, offset=offset, cutoff=cutoff, max.edge=max.edge)
+  mesh = inla.mesh.2d(loc.domain=locs, n=n, max.n=max.n, offset=offset, cutoff=cutoff, max.edge=max.edge)
   
   # plot the mesh if user wants
   if(doPlot) {

@@ -75,8 +75,9 @@ resultsGP = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   rangeText = match.arg(rangeText)
   
   # construct the file name for the desired data set and load it
-  dataText = paste0(covType, rangeText, "DataSets.RData")
-  dataSets = load(dataText)
+  dataText = paste0(covType, rangeText, "DataSet.RData")
+  out = load(dataText)
+  dataSets = simulationData
   
   # construct the SPDE mesh using all of the locations from all data sets
   mesh = getSPDEMesh(cbind(c(dataSets$xTrain, dataSets$xTest), c(dataSets$yTrain, dataSets$yTest)))
