@@ -24,6 +24,11 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
   }
   
+  # remove data sets past maxDataSets
+  if(!is.null(maxDataSets))
+    dataSets = lapply(1:maxDataSets, function(i) {dataSets[[i]]})
+  nsim = length(dataSets)
+  
   # this function combines the results from the model fit to each data set, and can be called in parallel
   combineResults = function(...) {
     print("Combining results...")
