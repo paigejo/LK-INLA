@@ -108,14 +108,14 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     
     surveyResults = list()
     for(i in 1:nsim) {
-      surveyResults = c(surveyResults, list(mainFunction(i, FALSE)))
+      surveyResults = c(surveyResults, list(fitModelWrapper(i, FALSE)))
     }
     results = combineResults(surveyResults)
   } else {
     # parallel version
     
     results = foreach(i = 1:nsim, .combine=combineResults, .verbose=TRUE, .multicombine=TRUE, .export=ls()) %dopar% {
-      mainFunction(i, FALSE)
+      fitModelWrapper(i, FALSE)
     }
   }
   
