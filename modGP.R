@@ -25,9 +25,9 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
                    cov.fun = "stationary.cov", significanceCI=.8) {
   
   # First construct relevant covariance and cross covariance matrices
-  SigmaObs = cov.fun(obsCoords)
-  SigmaObsPred = cov.fun(obsCoords, predCoords)
-  SigmaPred = cov.fun(predCoords)
+  SigmaObs = do.call(cov.fun, list(obsCoords))
+  SigmaObsPred = do.call(cov.fun, list(obsCoords, predCoords))
+  SigmaPred = do.call(cov.fun, list(predCoords))
   
   # Now construct relevant mean vectors
   muObs = xObs * betas
