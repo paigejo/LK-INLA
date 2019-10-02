@@ -26,7 +26,7 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   
   # First construct relevant covariance and cross covariance matrices
   SigmaObs = do.call(cov.fun, list(obsCoords))
-  SigmaObsPred = do.call(cov.fun, list(obsCoords, predCoords))
+  SigmaPredsObs = do.call(cov.fun, list(predCoords, obsCoords))
   SigmaPred = do.call(cov.fun, list(predCoords))
   
   # Now construct relevant mean vectors
@@ -34,7 +34,7 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   muPred = xPred * betas
   
   # calculate the predictive distribution
-  predictions = conditionalNormal(obsValues, muPred, muObs, SigmaPred, SigmaObs, SigmaObsPred)
+  predictions = conditionalNormal(obsValues, muPred, muObs, SigmaPred, SigmaObs, SigmaPredsObs)
   muc = predictions$muc
   Sigmac = predictions$Sigmac
   sigmac = sqrt(diag(Sigmac))
