@@ -79,11 +79,8 @@ resultsGP = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   out = load(dataText)
   dataSets = simulationData
   
-  # construct the SPDE mesh using all of the locations from all data sets
-  mesh = getSPDEMesh(cbind(c(dataSets$xTrain, dataSets$xTest), c(dataSets$yTrain, dataSets$yTest)))
-  
   # generate results for all data sets and return results
-  fitModelToDataSets(fitSPDE, dataSets, randomSeeds=randomSeeds, maxDataSets=maxDataSets)
+  fitModelToDataSets(GPpreds, dataSets, randomSeeds=randomSeeds, maxDataSets=maxDataSets)
 }
 
 
