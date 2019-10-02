@@ -103,8 +103,8 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     yTest = dataSets$yTest[,i]
     # zTest = dataSets$zTest[,i]
     
-    standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=matrix(rep(1, length(obsValues)), ncol=1), 
-             predCoords=cbind(xTest, yTest), xPred = matrix(rep(1, nrow(predCoords)), ncol=1), significanceCI=.8)
+    standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=matrix(rep(1, length(zTrain)), ncol=1), 
+             predCoords=cbind(xTest, yTest), xPred = matrix(rep(1, length(xTest)), ncol=1), significanceCI=.8)
     fullArgList = c(standardArgList, otherArgs)
     do.call("fitModelFun", fullArgList)
   }
