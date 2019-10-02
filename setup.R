@@ -29,7 +29,15 @@ source('getCommandArgs.R')
 source('utilityFuns.R')
 # source('~/git/M9/exploratoryAnalysisFuns.R')
 
-options(error=recover)
+inf = sessionInfo()
+if(inf$platform != "x86_64-apple-darwin15.6.0 (64-bit)") {
+  INLA:::inla.dynload.workaround()
+  # avoid setting too many threads and thereby using too much memory
+  inla.setOption(num.threads=1)
+  options(error=traceback)
+} else {
+  options(error=recover)
+}
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {
