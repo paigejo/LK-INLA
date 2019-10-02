@@ -144,7 +144,7 @@ resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mix
   rangeText = match.arg(rangeText)
   
   # construct the file name for the desired data set and load it
-  dataText = paste0(covType, rangeText, "DataSets.RData")
+  dataText = paste0(covType, rangeText, "DataSet.RData")
   dataSets = load(dataText)
   
   # construct the SPDE mesh using all of the locations from all data sets
