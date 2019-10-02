@@ -38,8 +38,9 @@ getSPDEMesh = function(locs, n=3500, max.n=5000, doPlot=TRUE, max.edge=c(.01, .1
 }
 
 # function for fitting the SPDE model to gaussian data
-fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), ncol=1), predCoords, 
-                   xPred = matrix(rep(1, nrow(predCoords)), ncol=1), mesh, spdePrior=getSPDEPrior(mesh), 
+fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), ncol=1), 
+                   predCoords, xPred = matrix(rep(1, nrow(predCoords)), ncol=1), 
+                   mesh=getSPDEMesh(obsCoords), spdePrior=getSPDEPrior(mesh), 
                    significanceCI=.8, int.strategy="grid", strategy="laplace", 
                    nPostSamples=1000, verbose=TRUE, link=1, seed=NULL) {
   
