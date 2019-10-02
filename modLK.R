@@ -1,50 +1,50 @@
 # given a dataset, fit LatticeKrig with package
-# coords and obs: coordinates (nx2 matrix) and observed values (n-vector)
+# obsCoords and obs: coordinates (nx2 matrix) and observed values (n-vector)
 # nDat: resolution of coarsest lattice in largest direction over the domain 
 # of the data (including the buffer there are more lattice points though)
 # nLayer: number of layers to include
 # NOTE: includes a first order linear polynomial in spatial coordinates, so do not include that in the covariates
-fitLK = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
+fitLKSimple = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
                  nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8) {
   # if(!simpleMod)
   #   stop("non simple models not yet supported for LatticeKrig prediction function")
   
   # set up (the lattice, the arguments to LatticeKrig)
-  LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=nu, NC=NC, normalize=normalize, 
+  LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=nu, NC=NC, normalize=normalize, 
                       lambda=lambdaStart, a.wght=a.wghtStart)
   
   # if are missing the predictive covariates, predict them using the observation covariates
-  if(!is.null(XObs) && is.null(XPred)) {
-    if(!is.matrix(XObs))
-      XObs = as.matrix(XObs)
-    XPred = matrix(nrow=nrow(predCoords), ncol=ncol(XObs))
+  if(!is.null(xObs) && is.null(xPred)) {
+    if(!is.matrix(xObs))
+      xObs = as.matrix(xObs)
+    xPred = matrix(nrow=nrow(predCoords), ncol=ncol(xObs))
     
     # make LatticeKrig predictive model for each covariate
     print(paste0("predicting covariates..."))
-    for(i in 1:ncol(XObs)) {
-      print(paste0("predicting covariate ", i, "/", ncol(XObs)))
-      thisCov = XObs[,i]
-      out = fitLK(coords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
+    for(i in 1:ncol(xObs)) {
+      print(paste0("predicting covariate ", i, "/", ncol(xObs)))
+      thisCov = xObs[,i]
+      out = fitLKSimple(obsCoords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
                   nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
                   a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
-      XPred[,i] = out$preds
+      xPred[,i] = out$preds
     }
   }
   
   # Maximum Likelihood
   if(verbose)
     print("Beginning LatticeKrig MLE fit...")
-  # LKMLE = LKrig.MLE(coords, obs, LKinfo=LKinfo)
-  if(is.null(XObs) || is.null(XPred))
-    LKMLE = LKrigFindLambdaAwght(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
+  # LKMLE = LKrig.MLE(obsCoords, obs, LKinfo=LKinfo)
+  if(is.null(xObs) || is.null(xPred))
+    LKMLE = LKrigFindLambdaAwght(obsCoords, obsValues, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
   else
-    LKMLE = LKrigFindLambdaAwght(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit, Z=XObs)
+    LKMLE = LKrigFindLambdaAwght(obsCoords, obsValues, LKinfo=LKinfo, verbose=verbose, maxit=maxit, Z=xObs)
   if(verbose)
     print(LKMLE$summary)
   
   # final fit
-  if(is.null(XObs) || is.null(XPred)) {
-    out = LKrig(coords, obs, LKinfo=LKMLE$LKinfo)
+  if(is.null(xObs) || is.null(xPred)) {
+    out = LKrig(obsCoords, obsValues, LKinfo=LKMLE$LKinfo)
     preds = predict.LKrig(out, predCoords)
     if(doSEs)
       predSEs = predictSE.LKrig(out, predCoords)
@@ -52,10 +52,10 @@ fitLK = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, NC=5, nL
       predSEs = NULL
   }
   else {
-    out = LKrig(coords, obs, LKinfo=LKMLE$LKinfo, Z=XObs)
-    preds = predict.LKrig(out, predCoords, Znew=XPred)
+    out = LKrig(obsCoords, obsValues, LKinfo=LKMLE$LKinfo, Z=xObs)
+    preds = predict.LKrig(out, predCoords, Znew=xPred)
     if(doSEs)
-      predSEs = predictSE.LKrig(out, predCoords, Znew=XPred)
+      predSEs = predictSE.LKrig(out, predCoords, Znew=xPred)
     else
       predSEs=NULL
   }
@@ -76,13 +76,13 @@ fitLK = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, NC=5, nL
 }
 
 # given a dataset, fit LatticeKrig optimizing over alpha and other parameters 
-# coords and obs: coordinates (nx2 matrix) and observed values (n-vector)
+# obsCoords and obsValues: coordinates (nx2 matrix) and observed values (n-vector)
 # nDat: resolution of coarsest lattice in largest direction over the domain 
 # of the data (including the buffer there are more lattice points though)
 # nLayer: number of layers to include
 # NOTE: includes a first order linear polynomial in spatial coordinates, so do not include that in the covariates
 # NOTE: lambda is sigma^2 / rho
-fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, NC=5, nLayer=3, normalize=TRUE, 
+fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, normalize=TRUE, 
                  nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, doSEs=TRUE, significanceCI=.8, 
                  lowerBoundLogLambda =-16,
                  upperBoundLogLambda = 4,
@@ -99,26 +99,26 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   #   stop("non simple models not yet supported for LatticeKrig prediction function")
   
   # if are missing the predictive covariates, predict them using the observation covariates
-  if(!is.null(XObs) && is.null(XPred)) {
-    if(!is.matrix(XObs))
-      XObs = as.matrix(XObs)
-    XPred = matrix(nrow=nrow(predCoords), ncol=ncol(XObs))
+  if(!is.null(xObs) && is.null(xPred)) {
+    if(!is.matrix(xObs))
+      xObs = as.matrix(xObs)
+    xPred = matrix(nrow=nrow(predCoords), ncol=ncol(xObs))
     
     # make LatticeKrig predictive model for each covariate
     print(paste0("predicting covariates..."))
-    for(i in 1:ncol(XObs)) {
-      print(paste0("predicting covariate ", i, "/", ncol(XObs)))
-      thisCov = XObs[,i]
-      out = fitLKStandard(coords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
+    for(i in 1:ncol(xObs)) {
+      print(paste0("predicting covariate ", i, "/", ncol(xObs)))
+      thisCov = xObs[,i]
+      out = fitLKStandard(obsCoords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
                   nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
                   a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
-      XPred[,i] = out$preds
+      xPred[,i] = out$preds
     }
   }
   
   # do initial latticeKrig fit
   # set up the lattice, the arguments to LatticeKrig
-  LKinfoStart = LKrigSetup(coords, nlevel=nLayer, nu=1, NC=NC, normalize=normalize, 
+  LKinfoStart = LKrigSetup(obsCoords, nlevel=nLayer, nu=1, NC=NC, normalize=normalize, 
                            lambda=lambdaStart, a.wght=a.wghtStart, fixedFunctionArgs=fixedFunctionArgs)
   
   # make a function to convert from a vector of parameters to a corresponding set of different, named parameters
@@ -149,14 +149,14 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
     a.wght = parameterList$a.wght
     
     # set up the lattice, the arguments to LatticeKrig
-    LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
+    LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
                         lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
     
-    # if(is.null(XObs) || is.null(XPred))
-    #   LKMLE = LKrig(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
+    # if(is.null(xObs) || is.null(xPred))
+    #   LKMLE = LKrig(obsCoords, obsValues, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
     # else
-    #   LKMLE = LKrig(coords, obs, LKinfo=LKinfo, verbose=verbose, maxit=maxit, Z=XObs)
-    out = LKrig(coords, obs, LKinfo=LKinfo, verbose=thisVerbose, Z=XObs)
+    #   LKMLE = LKrig(obsCoords, obsValues, LKinfo=LKinfo, verbose=verbose, maxit=maxit, Z=xObs)
+    out = LKrig(obsCoords, obsValues, LKinfo=LKinfo, verbose=thisVerbose, Z=xObs)
     out$lnProfileLike.FULL
   }
   
@@ -200,10 +200,10 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   a.wghtMLE = parameterList$a.wght
   
   # set up the lattice, the arguments to LatticeKrig
-  LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize,
+  LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize,
                       lambda=lambdaMLE, a.wght=a.wghtMLE, alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
-  if(is.null(XObs) || is.null(XPred)) {
-    mod = LKrig(coords, obs, LKinfo=LKinfo)
+  if(is.null(xObs) || is.null(xPred)) {
+    mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo)
     preds = predict.LKrig(mod, predCoords)
     if(doSEs)
       predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, M=nsimConditional)
@@ -211,10 +211,10 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
       predSimulations = NULL
   }
   else {
-    mod = LKrig(coords, obs, LKinfo=LKMLE$LKinfo, Z=XObs)
-    preds = predict.LKrig(mod, predCoords, Znew=XPred)
+    mod = LKrig(obsCoords, obsValues, LKinfo=LKMLE$LKinfo, Z=xObs)
+    preds = predict.LKrig(mod, predCoords, Znew=xPred)
     if(doSEs)
-      predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=XPred, M=nsimConditional)
+      predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=xPred, M=nsimConditional)
     else
       predSimulations=NULL
   }
@@ -279,11 +279,11 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   #   a.wght = parameterList$a.wght
   #   
   #   # set up the lattice, the arguments to LatticeKrig
-  #   LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
+  #   LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
   #                       lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
   #   
   #   # fit the model to the parameters
-  #   out = LKrig(coords, obs, LKinfo=LKinfo, verbose=FALSE, Z=XObs)
+  #   out = LKrig(obsCoords, obsValues, LKinfo=LKinfo, verbose=FALSE, Z=xObs)
   #   
   #   # calculate the effective range (the distance at which there is only 10% correlation)
   #   test = LKrig.cov.plot(LKinfo)
@@ -323,3 +323,37 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, medians=medians, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo, 
               interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c()))
 }
+
+# this function generates results for the simulation study for the LK (standard) model
+# input arguments:
+#   argument specifying the dataset type
+resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+                       maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5, nsimConditional=100, fixedFunctionArgs = list(m = 1)) {
+  
+  # determine the type of covariance for the data set
+  covType = match.arg(covType)
+  
+  # determine the spatial range for the data set. No range text means it's a mixture
+  rangeText = match.arg(rangeText)
+  
+  # construct the file name for the desired data set and load it
+  dataText = paste0(covType, rangeText, "DataSet.RData")
+  out = load(dataText)
+  dataSets = simulationData
+  
+  # generate results for all data sets and return results (TODO: otherVariableNames)
+  fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
+                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer, 
+                                    nsimConditional=nsimConditional, fixedFunctionArgs=fixedFunctionArgs), 
+                     maxDataSets=maxDataSets)
+}
+
+
+
+
+
+
+
+
+
+

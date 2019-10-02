@@ -1,45 +1,45 @@
 # fit standard LK model given data and relevant parameters
-# coords: spatial coordinates of the data
-# ys: observations at the coordinates
-# predPts: places at which to make predictions
+# obsCoords: spatial coordinates of the data
+# obsValues: observations at the coordinates
+# predCoords: places at which to make predictions
 # nu: Matern smoothness parameter from "simple" LKrig model
-# X: observation design matrix (intercept and covariates at obs locations)
-# XPred: prediction design matrix (intercept and covariates at pred locations)
+# xObs: observation design matrix (intercept and covariates at obs locations)
+# xPred: prediction design matrix (intercept and covariates at pred locations)
 # NC: number of coarse lattice points over the longest dimension of the data
 # int.strategy: "auto" or "eb" for empirical Bayes
-fitLKINLAStandard = function(coords, ys, predPts=coords, nu=1.5, seed=1, nLayer=3, NC=5,
+fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
                              nBuffer=5, priorPar=getPrior(.1, .1, 10), 
-                             X=cbind(1, coords), XPred=cbind(1, predPts), normalize=TRUE, 
+                             xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                              intStrategy="auto", strategy="gaussian", fastNormalize=FALSE, 
-                             predictionType=c("median", "mean"), printVerboseTimings=FALSE) {
+                             predictionType=c("mean", "median"), printVerboseTimings=FALSE) {
   set.seed(seed)
   
   # get the type of prediction the user wants
   predictionType = match.arg(predictionType)
   
   # get lattice points, prediction points
-  xRangeDat = range(coords[,1])
-  yRangeDat = range(coords[,2])
+  xRangeDat = range(obsCoords[,1])
+  yRangeDat = range(obsCoords[,2])
   latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
   nx = latInfo[[1]]$nx
   ny = latInfo[[1]]$ny
   
   # generate lattice basis matrix
-  AObs = makeA(coords, latInfo)
+  AObs = makeA(obsCoords, latInfo)
   
   # run matrix precomputations
   precomputedMatrices = precomputationsQ2(latInfo)
   
   # define the LK model
-  n = length(ys)
-  rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.standard, latInfo=latInfo, ys=ys, 
+  n = length(obsValues)
+  rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.standard, latInfo=latInfo, obsValues=obsValues, 
                               prior=priorPar, normalize=normalize, precomputedMatrices=precomputedMatrices, 
-                              X=X, nu=nu, datCoords=coords, fastNormalize=fastNormalize, 
+                              X=xObs, nu=nu, datCoords=obsCoords, fastNormalize=fastNormalize, 
                               printVerboseTimings=printVerboseTimings)
   # use these global variables for testing calls to inla.rgeneric.lk.model.simple
-  # latInfo<<-latInfo; ys<<-ys;
+  # latInfo<<-latInfo; obsValues<<-obsValues;
   # prior<<-priorPar; normalize<<-normalize; precomputedMatrices<<-precomputedMatrices;
-  # X<<-X; nu<<-nu; datCoords<<-coords; fastNormalize<<-fastNormalize;
+  # X<<-xObs; nu<<-nu; datCoords<<-obsCoords; fastNormalize<<-fastNormalize;
   # printVerboseTimings<<-printVerboseTimings
   ## generate inla stack:
   # Stacked A matrix (A_s from notation of LR2015 Bayesian Spatial Modelling with R_INLA):
@@ -47,16 +47,16 @@ fitLKINLAStandard = function(coords, ys, predPts=coords, nu=1.5, seed=1, nLayer=
   # ( 0   APred)
   # eta_s = (c^T c^T)^T
   # where c is the vector of lattice coefficients
-  AEst = makeA(coords, latInfo)
-  APred = makeA(predPts, latInfo)
+  AEst = makeA(obsCoords, latInfo)
+  APred = makeA(predCoords, latInfo)
   latticeInds = 1:ncol(AEst)
   stack.est = inla.stack(A =list(AEst, 1), 
-                         effects =list(field=latticeInds, X=X), 
-                         data =list(y=ys), 
+                         effects =list(field=latticeInds, X=xObs), 
+                         data =list(y=obsValues), 
                          tag ="est", 
                          remove.unused=FALSE)
   stack.pred = inla.stack(A =list(APred, 1), 
-                          effects =list(field=latticeInds, X=XPred), 
+                          effects =list(field=latticeInds, X=xPred), 
                           data =list(y=NA), 
                           tag ="pred", 
                           remove.unused=FALSE)
@@ -77,7 +77,7 @@ fitLKINLAStandard = function(coords, ys, predPts=coords, nu=1.5, seed=1, nLayer=
   # get predictive surface, SD, and data
   index = inla.stack.index(stack.full, "pred")$data
   obsInds = 1:n
-  predInds = (n+1):(n+nrow(predPts))
+  predInds = (n+1):(n+nrow(predCoords))
   if(predictionType == "mean") {
     linpreds = mod[["summary.linear.predictor"]]$mean
     preds = linpreds[predInds]
@@ -91,8 +91,8 @@ fitLKINLAStandard = function(coords, ys, predPts=coords, nu=1.5, seed=1, nLayer=
   predSDs = linpred.sd[predInds]
   obsSDs = linpred.sd[obsInds]
   
-  startI = n+nrow(predPts)+1
-  endI = n+nrow(predPts)+nx*ny
+  startI = n+nrow(predCoords)+1
+  endI = n+nrow(predCoords)+nx*ny
   coefPreds = list(layer1 = linpreds[startI:endI])
   coefSDs = list(layer1 = linpred.sd[startI:endI])
   if(nLayer >= 2) {

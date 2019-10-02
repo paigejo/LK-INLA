@@ -72,6 +72,11 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     #   nuggetSDSummary = NULL
     # }
     
+    # summarize compute time
+    computeTime = sapply(results, function(x) {c(x$computeTime)})
+    computeSummary = matrix(c(mean(computeTime), sd(computeTime), quantile(probs=c(0.1, 0.5, 0.9), computeTime)), nrow=1)
+    rownames(computeSummary) = rownames(sdSummary)
+    
     # summarize other variables if necessary, such as latticeKrig layer weights and other hyperparameters
     otherVariableSummaries = list()
     if(!is.null(otherVariableNames)) {
@@ -85,7 +90,7 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     
     list(preds=preds, sigmas=sigmas, lower=lower, upper=upper, 
          interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
-         varSummary=varSummary, sdSummary=sdSummary, 
+         varSummary=varSummary, sdSummary=sdSummary, computeSummary=computeSummary, 
          otherVariableSummaries=otherVariableSummaries)
   }
   
@@ -106,7 +111,8 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=matrix(rep(1, length(zTrain)), ncol=1), 
              predCoords=cbind(xTest, yTest), xPred = matrix(rep(1, length(xTest)), ncol=1), significanceCI=.8)
     fullArgList = c(standardArgList, otherArgs)
-    do.call("fitModelFun", fullArgList)
+    computeTime = system.time(out <- do.call("fitModelFun", fullArgList))[3]
+    c(out, list(computeTime=computeTime))
   }
   
   # compute Bias & MSE & mean(Var) & 80\% coverage for each simulation
