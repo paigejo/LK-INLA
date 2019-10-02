@@ -328,7 +328,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
 # input arguments:
 #   argument specifying the dataset type
 resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
-                       maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5, nsimConditional=100, fixedFunctionArgs = list(m = 1)) {
+                     maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5, nsimConditional=100, fixedFunctionArgs = list(m = 1)) {
   
   # determine the type of covariance for the data set
   covType = match.arg(covType)
@@ -345,7 +345,7 @@ resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
                      otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer, 
                                     nsimConditional=nsimConditional, fixedFunctionArgs=fixedFunctionArgs), 
-                     maxDataSets=maxDataSets)
+                     maxDataSets=maxDataSets, includeIntercept=FALSE)
 }
 
 
