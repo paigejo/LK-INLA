@@ -63,7 +63,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   
   # construct the observation stack 
   stack.est = inla.stack(A =list(AEst, 1, 1),
-                         effects =list(field=latticeInds, X=X),
+                         effects =list(field=latticeInds, X=xObs),
                          data =list(y=ys, link=1),
                          tag ="est",
                          remove.unused=FALSE)
