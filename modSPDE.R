@@ -93,6 +93,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   predInds = inla.stack.index(stack.full, "pred")$data
   index = inla.stack.index(stack.full, "pred")$data
   linpreds = mod[["summary.fitted.values"]]$mean
+  linpred.sd = mod[["summary.fitted.values"]]$sd
   
   preds = linpreds
   predSDs = linpred.sd
@@ -151,8 +152,8 @@ resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mix
   # construct the SPDE mesh using all of the locations from all data sets
   mesh = getSPDEMesh(cbind(c(dataSets$xTrain, dataSets$xTest), c(dataSets$yTrain, dataSets$yTest)))
   
-  # generate results for all data sets and return results
-  fitModelToDataSets(fitSPDE, dataSets, randomSeeds=randomSeeds, otherVariableNames=TODO, otherArgs=list(mesh=mesh), 
+  # generate results for all data sets and return results (TODO: otherVariableNames)
+  fitModelToDataSets(fitSPDE, dataSets, randomSeeds=randomSeeds, otherArgs=list(mesh=mesh), 
                      maxDataSets=maxDataSets)
 }
 
