@@ -48,19 +48,19 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
       results = list(...)
     
     # predictive distribution summary statistics
-    preds = do.call("rbind", lapply(results, function(x) {x$preds}))
-    sigmas = do.call("rbind", lapply(results, function(x) {x$sigmas}))
-    lower = do.call("rbind", lapply(results, function(x) {x$lower}))
-    upper = do.call("rbind", lapply(results, function(x) {x$upper}))
+    preds = do.call("cbind", lapply(results, function(x) {c(x$preds)}))
+    sigmas = do.call("cbind", lapply(results, function(x) {c(x$sigmas)}))
+    lower = do.call("cbind", lapply(results, function(x) {c(x$lower)}))
+    upper = do.call("cbind", lapply(results, function(x) {c(x$upper)}))
     
     # parameter estimate summary statistics
-    interceptSummary = do.call("rbind", lapply(results, function(x) {x$interceptSummary}))
+    interceptSummary = do.call("cbind", lapply(results, function(x) {c(x$interceptSummary)}))
     interceptSummary = colMeans(interceptSummary)
-    rangeSummary = do.call("rbind", lapply(results, function(x) {x$rangeSummary}))
+    rangeSummary = do.call("cbind", lapply(results, function(x) {c(x$rangeSummary)}))
     rangeSummary = colMeans(rangeSummary)
-    sdSummary = do.call("rbind", lapply(results, function(x) {x$sdSummary}))
+    sdSummary = do.call("cbind", lapply(results, function(x) {c(x$sdSummary)}))
     sdSummary = colMeans(sdSummary)
-    varSummary = do.call("rbind", lapply(results, function(x) {x$varSummary}))
+    varSummary = do.call("cbind", lapply(results, function(x) {c(x$varSummary)}))
     varSummary = colMeans(varSummary)
     # if(includeClustEffect) {
     #   nuggetVarSummary = do.call("rbind", lapply(results, function(x) {x$nuggetVarSummary}))
