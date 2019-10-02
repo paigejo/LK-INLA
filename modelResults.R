@@ -16,6 +16,12 @@
 #            include "betas" for the GPpreds function
 fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVariableNames=NULL, otherArgs=NULL, 
                               maxDataSets=NULL, parClust=cl) {
+  
+  # remove data sets past maxDataSets
+  if(!is.null(maxDataSets))
+    dataSets = lapply(1:maxDataSets, function(i) {dataSets[[i]]})
+  nsim = length(dataSets)
+  
   # generate random seeds for each data set
   if(is.null(randomSeeds))
     randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
@@ -23,11 +29,6 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     warning(paste0("length(randomSeeds) (", length(randomSeeds), ") is not equal to length(dataSets), (", length(dataSets), "). Regenerating randomSeeds"))
     randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
   }
-  
-  # remove data sets past maxDataSets
-  if(!is.null(maxDataSets))
-    dataSets = lapply(1:maxDataSets, function(i) {dataSets[[i]]})
-  nsim = length(dataSets)
   
   # this function combines the results from the model fit to each data set, and can be called in parallel
   combineResults = function(...) {
