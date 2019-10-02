@@ -15,7 +15,7 @@
 # otherArgs: a list of other arguments to the input fitModelFun aside from the standard. Examples 
 #            include "betas" for the GPpreds function
 fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVariableNames=NULL, otherArgs=NULL, 
-                              maxDataSets=NULL, parClust=cl) {
+                              maxDataSets=NULL, parClust=cl, includeIntercept=TRUE) {
   
   # remove data sets past maxDataSets
   
@@ -108,8 +108,17 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     yTest = dataSets$yTest[,i]
     # zTest = dataSets$zTest[,i]
     
-    standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=matrix(rep(1, length(zTrain)), ncol=1), 
-             predCoords=cbind(xTest, yTest), xPred = matrix(rep(1, length(xTest)), ncol=1), significanceCI=.8)
+    if(includeIntercept) {
+      xObs = matrix(rep(1, length(zTrain)), ncol=1)
+      xPred = matrix(rep(1, length(xTest)), ncol=1)
+    }
+    else {
+      xObs = NULL
+      xPred = NULL
+    }
+    
+    standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=xObs, 
+             predCoords=cbind(xTest, yTest), xPred=xPred, significanceCI=.8)
     fullArgList = c(standardArgList, otherArgs)
     computeTime = system.time(out <- do.call("fitModelFun", fullArgList))[3]
     c(out, list(computeTime=computeTime))
