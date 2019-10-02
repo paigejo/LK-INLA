@@ -145,7 +145,8 @@ resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mix
   
   # construct the file name for the desired data set and load it
   dataText = paste0(covType, rangeText, "DataSet.RData")
-  dataSets = load(dataText)
+  out = load(dataText)
+  dataSets = simulationData
   
   # construct the SPDE mesh using all of the locations from all data sets
   mesh = getSPDEMesh(cbind(c(dataSets$xTrain, dataSets$xTest), c(dataSets$yTrain, dataSets$yTest)))
