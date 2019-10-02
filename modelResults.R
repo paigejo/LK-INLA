@@ -18,9 +18,16 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
                               maxDataSets=NULL, parClust=cl) {
   
   # remove data sets past maxDataSets
-  if(!is.null(maxDataSets))
-    dataSets = lapply(1:maxDataSets, function(i) {dataSets[[i]]})
-  nsim = length(dataSets)
+  
+  if(!is.null(maxDataSets)) {
+    dataSets$xTrain = dataSets$xTrain[,1:maxDataSets]
+    dataSets$yTrain = dataSets$yTrain[,1:maxDataSets]
+    dataSets$zTrain = dataSets$zTrain[,1:maxDataSets]
+    dataSets$xTest = dataSets$xTest[,1:maxDataSets]
+    dataSets$yTest = dataSets$yTest[,1:maxDataSets]
+    dataSets$zTest = dataSets$zTest[,1:maxDataSets]
+  }
+  nsim = ncol(dataSets$xTrain)
   
   # generate random seeds for each data set
   if(is.null(randomSeeds))
@@ -89,13 +96,12 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     set.seed(thisSeed)
     
     # get this dataset and associated
-    dat = dataSets[[i]]
-    xTrain = dat$xTrain
-    yTrain = dat$yTrain
-    zTrain = dat$zTrain
-    xTest = dat$xTest
-    yTest = dat$yTest
-    # zTest = dat$zTest
+    xTrain = dataSets$xTrain[,i]
+    yTrain = dataSets$yTrain[,i]
+    zTrain = dataSets$zTrain[,i]
+    xTest = dataSets$xTest[,i]
+    yTest = dataSets$yTest[,i]
+    # zTest = dataSets$zTest[,i]
     
     standardArgList = list(obsCoords=cbind(xTrain, yTrain), obsValues=zTrain, xObs=matrix(rep(1, length(obsValues)), ncol=1), 
              predCoords=cbind(xTest, yTest), xPred = matrix(rep(1, nrow(predCoords)), ncol=1), significanceCI=.8)
