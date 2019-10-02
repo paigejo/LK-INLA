@@ -106,8 +106,8 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   latentVarNames = rownames(postSamples[[1]]$latent)
   fieldIndices = which(grepl("field", latentVarNames))
   fixedIndices = which(grepl("X", latentVarNames))
-  if(clusterEffect)
-    clustIndices = grepl("clust", latentVarNames)
+  # if(clusterEffect)
+  #   clustIndices = grepl("clust", latentVarNames)
   
   # generate logit predictions (first without cluster effect then add the cluster effect in)
   if(length(xPred) != 0)
