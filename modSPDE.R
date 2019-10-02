@@ -84,7 +84,8 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
              control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, link=stackDat$link, quantiles=allQuantiles), 
              family="gaussian", verbose=verbose, control.inla=control.inla, 
              control.compute=list(config=TRUE), 
-             control.mode=modeControl)
+             control.mode=modeControl, 
+             control.fixed=list(quantiles=allQuantiles))
   
   # get predictive surface, SD, and data
   n = nrow(obsCoords)
@@ -114,8 +115,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
     fixedPart = xPred  %*% latentMat[fixedIndices,]
   else
     fixedPart = 0
-  predMatNoClust = fixedPart + APred %*% latentMat[fieldIndices,]
-  predMat <- predMatNoClust
+  predMat = fixedPart + APred %*% latentMat[fieldIndices,]
   
   # if(clusterEffect) {
   #   # add in estimated cluster effects at the sampled enumeration areas
@@ -126,11 +126,44 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   #     rnorm(length(eaIndices[-clusterIndices]) * nPostSamples, sd = rep(sqrt(clusterVars), each=length(eaIndices[-clusterIndices])))
   # }
   
-  lower = mod[['summary.pred']]
+  preds = rowMeans(predMat)
+  predSDs = apply(predMat, 1, sd)
+  lower = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
+  medians = apply(predMat, 1, median)
+  upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
   
-  list(mod=mod, preds=preds, SDs=predSDs, obsInds=obsInds, predInds=index, pixelInds=pixelIndices, 
-       eaInds=eaIndices, mesh=mesh, prior=prior, stack=stack.full, 
-       countyPreds=countyPreds, regionPreds=regionPreds, pixelPreds=pixelPreds, eaPreds=eaPreds)
+  interceptSummary=mod$summary.fixed[,1:5]
+  rangeSummary=mod$summary.random[2,1:5]
+  spatialSDSummary = mod$summary.random[3,1:5]
+  
+  # get posterior hyperparameter samples and transform them as necessary
+  postSamples = inla.posterior.sample(nPostSamples, mod)
+  hyperMat = sapply(postSamples, function(x) {x$hyperpar})
+  mat = apply(hyperMat, 2, function(x) {c(totalVar=x[3]^2+1/x[1], spatialVar=x[3]^2, errorVar=1/x[1], 
+                                          totalSD=sqrt(x[3]^2+1/x[1]), spatialSD=x[3], errorSD=sqrt(1/x[1]), 
+                                          spatialRange=x[2])})
+  hyperNames = c("totalVar", "spatialVar", "errorVar", "totalSD", "spatialSD", "errorSD", "spatialRange")
+  rownames(mat) = hyperNames
+  
+  getSummaryStatistics = function(draws) {
+    c(Est=mean(draws), SD=sd(draws), 
+      Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
+      Q50=quantile(probs=0.5, draws), 
+      Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+  }
+  summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
+  parameterSummaryTable = t(apply(mat, 1, getSummaryStatistics))
+  colnames(parameterSummaryTable) = summaryNames
+  
+  # separate out default parameter summaries
+  sdSummary=parameterSummaryTable[6,]
+  varSummary=parameterSummaryTable[3,]
+  rangeSummary=parameterSummaryTable[7,]
+  
+  list(mod=mod, preds=preds, sigmas=predSDs, lower=lower, medians=medians, upper=upper, 
+       mesh=mesh, prior=prior, stack=stack.full, 
+       interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
+       sdSummary=sdSummary, varSummary=varSummary, parameterSummaryTable=parameterSummaryTable)
 }
 
 # this function generates results for the simulation study for the SPDE model

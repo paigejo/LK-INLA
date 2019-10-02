@@ -41,11 +41,13 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   
   # calculate confidence intervals
   lower = muc + qnorm((1 - significanceCI) / 2, sd=sigmac)
+  meds = muc + qnorm(.5, sd=sigmac)
   upper = muc + qnorm(1 - (1 - significanceCI) / 2, sd=sigmac)
   
   ## preds
   ## sigmas
   ## lower
+  ## medians
   ## upper
   ## interceptSummary
   ## rangeSummary
@@ -58,7 +60,7 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   varSummary = c(Est=1, SD=1, Qlower=1, Q50=1, Qupper=1)
   
   # return results
-  list(preds=muc, sigmas=sigmac, lower=lower, upper=upper, 
+  list(preds=muc, sigmas=sigmac, lower=lower, medians=meds, upper=upper, 
        interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
        sdSummary=sdSummary, varSummary=varSummary)
 }

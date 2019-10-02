@@ -199,85 +199,107 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   omegaMLE = parameterList$omega
   a.wghtMLE = parameterList$a.wght
   
-  # # set up the lattice, the arguments to LatticeKrig
-  # LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
-  #                     lambda=lambdaMLE, a.wght=a.wghtMLE, alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
-  # if(is.null(XObs) || is.null(XPred)) {
-  #   mod = LKrig(coords, obs, LKinfo=LKinfo)
-  #   preds = predict.LKrig(mod, predCoords)
-  #   if(doSEs)
-  #     predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, M=nsimConditional)
-  #   else
-  #     predSimulations = NULL
-  # }
-  # else {
-  #   mod = LKrig(coords, obs, LKinfo=LKMLE$LKinfo, Z=XObs)
-  #   preds = predict.LKrig(mod, predCoords, Znew=XPred)
-  #   if(doSEs)
-  #     predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=XPred, M=nsimConditional)
-  #   else
-  #     predSimulations=NULL
-  # }
-  # 
-  # # calculate predictive standard errors
-  # predSEs = predSimulations$SE
+  # set up the lattice, the arguments to LatticeKrig
+  LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize,
+                      lambda=lambdaMLE, a.wght=a.wghtMLE, alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
+  if(is.null(XObs) || is.null(XPred)) {
+    mod = LKrig(coords, obs, LKinfo=LKinfo)
+    preds = predict.LKrig(mod, predCoords)
+    if(doSEs)
+      predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, M=nsimConditional)
+    else
+      predSimulations = NULL
+  }
+  else {
+    mod = LKrig(coords, obs, LKinfo=LKMLE$LKinfo, Z=XObs)
+    preds = predict.LKrig(mod, predCoords, Znew=XPred)
+    if(doSEs)
+      predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=XPred, M=nsimConditional)
+    else
+      predSimulations=NULL
+  }
   
-  # # calculate confidence intervals
-  # lower = preds + qnorm((1 - significanceCI) / 2, sd=predSEs)
-  # upper = preds + qnorm(1 - (1 - significanceCI) / 2, sd=predSEs)
-  # 
-  # ## now we calculate uncertainty intervals for all parameters
-  # # intercept
-  # interceptSummary = c(Est=mod$d.coef[1], SD=sd(predSimulations$d.coef.draw[1,]), 
-  #                      Qlower=quantile(probs=(1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]), 
-  #                      Q50=quantile(probs=.5, predSimulations$d.coef.draw[1,]), 
-  #                      Qupper=quantile(probs=1 - (1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]), )
+  # calculate predictive standard errors
+  predSEs = predSimulations$SE
+
+  # calculate confidence intervals
+  lower = preds + qnorm((1 - significanceCI) / 2, sd=predSEs)
+  medians = preds
+  upper = preds + qnorm(1 - (1 - significanceCI) / 2, sd=predSEs)
+  
+  ## now we calculate uncertainty intervals for all parameters
+  # intercept
+  interceptSummary = c(Est=mod$d.coef[1], SD=sd(predSimulations$d.coef.draw[1,]),
+                       Qlower=quantile(probs=(1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]),
+                       Q50=quantile(probs=.5, predSimulations$d.coef.draw[1,]),
+                       Qupper=quantile(probs=1 - (1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]))
   
   # to calculate summaries for the parameters, must calculate inverse of negative hessian
   print("Calculating hessian...")
   hess = hessian(outerFun, result$par, thisVerbose=FALSE)
   parSigma = solve(-hess)
   
-  # simulate possible parameter values
+  # simulate possible parameter values and do any necessary transformations for any parameters from the 
+  # optimization scale
   L = t(chol(parSigma))
   zSim = matrix(rnorm(nsimConditional * nrow(L)), nrow=nrow(L))
   parSim = L %*% zSim
   parSim = sweep(parSim, 1, result$par, "+")
   
-  # for each simulated set of parameters, call LKrig and calculate the reparameterizations
-  getMLEs = function(parameters) {
-    i = parameters[1]
-    print(paste0("Generating draw ", i, "/", nsimConditional, " from conditional distribution"))
-    parameters = parameters[-1]
-    parameterList = getParameters(parameters)
-    alphas = parameterList$alphas
-    log.lambda = parameterList$log.lambda
-    lambda = parameterList$lambda
-    omega = parameterList$omega
-    a.wght = parameterList$a.wght
-    
-    # set up the lattice, the arguments to LatticeKrig
-    LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
-                        lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
-    
-    # fit the model to the parameters
-    out = LKrig(coords, obs, LKinfo=LKinfo, verbose=FALSE, Z=XObs)
-    
-    # calculate the effective range (the distance at which there is only 10% correlation)
-    test = LKrig.cov.plot(LKinfo)
-    sortI = sort(test$d, index.return=TRUE)$ix
-    firstI = match(TRUE, (test$cov[sortI] * (1 / max(test$cov))) <= .1)
-    effectiveRange = test$d[sortI][firstI]
-    if(is.na(effectiveRange)) {
-      effectiveRange = max(test$d)
-      warning("Effective range at least as large as the grid width. Setting it to the grid width")
+  # make a function to convert from a vector of parameters to a final set of different, named parameters
+  getParametersFinal = function(parameters) {
+    # omega =  log( a.wght -4)/2
+    # transform from optimized parameters to probabilities summing to 1 to get alphas
+    if(nLayer != 1) {
+      alphas = multivariateExpit(parameters[1:(nLayer-1)])
+      alphas = c(alphas, 1 - sum(alphas))
+      log.lambda = parameters[nLayer-1 + 1]
+      omega = parameters[nLayer-1 + 2]
+      c(alphas=alphas, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
     }
-    
-    # get relevant MLEs
-    c(intercept=out$d.coef[1], range=effectiveRange, sqrtrho=sqrt(out$rho.MLE), rho=out$rho.MLE, sigma=out$shat.MLE, sigmasq=out$shat.MLE^2, alphas=alphas, a.wght=a.wght)
+    else {
+      log.lambda = parameters[1]
+      omega = parameters[2]
+      c(alphas=1, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
+    }
   }
   
-  parameterDrawTable = apply(rbind(1:nsimConditional, parSim), 2, getMLEs)
+  finalParSim = apply(parSim, 2, getParametersFinal)
+  
+  # # for each simulated set of parameters, call LKrig and calculate the reparameterizations
+  # getMLEs = function(parameters) {
+  #   i = parameters[1]
+  #   print(paste0("Generating draw ", i, "/", nsimConditional, " from conditional distribution"))
+  #   parameters = parameters[-1]
+  #   parameterList = getParameters(parameters)
+  #   alphas = parameterList$alphas
+  #   log.lambda = parameterList$log.lambda
+  #   lambda = parameterList$lambda
+  #   omega = parameterList$omega
+  #   a.wght = parameterList$a.wght
+  #   
+  #   # set up the lattice, the arguments to LatticeKrig
+  #   LKinfo = LKrigSetup(coords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
+  #                       lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
+  #   
+  #   # fit the model to the parameters
+  #   out = LKrig(coords, obs, LKinfo=LKinfo, verbose=FALSE, Z=XObs)
+  #   
+  #   # calculate the effective range (the distance at which there is only 10% correlation)
+  #   test = LKrig.cov.plot(LKinfo)
+  #   sortI = sort(test$d, index.return=TRUE)$ix
+  #   firstI = match(TRUE, (test$cov[sortI] * (1 / max(test$cov))) <= .1)
+  #   effectiveRange = test$d[sortI][firstI]
+  #   if(is.na(effectiveRange)) {
+  #     effectiveRange = max(test$d)
+  #     warning("Effective range at least as large as the grid width. Setting it to the grid width")
+  #   }
+  #   
+  #   # get relevant MLEs (NOTE: THIS DOES NOT GIVE US UNCERTAINTY IN ESTIMATES OF SIGMA, RHO, RANGE, INTERCEPT)
+  #   c(intercept=out$d.coef[1], range=effectiveRange, sqrtrho=sqrt(out$rho.MLE), rho=out$rho.MLE, sigma=out$shat.MLE, sigmasq=out$shat.MLE^2, alphas=alphas, a.wght=a.wght)
+  # }
+  # 
+  # parameterDrawTable = apply(rbind(1:nsimConditional, parSim), 2, getMLEs)
   
   getSummaryStatistics = function(draws) {
     c(Est=mean(draws), SD=sd(draws), 
@@ -286,7 +308,9 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
       Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
   }
   
-  parameterSummaryTable = apply(parameterDrawTable, 1, getSummaryStatistics)
+  parameterSummaryTable = t(apply(finalParSim, 1, getSummaryStatistics))
+  summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
+  colnames(parameterSummaryTable) = summaryNames
   
   ## preds
   ## sigmas
@@ -296,5 +320,6 @@ fitLKStandard = function(coords, obs, predCoords=coords, XObs=NULL, XPred=NULL, 
   ## rangeSummary
   ## sdSummary
   ## varSummary
-  return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo))
+  return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, medians=medians, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo, 
+              interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c()))
 }
