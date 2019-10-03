@@ -41,7 +41,7 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
   if(is.null(alphas) && !is.null(nu)) {
     alphas = getAlphas(nLayer, nu)
   }
-  else if(is.null(nu) && nLayer != 1) {
+  else if(is.null(nu) && nLayer != 1 && is.null(alphas)) {
     warning("Both alphas and nu are NULL. Defaulting to exponential covariance.")
     nu = 0.5
     alphas = getAlphas(nLayer, nu)

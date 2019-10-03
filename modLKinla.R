@@ -33,12 +33,12 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   
   # define the LK model
   n = length(obsValues)
-  rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.standard, latInfo=latInfo, obsValues=obsValues, 
+  rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.standard, latInfo=latInfo, ys=obsValues, 
                               prior=priorPar, normalize=normalize, precomputedMatrices=precomputedMatrices, 
-                              X=xObs, nu=nu, ys=obsValues, datCoords=obsCoords, fastNormalize=fastNormalize, 
+                              X=xObs, nu=nu, datCoords=obsCoords, fastNormalize=fastNormalize, 
                               printVerboseTimings=printVerboseTimings)
   # use these global variables for testing calls to inla.rgeneric.lk.model.simple
-  # latInfo<<-latInfo; obsValues<<-obsValues;
+  # latInfo<<-latInfo; ys<<-obsValues;
   # prior<<-priorPar; normalize<<-normalize; precomputedMatrices<<-precomputedMatrices;
   # X<<-xObs; nu<<-nu; datCoords<<-obsCoords; fastNormalize<<-fastNormalize;
   # printVerboseTimings<<-printVerboseTimings
