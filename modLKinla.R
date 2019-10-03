@@ -130,7 +130,7 @@ resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "m
   dataSets = simulationData
   
   # generate results for all data sets and return results (TODO: otherVariableNames)
-  fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
+  fitModelToDataSets(fitLKINLAStandard, dataSets, randomSeeds=randomSeeds, 
                      otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer), 
                      maxDataSets=maxDataSets)
 }
