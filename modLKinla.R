@@ -116,7 +116,7 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
 # input arguments:
 #   argument specifying the dataset type
 resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
-                     maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5) {
+                         maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5) {
   
   # determine the type of covariance for the data set
   covType = match.arg(covType)
@@ -131,7 +131,7 @@ resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "m
   
   # generate results for all data sets and return results (TODO: otherVariableNames)
   fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
-                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffers), 
+                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer), 
                      maxDataSets=maxDataSets)
 }
 
