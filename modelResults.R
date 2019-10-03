@@ -54,14 +54,17 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     upper = do.call("cbind", lapply(results, function(x) {c(x$upper)}))
     
     # parameter estimate summary statistics
-    interceptSummary = do.call("cbind", lapply(results, function(x) {c(x$interceptSummary)}))
+    interceptSummary = do.call("rbind", lapply(results, function(x) {c(x$interceptSummary)}))
     interceptSummary = colMeans(interceptSummary)
-    rangeSummary = do.call("cbind", lapply(results, function(x) {c(x$rangeSummary)}))
-    rangeSummary = colMeans(rangeSummary)
-    sdSummary = do.call("cbind", lapply(results, function(x) {c(x$sdSummary)}))
-    sdSummary = colMeans(sdSummary)
-    varSummary = do.call("cbind", lapply(results, function(x) {c(x$varSummary)}))
-    varSummary = colMeans(varSummary)
+    rangeSummary = do.call("rbind", lapply(results, function(x) {c(x$rangeSummary)}))
+    if(!is.null(rangeSummary))
+      rangeSummary = colMeans(rangeSummary)
+    sdSummary = do.call("rbind", lapply(results, function(x) {c(x$sdSummary)}))
+    if(!is.null(sdSummary))
+      sdSummary = colMeans(sdSummary)
+    varSummary = do.call("rbind", lapply(results, function(x) {c(x$varSummary)}))
+    if(!is.null(varSummary))
+      varSummary = colMeans(varSummary)
     # if(includeClustEffect) {
     #   nuggetVarSummary = do.call("rbind", lapply(results, function(x) {x$nuggetVarSummary}))
     #   nuggetVarSummary = colMeans(nuggetVarSummary)
@@ -74,15 +77,15 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     
     # summarize compute time
     computeTime = sapply(results, function(x) {c(x$computeTime)})
-    computeSummary = matrix(c(mean(computeTime), sd(computeTime), quantile(probs=c(0.1, 0.5, 0.9), computeTime)), nrow=1)
-    rownames(computeSummary) = rownames(sdSummary)
+    computeSummary = data.frame(matrix(c(mean(computeTime), sd(computeTime), quantile(probs=c(0.1, 0.5, 0.9), computeTime)), nrow=1))
+    names(computeSummary) = names(interceptSummary)
     
     # summarize other variables if necessary, such as latticeKrig layer weights and other hyperparameters
     otherVariableSummaries = list()
     if(!is.null(otherVariableNames)) {
       for(i in 1:length(otherVariableNames)) {
         thisVariableName = otherVariableNames[i]
-        thisVariableSummary = do.call("rbind", lapply(results, function(x) {x[[thisVariableName]]}))
+        thisVariableSummary = do.call("rbind", lapply(results, function(x) {c(x[[thisVariableName]])}))
         thisVariableSummary = colMeans(thisVariableSummary)
         otherVariableSummaries[[thisVariableName]] = thisVariableSummary
       }

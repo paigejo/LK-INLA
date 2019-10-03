@@ -67,6 +67,7 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   # fit the model
   # control.inla = list(cmin = 0, int.strategy=int.strategy) 
   # see: inla.doc("loggamma")
+  # shape=.1, scale=10 for unit mean, variance 100 prior
   controls = list(strategy=strategy, int.strategy=intStrategy) 
   mod = inla(y ~ - 1 + X + f(field, model=rgen), data=dat, 
              control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE), 
@@ -110,3 +111,35 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   list(mod=mod, preds=preds, SDs=predSDs, latInfo=latInfo, latWidth=latticeWidth, obsPreds=obsPreds, 
        obsSDs=obsSDs, coefPreds=coefPreds, coefSDs=coefSDs)
 }
+
+# this function generates results for the simulation study for the LKINLA (standard) model
+# input arguments:
+#   argument specifying the dataset type
+resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+                     maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5) {
+  
+  # determine the type of covariance for the data set
+  covType = match.arg(covType)
+  
+  # determine the spatial range for the data set. No range text means it's a mixture
+  rangeText = match.arg(rangeText)
+  
+  # construct the file name for the desired data set and load it
+  dataText = paste0(covType, rangeText, "DataSet.RData")
+  out = load(dataText)
+  dataSets = simulationData
+  
+  # generate results for all data sets and return results (TODO: otherVariableNames)
+  fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
+                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffers), 
+                     maxDataSets=maxDataSets)
+}
+
+
+
+
+
+
+
+
+

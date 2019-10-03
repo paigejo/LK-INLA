@@ -79,13 +79,16 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   stackDat = inla.stack.data(stack.full, spde=prior)
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
   
+  # see: inla.doc("loggamma")
+  # shape=.1, scale=10 for unit mean, variance 100 prior
   mod = inla(y ~ - 1 + X + f(field, model=prior), 
              data = stackDat, 
              control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, link=stackDat$link, quantiles=allQuantiles), 
              family="gaussian", verbose=verbose, control.inla=control.inla, 
              control.compute=list(config=TRUE), 
              control.mode=modeControl, 
-             control.fixed=list(quantiles=allQuantiles))
+             control.fixed=list(quantiles=allQuantiles), 
+             control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
   
   # get predictive surface, SD, and data
   n = nrow(obsCoords)
