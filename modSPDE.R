@@ -140,7 +140,6 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   spatialSDSummary = mod$summary.random[3,1:5]
   
   # get posterior hyperparameter samples and transform them as necessary
-  postSamples = inla.posterior.sample(nPostSamples, mod)
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   mat = apply(hyperMat, 2, function(x) {c(totalVar=x[3]^2+1/x[1], spatialVar=x[3]^2, errorVar=1/x[1], 
                                           totalSD=sqrt(x[3]^2+1/x[1]), spatialSD=x[3], errorSD=sqrt(1/x[1]), 

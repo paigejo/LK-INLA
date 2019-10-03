@@ -11,7 +11,8 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
                              nBuffer=5, priorPar=getPrior(.1, .1, 10), 
                              xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                              intStrategy="auto", strategy="gaussian", fastNormalize=FALSE, 
-                             predictionType=c("mean", "median"), printVerboseTimings=FALSE) {
+                             predictionType=c("mean", "median"), significanceCI=0.8, 
+                             printVerboseTimings=FALSE, nPostSamples=1000) {
   set.seed(seed)
   
   # get the type of prediction the user wants
@@ -69,9 +70,10 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   # see: inla.doc("loggamma")
   # shape=.1, scale=10 for unit mean, variance 100 prior
   controls = list(strategy=strategy, int.strategy=intStrategy) 
-  mod = inla(y ~ - 1 + X + f(field, model=rgen), data=dat, 
-             control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE), 
-             family="normal", verbose=TRUE, control.inla=controls, 
+  allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
+  mod = inla(y ~ - 1 + X + f(field, model=rgen), data=dat, quantiles=allQuantiles, 
+             control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
+             family="normal", verbose=TRUE, control.inla=controls, control.fixed=list(quantiles=allQuantiles), 
              control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1))))
   )
   
@@ -92,6 +94,57 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   predSDs = linpred.sd[predInds]
   obsSDs = linpred.sd[obsInds]
   
+  # generate samples from posterior
+  postSamples = inla.posterior.sample(nPostSamples, mod)
+  latentMat = sapply(postSamples, function(x) {x$latent})
+  # if(clusterEffect)
+  #   clusterVars = sapply(postSamples, function(x) {1 / x$hyperpar[3]})
+  latentVarNames = rownames(postSamples[[1]]$latent)
+  fieldIndices = which(grepl("field", latentVarNames))
+  fixedIndices = which(grepl("X", latentVarNames))
+  # if(clusterEffect)
+  #   clustIndices = grepl("clust", latentVarNames)
+  
+  # generate logit predictions (first without cluster effect then add the cluster effect in)
+  if(length(xPred) != 0)
+    fixedPart = xPred  %*% latentMat[fixedIndices,]
+  else
+    fixedPart = 0
+  predMat = fixedPart + APred %*% latentMat[fieldIndices,]
+  
+  # compute predictive credible intervals
+  lower = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
+  medians = apply(predMat, 1, median)
+  upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
+  
+  interceptSummary=mod$summary.fixed[,1:5]
+  rangeSummary=mod$summary.random[2,1:5]
+  spatialSDSummary = mod$summary.random[3,1:5]
+  
+  # get posterior hyperparameter samples and transform them as necessary
+  hyperMat = sapply(postSamples, function(x) {x$hyperpar})
+  mat = apply(hyperMat, 2, function(x) {c(totalVar=x[3]^2+1/x[1], spatialVar=x[3]^2, errorVar=1/x[1], 
+                                          totalSD=sqrt(x[3]^2+1/x[1]), spatialSD=x[3], errorSD=sqrt(1/x[1]), 
+                                          spatialRange=x[2])})
+  hyperNames = c("totalVar", "spatialVar", "errorVar", "totalSD", "spatialSD", "errorSD", "spatialRange")
+  rownames(mat) = hyperNames
+  
+  getSummaryStatistics = function(draws) {
+    c(Est=mean(draws), SD=sd(draws), 
+      Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
+      Q50=quantile(probs=0.5, draws), 
+      Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+  }
+  summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
+  parameterSummaryTable = t(apply(mat, 1, getSummaryStatistics))
+  colnames(parameterSummaryTable) = summaryNames
+  
+  # separate out default parameter summaries
+  sdSummary=parameterSummaryTable[6,]
+  varSummary=parameterSummaryTable[3,]
+  rangeSummary=parameterSummaryTable[7,]
+  
+  # compute basis function coefficient predictions and standard deviations
   startI = n+nrow(predCoords)+1
   endI = n+nrow(predCoords)+nx*ny
   coefPreds = list(layer1 = linpreds[startI:endI])
@@ -105,11 +158,10 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
     }
   }
   
-  # get true effective range and marginal variance:
-  latticeWidth = latInfo[[1]]$latWidth
-  
   list(mod=mod, preds=preds, SDs=predSDs, latInfo=latInfo, latWidth=latticeWidth, obsPreds=obsPreds, 
-       obsSDs=obsSDs, coefPreds=coefPreds, coefSDs=coefSDs)
+       obsSDs=obsSDs, coefPreds=coefPreds, coefSDs=coefSDs, 
+       interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
+       sdSummary=sdSummary, varSummary=varSummary, parameterSummaryTable=parameterSummaryTable)
 }
 
 # this function generates results for the simulation study for the LKINLA (standard) model
