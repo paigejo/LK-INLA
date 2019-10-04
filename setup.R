@@ -15,7 +15,23 @@ library(MCMCpack)
 library(numDeriv)
 library(INLA)
 
-setwd("~/git/LK-INLA/")
+
+
+inf = sessionInfo()
+if(inf$platform != "x86_64-apple-darwin15.6.0 (64-bit)" && inf$platform != "x86_64-w64-mingw32/x64 (64-bit)") {
+  INLA:::inla.dynload.workaround()
+  # avoid setting too many threads and thereby using too much memory
+  inla.setOption(num.threads=1)
+  options(error=traceback)
+  setwd("~/git/LK-INLA/")
+} else if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)") {
+  setwd("~/git/LK-INLA/")
+  options(error=recover)
+} else {
+  setwd("U:/git/LK-INLA/")
+  options(error=recover)
+}
+
 source('compareModels.R')
 source('LKinla.R')
 source('LKinla_rgeneric.R')
@@ -28,16 +44,6 @@ source('getCommandArgs.R')
 # source('mapOver.R')
 source('utilityFuns.R')
 # source('~/git/M9/exploratoryAnalysisFuns.R')
-
-inf = sessionInfo()
-if(inf$platform != "x86_64-apple-darwin15.6.0 (64-bit)") {
-  INLA:::inla.dynload.workaround()
-  # avoid setting too many threads and thereby using too much memory
-  inla.setOption(num.threads=1)
-  options(error=traceback)
-} else {
-  options(error=recover)
-}
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {
