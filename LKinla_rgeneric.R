@@ -18,7 +18,11 @@ inla.rgeneric.lk.model.test = function(
 {
   if(first.time) {
     # load relevant external functions
-    source("~/git/LK-INLA/LKinla.R")
+    inf = sessionInfo()
+    if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+      source("~/git/LK-INLA/LKinla.R")
+    else
+      source("U:/git/LK-INLA/LKinla.R")
     
     first.time <<- FALSE
   }
@@ -633,7 +637,11 @@ inla.rgeneric.lk.model.simple = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     
     makeGraph(latInfo)
@@ -645,7 +653,11 @@ inla.rgeneric.lk.model.simple = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     
     makeQ(kap, rho, latInfo, alphas=alphas, normalized=normalize, 
@@ -708,7 +720,11 @@ inla.rgeneric.lk.model.simple = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     AMat = makeA(datCoords, latInfo)
     mod = lm(ys ~ cbind(X, as.matrix(AMat)) - 1)
@@ -1486,7 +1502,11 @@ inla.rgeneric.lk.model.standard = function(
           # load relevant external functions
           if(printVerboseTimings)
             print("sourcing LKinla.R...")
-          source("~/git/LK-INLA/LKinla.R")
+          inf = sessionInfo()
+          if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+            source("~/git/LK-INLA/LKinla.R")
+          else
+            source("U:/git/LK-INLA/LKinla.R")
         }
         # alphas = getAlphas(L, nu)
         alphas = multivariateExpit(theta[3:(2 + L - 1)])
@@ -1557,7 +1577,11 @@ inla.rgeneric.lk.model.standard = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     
     makeGraph(latInfo)
@@ -1569,7 +1593,11 @@ inla.rgeneric.lk.model.standard = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     
     makeQPrecomputed(precomputedMatrices=precomputedMatrices, kap, rho, latInfo, alphas=alphas, normalized=normalize, 
@@ -1634,7 +1662,11 @@ inla.rgeneric.lk.model.standard = function(
         # load relevant external functions
         if(printVerboseTimings)
           print("sourcing LKinla.R...")
-        source("~/git/LK-INLA/LKinla.R")
+        inf = sessionInfo()
+        if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+          source("~/git/LK-INLA/LKinla.R")
+        else
+          source("U:/git/LK-INLA/LKinla.R")
       }
       
       # the jacobian factor has already been included in dexpitDirichlet
@@ -1666,7 +1698,11 @@ inla.rgeneric.lk.model.standard = function(
       # load relevant external functions
       if(printVerboseTimings)
         print("sourcing LKinla.R...")
-      source("~/git/LK-INLA/LKinla.R")
+      inf = sessionInfo()
+      if(inf$platform != "x86_64-w64-mingw32/x64 (64-bit)")
+        source("~/git/LK-INLA/LKinla.R")
+      else
+        source("U:/git/LK-INLA/LKinla.R")
     }
     AMat = makeA(datCoords, latInfo)
     mod = lm(ys ~ cbind(X, as.matrix(AMat)) - 1)
