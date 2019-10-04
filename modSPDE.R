@@ -136,8 +136,8 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
   
   interceptSummary=mod$summary.fixed[,1:5]
-  rangeSummary=mod$summary.random[2,1:5]
-  spatialSDSummary = mod$summary.random[3,1:5]
+  rangeSummary=mod$summary.hyperpar[2,1:5]
+  spatialSDSummary = mod$summary.hyperpar[3,1:5]
   
   # get posterior hyperparameter samples and transform them as necessary
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})

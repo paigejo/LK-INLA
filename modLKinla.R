@@ -10,7 +10,7 @@
 fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
                              nBuffer=5, priorPar=getPrior(.1, .1, 10), 
                              xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
-                             intStrategy="auto", strategy="gaussian", fastNormalize=FALSE, 
+                             intStrategy="auto", strategy="gaussian", fastNormalize=TRUE, 
                              predictionType=c("mean", "median"), significanceCI=0.8, 
                              printVerboseTimings=FALSE, nPostSamples=1000) {
   set.seed(seed)
@@ -71,9 +71,12 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   # shape=.1, scale=10 for unit mean, variance 100 prior
   controls = list(strategy=strategy, int.strategy=intStrategy) 
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
-  mod = inla(y ~ - 1 + X + f(field, model=rgen), data=dat, quantiles=allQuantiles, 
+  mod = inla(y ~ - 1 + X + f(field, model=rgen), 
+             data=dat, quantiles=allQuantiles, family="normal", verbose=TRUE, 
+             control.inla=controls, 
+             control.compute=list(config=TRUE), 
              control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
-             family="normal", verbose=TRUE, control.inla=controls, control.fixed=list(quantiles=allQuantiles), 
+             control.fixed=list(quantiles=allQuantiles), 
              control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1))))
   )
   
@@ -117,16 +120,22 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   medians = apply(predMat, 1, median)
   upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
   
-  interceptSummary=mod$summary.fixed[,1:5]
-  rangeSummary=mod$summary.random[2,1:5]
-  spatialSDSummary = mod$summary.random[3,1:5]
+  interceptSummary=mod$summary.fixed[,c(1, 2, 4, 3, 5)]
   
   # get posterior hyperparameter samples and transform them as necessary
+  # interpretation of hyperparameters: 
+  # 1: error precision
+  # 2: log effective range
+  # 3: log spatial variance
+  # 4-(3 + nLayer - 1): multivariateLogit alpha
+  alphas = multivariateExpit(theta[3:(2 + L - 1)])
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
-  mat = apply(hyperMat, 2, function(x) {c(totalVar=x[3]^2+1/x[1], spatialVar=x[3]^2, errorVar=1/x[1], 
-                                          totalSD=sqrt(x[3]^2+1/x[1]), spatialSD=x[3], errorSD=sqrt(1/x[1]), 
-                                          spatialRange=x[2])})
-  hyperNames = c("totalVar", "spatialVar", "errorVar", "totalSD", "spatialSD", "errorSD", "spatialRange")
+  mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1], spatialVar=exp(x[3]), errorVar=1/x[1], 
+                                          totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
+                                          spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]))})
+  mat = rbind(mat, alpha=1-colSums(mat[8:(7+nLayer-1),]))
+  hyperNames = c("totalVar", "spatialVar", "errorVar", "totalSD", "spatialSD", "errorSD", "spatialRange", 
+                 paste0("alpha", 1:nLayer))
   rownames(mat) = hyperNames
   
   getSummaryStatistics = function(draws) {
@@ -143,6 +152,7 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   sdSummary=parameterSummaryTable[6,]
   varSummary=parameterSummaryTable[3,]
   rangeSummary=parameterSummaryTable[7,]
+  alphaSummary=parameterSummaryTable[8:(8+nLayer-1),]
   
   # compute basis function coefficient predictions and standard deviations
   startI = n+nrow(predCoords)+1
@@ -158,10 +168,11 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
     }
   }
   
-  list(mod=mod, preds=preds, SDs=predSDs, latInfo=latInfo, latWidth=latticeWidth, obsPreds=obsPreds, 
+  list(mod=mod, preds=preds, SDs=predSDs, latInfo=latInfo, obsPreds=obsPreds, 
        obsSDs=obsSDs, coefPreds=coefPreds, coefSDs=coefSDs, 
        interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
-       sdSummary=sdSummary, varSummary=varSummary, parameterSummaryTable=parameterSummaryTable)
+       sdSummary=sdSummary, varSummary=varSummary, parameterSummaryTable=parameterSummaryTable, 
+       alphaSummary=alphaSummary)
 }
 
 # this function generates results for the simulation study for the LKINLA (standard) model
