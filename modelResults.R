@@ -34,10 +34,10 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
   
   # generate random seeds for each data set
   if(is.null(randomSeeds))
-    randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
+    randomSeeds = sample(1:2000000, ncol(dataSets$xTrain), replace=FALSE)
   else if(length(randomSeeds) != length(dataSets)) {
-    warning(paste0("length(randomSeeds) (", length(randomSeeds), ") is not equal to length(dataSets), (", length(dataSets), "). Regenerating randomSeeds"))
-    randomSeeds = sample(1:2000000, length(dataSets), replace=FALSE)
+    warning(paste0("length(randomSeeds) (", length(randomSeeds), ") is not equal to length(dataSets), (", ncol(dataSets$xTrain), "). Regenerating randomSeeds"))
+    randomSeeds = sample(1:2000000, ncol(dataSets$xTrain), replace=FALSE)
   }
   
   # this function combines the results from the model fit to each data set, and can be called in parallel
