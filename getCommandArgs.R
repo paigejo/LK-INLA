@@ -11,12 +11,13 @@ getGPCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(covType == "mixture" && rangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "")
         next
-      else if(covType != "mixture" && rangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "")
         next
       
       gpCommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText)
+      i=i+1
     }
   }
   
@@ -33,12 +34,13 @@ getSpdeCommandArgs = function(covType=c("exponential", "matern", "mixture"), ran
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(covType == "mixture" && rangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "")
         next
-      else if(covType != "mixture" && rangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "")
         next
       
       spdeCommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText)
+      i=i+1
     }
   }
   
@@ -56,15 +58,16 @@ getLKCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(covType == "mixture" && rangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "")
         next
-      else if(covType != "mixture" && rangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "")
         next
       
       for(i3 in 1:length(nLayer)) {
         thisnLayer = nLayer[i3]
         
         LKCommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText, nLayer=thisnLayer)
+        i=i+1
       }
     }
   }
@@ -83,15 +86,16 @@ getLKINLACommandArgs = function(covType=c("exponential", "matern", "mixture"), r
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(covType == "mixture" && rangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "")
         next
-      else if(covType != "mixture" && rangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "")
         next
       
       for(i3 in 1:length(nLayer)) {
         thisnLayer = nLayer[i3]
         
         LKINLACommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText, nLayer=thisnLayer)
+        i=i+1
       }
     }
   }
