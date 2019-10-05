@@ -128,7 +128,6 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   # 2: log effective range
   # 3: log spatial variance
   # 4-(3 + nLayer - 1): multivariateLogit alpha
-  alphas = multivariateExpit(theta[3:(2 + L - 1)])
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1], spatialVar=exp(x[3]), errorVar=1/x[1], 
                                           totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
