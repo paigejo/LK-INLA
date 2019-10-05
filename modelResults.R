@@ -58,16 +58,16 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     
     # parameter estimate summary statistics
     interceptSummary = do.call("rbind", lapply(results, function(x) {c(x$interceptSummary)}))
-    interceptSummary = colMeans(interceptSummary)
+    interceptSummary = colMeans(matrix(unlist(interceptSummary), ncol=5))
     rangeSummary = do.call("rbind", lapply(results, function(x) {c(x$rangeSummary)}))
     if(!is.null(rangeSummary))
-      rangeSummary = colMeans(rangeSummary)
+      rangeSummary = colMeans(matrix(unlist(rangeSummary), ncol=5))
     sdSummary = do.call("rbind", lapply(results, function(x) {c(x$sdSummary)}))
     if(!is.null(sdSummary))
-      sdSummary = colMeans(sdSummary)
+      sdSummary = colMeans(matrix(unlist(sdSummary), ncol=5))
     varSummary = do.call("rbind", lapply(results, function(x) {c(x$varSummary)}))
     if(!is.null(varSummary))
-      varSummary = colMeans(varSummary)
+      varSummary = colMeans(matrix(unlist(varSummary), ncol=5))
     # if(includeClustEffect) {
     #   nuggetVarSummary = do.call("rbind", lapply(results, function(x) {x$nuggetVarSummary}))
     #   nuggetVarSummary = colMeans(nuggetVarSummary)
@@ -89,7 +89,7 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
       for(i in 1:length(otherVariableNames)) {
         thisVariableName = otherVariableNames[i]
         thisVariableSummary = do.call("rbind", lapply(results, function(x) {c(x[[thisVariableName]])}))
-        thisVariableSummary = colMeans(thisVariableSummary)
+        thisVariableSummary = colMeans(matrix(unlist(thisVariableSummary), ncol=5))
         otherVariableSummaries[[thisVariableName]] = thisVariableSummary
       }
     }
