@@ -180,7 +180,10 @@ resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mix
   rangeText = match.arg(rangeText)
   
   # construct the file name for the desired data set and load it
-  dataText = paste0(covType, rangeText, "DataSet.RData")
+  if(rangeText == "mix")
+    dataText = paste0(covType, "DataSet.RData")
+  else
+    dataText = paste0(covType, rangeText, "DataSet.RData")
   out = load(dataText)
   dataSets = simulationData
   
