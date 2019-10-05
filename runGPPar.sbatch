@@ -3,7 +3,7 @@
 #SBATCH --partition medium    # Slurm partition to use
 #SBATCH --ntasks 8          # Number of tasks to run. By default, one CPU core will be allocated per task
 #SBATCH --time 5-00:00        # Wall time limit in D-HH:MM
-#SBATCH --mem-per-cpu=60000     # Memory limit for each tasks (in MB)
+#SBATCH --mem-per-cpu=30000     # Memory limit for each tasks (in MB)
 #SBATCH -o runGPPar_%A_%a.out    # File to which STDOUT will be written
 #SBATCH -e runGPPar_%A_%a.err    # File to which STDERR will be written
 #SBATCH --mail-type=ALL       # Type of email notification- BEGIN,END,FAIL,ALL
