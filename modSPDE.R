@@ -171,7 +171,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
 # this function generates results for the simulation study for the SPDE model
 # input arguments:
 #   argument specifying the dataset type
-resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                        maxDataSets=NULL) {
   # determine the type of covariance for the data set
   covType = match.arg(covType)

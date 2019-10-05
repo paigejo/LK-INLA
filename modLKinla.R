@@ -177,7 +177,7 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
 # this function generates results for the simulation study for the LKINLA (standard) model
 # input arguments:
 #   argument specifying the dataset type
-resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                          maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5) {
   
   # determine the type of covariance for the data set

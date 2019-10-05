@@ -2,7 +2,7 @@
 # saving the files to be used later
 
 # make the command arguments file for resultsSPDE
-getGPCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "")) {
+getGPCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix")) {
   gpCommandArgs = list()
   i = 1
   for(i1 in 1:length(covType)) {
@@ -11,9 +11,9 @@ getGPCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(thisCovType == "mixture" && thisRangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "mix")
         next
-      else if(thisCovType != "mixture" && thisRangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "mix")
         next
       
       gpCommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText)
@@ -25,7 +25,7 @@ getGPCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
 }
 
 # make the command arguments file for resultsSPDE
-getSpdeCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "")) {
+getSpdeCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix")) {
   spdeCommandArgs = list()
   i = 1
   for(i1 in 1:length(covType)) {
@@ -34,9 +34,9 @@ getSpdeCommandArgs = function(covType=c("exponential", "matern", "mixture"), ran
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(thisCovType == "mixture" && thisRangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "mix")
         next
-      else if(thisCovType != "mixture" && thisRangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "mix")
         next
       
       spdeCommandArgs[[i]] = list(covType=thisCovType, rangeText=thisRangeText)
@@ -48,7 +48,7 @@ getSpdeCommandArgs = function(covType=c("exponential", "matern", "mixture"), ran
 }
 
 # make the command arguments file for resultsLK
-getLKCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+getLKCommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                             nLayer=c(3, 4)) {
   LKCommandArgs = list()
   i = 1
@@ -58,9 +58,9 @@ getLKCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(thisCovType == "mixture" && thisRangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "mix")
         next
-      else if(thisCovType != "mixture" && thisRangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "mix")
         next
       
       for(i3 in 1:length(nLayer)) {
@@ -76,7 +76,7 @@ getLKCommandArgs = function(covType=c("exponential", "matern", "mixture"), range
 }
 
 # make the command arguments file for resultsLKINLA
-getLKINLACommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+getLKINLACommandArgs = function(covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                             nLayer=c(3, 4)) {
   LKINLACommandArgs = list()
   i = 1
@@ -86,9 +86,9 @@ getLKINLACommandArgs = function(covType=c("exponential", "matern", "mixture"), r
     for(i2 in 1:length(rangeText)) {
       thisRangeText = rangeText[i2]
       
-      if(thisCovType == "mixture" && thisRangeText != "")
+      if(thisCovType == "mixture" && thisRangeText != "mix")
         next
-      else if(thisCovType != "mixture" && thisRangeText == "")
+      else if(thisCovType != "mixture" && thisRangeText == "mix")
         next
       
       for(i3 in 1:length(nLayer)) {
@@ -103,7 +103,10 @@ getLKINLACommandArgs = function(covType=c("exponential", "matern", "mixture"), r
   save(LKINLACommandArgs, file="LKINLACommandArgs.RData")
 }
 
-
+# getGPCommandArgs()
+# getSpdeCommandArgs()
+# getLKCommandArgs()
+# getLKINLACommandArgs()
 
 
 

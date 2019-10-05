@@ -327,7 +327,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
 # this function generates results for the simulation study for the LK (standard) model
 # input arguments:
 #   argument specifying the dataset type
-resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                      maxDataSets=NULL, NC=5, nLayer=3, normalize=TRUE, nBuffer=5, nsimConditional=100, fixedFunctionArgs = list(m = 1)) {
   
   # determine the type of covariance for the data set

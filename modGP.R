@@ -68,7 +68,7 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
 # this function generates results for the simulation study for the GP model
 # input arguments:
 #   argument specifying the dataset type
-resultsGP = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", ""), 
+resultsGP = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixture"), rangeText=c("01", "05", "1", "mix"), 
                      maxDataSets=NULL) {
   # determine the type of covariance for the data set
   covType = match.arg(covType)
