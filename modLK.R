@@ -342,10 +342,17 @@ resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   dataSets = simulationData
   
   # generate results for all data sets and return results (TODO: otherVariableNames)
-  fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
-                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer, 
-                                    nsimConditional=nsimConditional, fixedFunctionArgs=fixedFunctionArgs), 
-                     maxDataSets=maxDataSets, includeIntercept=FALSE)
+  resultsLK = fitModelToDataSets(fitLKStandard, dataSets, randomSeeds=randomSeeds, 
+                                 otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer, 
+                                                nsimConditional=nsimConditional, fixedFunctionArgs=fixedFunctionArgs), 
+                                 maxDataSets=maxDataSets, includeIntercept=FALSE)
+  
+  # save results
+  fileName = paste0("resultsLK_cov", covType, "Range", rangeText, "NC", NC, "nLayer", nLayer, 
+                    "maxDataSets", maxDataSets, ".RData")
+  save(resultsLK, file=fileName)
+  
+  resultsLK
 }
 
 

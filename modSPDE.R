@@ -188,8 +188,14 @@ resultsSPDE = function(randomSeeds=NULL, covType=c("exponential", "matern", "mix
   mesh = getSPDEMesh(cbind(c(dataSets$xTrain, dataSets$xTest), c(dataSets$yTrain, dataSets$yTest)))
   
   # generate results for all data sets and return results (TODO: otherVariableNames)
-  fitModelToDataSets(fitSPDE, dataSets, randomSeeds=randomSeeds, otherArgs=list(mesh=mesh), 
-                     maxDataSets=maxDataSets)
+  resultsSPDE = fitModelToDataSets(fitSPDE, dataSets, randomSeeds=randomSeeds, otherArgs=list(mesh=mesh), 
+                                   maxDataSets=maxDataSets)
+  
+  # save results
+  fileName = paste0("resultsSPDE_cov", covType, "Range", rangeText, "maxDataSets", maxDataSets, ".RData")
+  save(resultsSPDE, file=fileName)
+  
+  resultsSPDE
 }
 
 

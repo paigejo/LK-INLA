@@ -192,9 +192,16 @@ resultsLKINLA = function(randomSeeds=NULL, covType=c("exponential", "matern", "m
   dataSets = simulationData
   
   # generate results for all data sets and return results (TODO: otherVariableNames)
-  fitModelToDataSets(fitLKINLAStandard, dataSets, randomSeeds=randomSeeds, 
-                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer), 
-                     maxDataSets=maxDataSets)
+  resultsLKINLA = fitModelToDataSets(fitLKINLAStandard, dataSets, randomSeeds=randomSeeds, 
+                                     otherArgs=list(NC=NC, nLayer=nLayer, normalize=normalize, nBuffer=nBuffer), 
+                                     maxDataSets=maxDataSets)
+  
+  # save results
+  fileName = paste0("resultsLKINLA_cov", covType, "Range", rangeText, "NC", NC, "nLayer", nLayer, 
+                    "maxDataSets", maxDataSets, ".RData")
+  save(resultsLKINLA, file=fileName)
+  
+  resultsLKINLA
 }
 
 

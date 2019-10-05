@@ -82,7 +82,13 @@ resultsGP = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   dataSets = simulationData
   
   # generate results for all data sets and return results
-  fitModelToDataSets(GPpreds, dataSets, randomSeeds=randomSeeds, maxDataSets=maxDataSets)
+  resultsGP = fitModelToDataSets(GPpreds, dataSets, randomSeeds=randomSeeds, maxDataSets=maxDataSets)
+  
+  # save results
+  fileName = paste0("resultsGP_cov", covType, "Range", rangeText, "maxDataSets", maxDataSets, ".RData")
+  save(resultsGP, file=fileName)
+  
+  resultsGP
 }
 
 
