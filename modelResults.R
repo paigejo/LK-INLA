@@ -15,10 +15,9 @@
 # otherArgs: a list of other arguments to the input fitModelFun aside from the standard. Examples 
 #            include "betas" for the GPpreds function
 fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVariableNames=NULL, otherArgs=NULL, 
-                              maxDataSets=NULL, parClust=cl, includeIntercept=TRUE) {
+                              maxDataSets=NULL, parClust=cl, includeIntercept=TRUE, seed=123) {
   
   # remove data sets past maxDataSets
-  
   if(!is.null(maxDataSets)) {
     dataSets$xTrain = dataSets$xTrain[,1:maxDataSets]
     dataSets$yTrain = dataSets$yTrain[,1:maxDataSets]
@@ -28,6 +27,10 @@ fitModelToDataSets = function(fitModelFun, dataSets, randomSeeds=NULL, otherVari
     dataSets$zTest = dataSets$zTest[,1:maxDataSets]
   }
   nsim = ncol(dataSets$xTrain)
+  
+  # set random number seed for generating random number seeds...
+  if(!is.null(seed))
+    set.seed(seed)
   
   # generate random seeds for each data set
   if(is.null(randomSeeds))
