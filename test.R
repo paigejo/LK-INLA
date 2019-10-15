@@ -801,7 +801,7 @@ testAlphaPrior = function() {
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=50, sigma2 = .1^2, 
+testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, sigma2 = .2^2, 
                                nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
                                printVerboseTimings=FALSE) {
   set.seed(seed)
@@ -835,8 +835,8 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   # make prediction coordinates on a grid
   xRange=c(0,1)
   yRange=c(0,1)
-  mx = 20
-  my = 20
+  mx = 100
+  my = 100
   predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
   
   # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
@@ -882,7 +882,7 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
     pdf(file=paste0("Figures/standardPriorAlpha", l, ".pdf"), width=5, height=5)
     xs = seq(0, 1, l=500)
     tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
-    plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), 
+    plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
          main=TeX(paste0("Marginal for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
     abline(v=alphas[l], col="green")
     abline(v=qbeta(c(0.025, 0.975), priorPar$alphaPar[l], sum(priorPar$alphaPar[-l])), col="purple", lty=2)
@@ -891,9 +891,9 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   
   
   # fit the model
-  time = system.time(out <- fitLKINLAStandard(coords, ys, predPts=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC,
-                                              nBuffer=nBuffer, priorPar=priorPar, X=X, XPred=XPred, normalize=normalize, 
-                                              intStrategy="auto", strategy="gaussian", fastNormalize=fastNormalize, 
+  time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC,
+                                              nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
+                                              intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
                                               printVerboseTimings=printVerboseTimings))
   mod = out$mod
   preds=out$preds
@@ -911,9 +911,16 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   # show a model summary
   print(summary(mod))
   
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
   # show predictive surface, SD, and data
   
-  pdf(file="Figures/standardPreds.pdf", width=15, height=10)
+  pdf(file="Figures/standardPreds.pdf", width=15, height=6)
   if(nLayer==1) {
     par(mfrow=c(2,3))
     
@@ -921,13 +928,16 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
     colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
-    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
+                         coefSDs[[2]][inRange(gridPtsL2)], coefSDs[[3]][inRange(gridPtsL3)]))
     gridPtsL1 = latInfo[[1]]$latCoords
     quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     
-    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # quilt.plot(coords, obsPreds, main="Prediction mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat, 
+    #            zlim=range(predSDs[inRange(predPts)]))
+    plot.new()
     quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
                xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
@@ -940,6 +950,7 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
     colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
     colRangeSD = range(c(predSDs, obsSDs, coefSDs))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
@@ -956,12 +967,14 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
   }
   else if(nLayer==3) {
-    par(mfrow=c(2,5))
+    par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
     
     # obsInds = 1:n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
-    colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    # colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
     colRangeSD = range(c(predSDs, obsSDs, coefSDs))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
@@ -969,13 +982,18 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
     quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
                xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
     
-    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
-               xlim=xRangeDat, ylim=yRangeDat)
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
@@ -1009,7 +1027,7 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   dev.off()
   # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
   pdf(file="Figures/standardVar.pdf", width=5, height=5)
-  plot(varMarg, type="l", main="Marginal for process variance")
+  plot(varMarg, type="l", main="Marginal for spatial variance")
   abline(v=marginalVar, col="green")
   abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
   dev.off()
@@ -1070,6 +1088,319 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   
   for(l in 1:nLayer) {
     pdf(file=paste0("Figures/standardAlpha", l, ".pdf"), width=5, height=5)
+    hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
+    abline(v=alphas[l], col="green")
+    abline(v=mean(xSamples[l,]), col="purple", lty=1)
+    abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+    dev.off()
+  }
+  
+  invisible(NULL)
+}
+
+# tests the fitLKINLAStandard function using data simulated from the LK model with binomial likelihood
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, sigma2 = .2^2, 
+                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
+                                   printVerboseTimings=FALSE, nObs=rep(25, n)) {
+  set.seed(seed)
+  
+  # compute alphas, the variance weights for each layer, depending on nu if necessary:
+  if(is.null(alphas))
+    alphas = getAlphas(nLayer, nu)
+  
+  # generate lattice and simulate observations
+  coords = matrix(runif(2*n), ncol=2)
+  xRangeDat = range(coords[,1])
+  yRangeDat = range(coords[,2])
+  latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  
+  AObs = makeA(coords, latInfo)
+  Q = makeQ(kappa=kappa, rho=rho, latInfo, alphas=alphas, normalized=normalize, fastNormalize=fastNormalize) 
+  L = as.matrix(t(chol(solve(Q))))
+  zsims = matrix(rnorm(nrow(Q)), ncol=1)
+  fieldSims = L %*% zsims
+  ps = as.numeric(AObs %*% fieldSims) + 1 # add a constant unit mean term to be estimated by INLA
+  # ys = 1 + as.numeric(AObs %*% fieldSims) + coords[,1] # x-valued mean term to be estimated by INLA
+  errs = rnorm(n, sd=sqrt(sigma2))
+  ps = expit(ps + errs)
+  ys = rbinom(n, nObs, ps)
+  
+  # plot the observations
+  pdf(file="Figures/standardObservationsBinom.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys, main="Number observations")
+  dev.off()
+  
+  pdf(file="Figures/standardLatentBinom.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ps, main="Latent probabilities")
+  dev.off()
+  
+  # make prediction coordinates on a grid
+  xRange=c(0,1)
+  yRange=c(0,1)
+  mx = 100
+  my = 100
+  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  
+  # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
+  priorPar = getPrior(.1, .1, 10)
+  X = matrix(rep(1, n), ncol=1)
+  # X = matrix(coords[,1], ncol=1)
+  XPred = matrix(rep(1, mx*my), ncol=1)
+  
+  # add linear terms in lat/lon to covariate matrices if requested
+  if(testCovs) {
+    X = cbind(X, coords)
+    XPred = cbind(XPred, predPts)
+  }
+  
+  # show priors on effective correlation, marginal variance, and error variance:
+  xs1 = seq(.01, 1, l=500)
+  pdf(file="Figures/standardPriorEffRangeBinom.pdf", width=5, height=5)
+  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+       ylab="Prior Density")
+  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  dev.off()
+  
+  xs2 = seq(.01, 10.5, l=500)
+  pdf(file="Figures/standardPriorMargVarBinom.pdf", width=5, height=5)
+  plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+       xlab="Marginal Variance", main="Marginal Variance Prior", 
+       ylab="Prior Density")
+  abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  dev.off()
+  
+  xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  pdf(file="Figures/standardPriorErrorVarBinom.pdf", width=5, height=5)
+  plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+       xlab="Error Variance", main="Error Variance Prior", 
+       ylab="Prior Density")
+  abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  dev.off()
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/standardPriorAlpha", l, "Binom.pdf"), width=5, height=5)
+    xs = seq(0, 1, l=500)
+    tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
+    plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
+         main=TeX(paste0("Marginal for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
+    abline(v=alphas[l], col="green")
+    abline(v=qbeta(c(0.025, 0.975), priorPar$alphaPar[l], sum(priorPar$alphaPar[-l])), col="purple", lty=2)
+    dev.off()
+  }
+  
+  
+  # fit the model
+  time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC,
+                                               nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
+                                               intStrategy="auto", strategy="gaussian", fastNormalize=fastNormalize, 
+                                               printVerboseTimings=printVerboseTimings, family="binomial", obsNs=nObs))
+  mod = out$mod
+  preds=out$preds
+  predSDs=out$sigmas
+  latInfo=out$latInfo
+  latWidth=out$latWidth
+  obsPreds=out$obsPreds
+  obsSDs=out$obsSDs
+  coefPreds = out$coefPreds
+  coefSDs = out$coefSDs
+  
+  # print out the total time
+  print(paste0("Total time: ", time[3]))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  
+  pdf(file="Figures/standardPredsBinom.pdf", width=15, height=6)
+  if(nLayer==1) {
+    par(mfrow=c(2,3))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c((ys-errs) / nObs, obsPreds, preds, expit(unlist(coefPreds))))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), expit(coefSDs[[1]][inRange(gridPtsL1)]), 
+                         expit(coefSDs[[2]][inRange(gridPtsL2)]), expit(coefSDs[[3]][inRange(gridPtsL3)])))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    quilt.plot(coords, (ys-errs) / nObs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefPreds[[1]]), main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefSDs[[1]]), main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    
+    # quilt.plot(coords, obsPreds, main="Prediction mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat, 
+    #            zlim=range(predSDs[inRange(predPts)]))
+    plot.new()
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+  } else if(nLayer==2) {
+    par(mfrow=c(2,4))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c((ys-errs) / nObs, obsPreds, preds, expit(unlist(coefPreds))))
+    colRangeCoef = range(c(expit(unlist(coefPreds))))
+    colRangeSD = range(c(predSDs, obsSDs, expit(unlist(coefSDs))))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    quilt.plot(coords, (ys-errs) / nObs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefPreds[[1]]), main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], expit(coefPreds[[2]]), main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
+    
+    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefSDs[[1]]), main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], expit(coefSDs[[2]]), main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  } else if(nLayer==3) {
+    par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys / nObs, obsPreds, preds, expit(unlist(coefPreds))))
+    colRangeCoef = range(c(expit(unlist(coefPreds))))
+    colRangeSD = range(c(predSDs, obsSDs, expit(unlist(coefSDs))))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    quilt.plot(coords, (ys-errs) / nObs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefPreds[[1]]), main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], expit(coefPreds[[2]]), main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], expit(coefPreds[[3]]), main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys / nObs, main="Empirical Proportions", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], expit(coefSDs[[1]]), main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], expit(coefSDs[[2]]), main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], expit(coefSDs[[3]]), main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  dev.off()
+  
+  # calculate true effective range and marginal variance:
+  latticeWidth = latInfo[[1]]$latWidth
+  effRange = 2.3/kappa * latticeWidth
+  # marginalVar = rho/(4*pi * kappa^2)
+  # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
+  #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
+  marginalVar = rho
+  
+  # plot marginals on interpretable scale (effective range, marginal variance)
+  effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+  varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for clust`)
+  covNames = names(mod$marginals.fixed)
+  XMarginals = list()
+  for(i in 1:length(covNames)) {
+    XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+    XMarginals = c(XMarginals, list(XMarginal))
+  }
+  
+  par(mfrow=c(1,1))
+  pdf(file="Figures/standardEffRangeBinom.pdf", width=5, height=5)
+  plot(effRangeMarg, type="l", main="Marginal for effective range")
+  abline(v=effRange, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file="Figures/standardVarBinom.pdf", width=5, height=5)
+  plot(varMarg, type="l", main="Marginal for spatial variance")
+  abline(v=marginalVar, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  pdf(file="Figures/standardSigma2Binom.pdf", width=5, height=5)
+  plot(sigma2Marg, type="l", main="Marginal for error variance")
+  abline(v=sigma2, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+  dev.off()
+  for(i in 1:length(covNames)) {
+    XMarginal = XMarginals[[i]]
+    pdf(file=paste0("Figures/standard", covNames[i], "Binom.pdf"), width=5, height=5)
+    plot(XMarginal, type="l", main="Marginal for fixed effect")
+    if(i==1)
+      abline(v=1, col="green")
+    else
+      abline(v=0, col="green")
+    abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+    dev.off()
+  }
+  
+  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  
+  # do the same for kappa, rho
+  # in order to get distribution for rho, must sample from joint hyperparameters
+  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # thetasToRho = function(xs) {
+  #   logCor = xs[2]
+  #   logVar = xs[3]
+  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   sigma2 = exp(logVar)
+  #   sigma2 * 4*pi * kappa^2
+  # }
+  # samples = inla.hyperpar.sample(50000, mod, TRUE)
+  # rhos = apply(samples, 1, thetasToRho)
+  
+  pdf(file="Figures/standardKappaBinom.pdf", width=5, height=5)
+  plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  abline(v=kappa, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  dev.off()
+  
+  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
+  ## the posterior, and transform them back to the probability scale
+  test = inla.hyperpar(mod)
+  hyperMat = t(inla.hyperpar.sample(10000, mod, improve.marginals=TRUE))
+  hyperMat = out$hyperMat
+  zSamples = hyperMat[3:(2+nLayer-1),]
+  xSamples = apply(zSamples, 2, multivariateExpit)
+  xSamples = rbind(xSamples, 1-colSums(xSamples))
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/standardAlpha", l, "Binom.pdf"), width=5, height=5)
     hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
     abline(v=alphas[l], col="green")
     abline(v=mean(xSamples[l,]), col="purple", lty=1)
@@ -1160,9 +1491,16 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
   # show a model summary
   print(summary(mod))
   
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
   # show predictive surface, SD, and data
   
-  pdf(file="Figures/standardPreds.pdf", width=15, height=10)
+  pdf(file="Figures/standardPreds.pdf", width=15, height=8)
   if(nLayer==1) {
     par(mfrow=c(2,3))
     
@@ -1189,7 +1527,8 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
     colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
-    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
+                         coefSDs[[2]][inRange(gridPtsL2)]))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
     quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
@@ -1200,9 +1539,11 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
     
     quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
-               xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", 
+               zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", 
+               zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
   }
   else if(nLayer==3) {
     par(mfrow=c(2,5))
@@ -1211,7 +1552,8 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
     colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
-    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
+                         coefSDs[[2]][inRange(gridPtsL2)], coefSDs[[3]][inRange(gridPtsL3)]))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
     gridPtsL3 = latInfo[[3]]$latCoords
@@ -1222,9 +1564,9 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", xlim=xRangeDat, ylim=yRangeDat)
     
-    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, obsPreds, main="Observation predictions", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
-               xlim=xRangeDat, ylim=yRangeDat)
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts)]))
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
@@ -1329,7 +1671,335 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
   invisible(NULL)
 }
 
+# tests the LKINLA model applied to Kenya secondary education prevalence data
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+testLKINLAEd = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, 
+                        nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, spatialFixedEffect=TRUE, 
+                        printVerboseTimings=FALSE, nObs=rep(25, n), urbanEffect=TRUE, popGrid=NULL, 
+                        kmres=5) {
+  set.seed(seed)
+  
+  # load secondary education prevalence data
+  out= load("~/git/U5MR/kenyaDataEd.RData")
+  
+  # load population density data (adjusted for target population)
+  if(is.null(popGrid)) {
+    if(kmres == 5)
+      load("~/git/U5MR/popGridAdjustedWomen.RData")
+    else
+      stop("kmres other than 5km not supported")
+  }
+  predPts = cbind(popGrid$east, popGrid$north)
+  
+  # generate lattice and simulate observations
+  coords = cbind(ed$east, ed$north) # TODO: lon,lat?
+  xRangeDat = range(coords[,1])
+  yRangeDat = range(coords[,2])
+  latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  
+  # set observations
+  nObs = ed$n
+  ys = ed$y
+  
+  # plot the observations
+  pdf(file="Figures/standardObservationsBinom.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys, main="Number observations")
+  dev.off()
+  
+  pdf(file="Figures/standardLatentBinom.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ps, main="Latent probabilities")
+  dev.off()
+  
+  # make prediction coordinates on a grid
+  xRange=c(0,1)
+  yRange=c(0,1)
+  mx = 100
+  my = 100
+  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  
+  # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
+  priorPar = getPrior(.1, .1, 10)
+  
+  ## set fixed effects
+  # intercept
+  X = matrix(rep(1, n), ncol=1)
+  # X = matrix(coords[,1], ncol=1)
+  XPred = matrix(rep(1, mx*my), ncol=1)
+  
+  # add linear terms in lat/lon to covariate matrices if requested
+  if(spatialFixedEffect) {
+    X = cbind(X, coords)
+    XPred = cbind(XPred, predPts)
+  }
+  
+  # add urban effect
+  if(urbanEffect) {
+    X = cbind(X, ed$urban)
+    XPred = cbind(XPred, predPts)
+  }
+  
+  # show priors on effective correlation, marginal variance, and error variance:
+  xs1 = seq(.01, 1, l=500)
+  pdf(file="Figures/standardPriorEffRangeBinom.pdf", width=5, height=5)
+  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+       ylab="Prior Density")
+  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  dev.off()
+  
+  xs2 = seq(.01, 10.5, l=500)
+  pdf(file="Figures/standardPriorMargVarBinom.pdf", width=5, height=5)
+  plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+       xlab="Marginal Variance", main="Marginal Variance Prior", 
+       ylab="Prior Density")
+  abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  dev.off()
+  
+  xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  pdf(file="Figures/standardPriorErrorVarBinom.pdf", width=5, height=5)
+  plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+       xlab="Error Variance", main="Error Variance Prior", 
+       ylab="Prior Density")
+  abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  dev.off()
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/standardPriorAlpha", l, "Binom.pdf"), width=5, height=5)
+    xs = seq(0, 1, l=500)
+    tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
+    plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
+         main=TeX(paste0("Marginal for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
+    abline(v=alphas[l], col="green")
+    abline(v=qbeta(c(0.025, 0.975), priorPar$alphaPar[l], sum(priorPar$alphaPar[-l])), col="purple", lty=2)
+    dev.off()
+  }
+  
+  
+  # fit the model
+  time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, seed=seed, nLayer=nLayer, NC=NC,
+                                               nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
+                                               intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
+                                               printVerboseTimings=printVerboseTimings, family="binomial", obsNs=nObs))
+  mod = out$mod
+  preds=out$preds
+  predSDs=out$SDs
+  latInfo=out$latInfo
+  latWidth=out$latWidth
+  obsPreds=out$obsPreds
+  obsSDs=out$obsSDs
+  coefPreds = out$coefPreds
+  coefSDs = out$coefSDs
+  
+  # print out the total time
+  print(paste0("Total time: ", time[3]))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  
+  pdf(file="Figures/standardPredsBinom.pdf", width=15, height=6)
+  if(nLayer==1) {
+    par(mfrow=c(2,3))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
+                         coefSDs[[2]][inRange(gridPtsL2)], coefSDs[[3]][inRange(gridPtsL3)]))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    
+    # quilt.plot(coords, obsPreds, main="Prediction mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat, 
+    #            zlim=range(predSDs[inRange(predPts)]))
+    plot.new()
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+  }
+  else if(nLayer==2) {
+    par(mfrow=c(2,4))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
+    
+    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  else if(nLayer==3) {
+    par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  dev.off()
+  
+  # calculate true effective range and marginal variance:
+  latticeWidth = latInfo[[1]]$latWidth
+  effRange = 2.3/kappa * latticeWidth
+  # marginalVar = rho/(4*pi * kappa^2)
+  # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
+  #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
+  marginalVar = rho
+  
+  # plot marginals on interpretable scale (effective range, marginal variance)
+  effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+  varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  covNames = names(mod$marginals.fixed)
+  XMarginals = list()
+  for(i in 1:length(covNames)) {
+    XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+    XMarginals = c(XMarginals, list(XMarginal))
+  }
+  
+  par(mfrow=c(1,1))
+  pdf(file="Figures/standardEffRangeBinom.pdf", width=5, height=5)
+  plot(effRangeMarg, type="l", main="Marginal for effective range")
+  abline(v=effRange, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file="Figures/standardVarBinom.pdf", width=5, height=5)
+  plot(varMarg, type="l", main="Marginal for spatial variance")
+  abline(v=marginalVar, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  pdf(file="Figures/standardSigma2Binom.pdf", width=5, height=5)
+  plot(sigma2Marg, type="l", main="Marginal for error variance")
+  abline(v=sigma2, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+  dev.off()
+  for(i in 1:length(covNames)) {
+    XMarginal = XMarginals[[i]]
+    pdf(file=paste0("Figures/standard", covNames[i], "Binom.pdf"), width=5, height=5)
+    plot(XMarginal, type="l", main="Marginal for fixed effect")
+    if(i==1)
+      abline(v=1, col="green")
+    else
+      abline(v=0, col="green")
+    abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+    dev.off()
+  }
+  
+  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  
+  # do the same for kappa, rho
+  # in order to get distribution for rho, must sample from joint hyperparameters
+  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # thetasToRho = function(xs) {
+  #   logCor = xs[2]
+  #   logVar = xs[3]
+  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   sigma2 = exp(logVar)
+  #   sigma2 * 4*pi * kappa^2
+  # }
+  # samples = inla.hyperpar.sample(50000, mod, TRUE)
+  # rhos = apply(samples, 1, thetasToRho)
+  
+  pdf(file="Figures/standardKappaBinom.pdf", width=5, height=5)
+  plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  abline(v=kappa, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  dev.off()
+  
+  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
+  ## the posterior, and transform them back to the probability scale
+  out = inla.hyperpar.sample(10000, mod, improve.marginals=TRUE)
+  zSamples = out[,4:(3+nLayer-1)]
+  xSamples = apply(zSamples, 1, multivariateExpit)
+  xSamples = rbind(xSamples, 1-colSums(xSamples))
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/standardAlpha", l, "Binom.pdf"), width=5, height=5)
+    hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
+    abline(v=alphas[l], col="green")
+    abline(v=mean(xSamples[l,]), col="purple", lty=1)
+    abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+    dev.off()
+  }
+  
+  invisible(NULL)
+}
 
+# modelResults must have matrices "predMat" and "hyperMat"
+# B: 
+aggregateModelPreds = function(modelResults, B, addClusterError=TRUE) {
+  
+}
 
 
 

@@ -131,7 +131,7 @@ makeA = function(predPts=NULL, latticeInfo, thisLayer=1, theta=NULL, maxLayer=le
   knotPts = latticeInfo[[thisLayer]]$latCoords
   
   # setup theta if null
-  if(is.null(theta))
+  # if(is.null(theta))
     theta = 2.5*(xRangeKnot[2]-xRangeKnot[1])/(xNKnot-1)
   
   # set up prediction locations if necessary
@@ -152,7 +152,7 @@ makeA = function(predPts=NULL, latticeInfo, thisLayer=1, theta=NULL, maxLayer=le
   origTheta = theta
   # xNKnot = xNKnot * 2^(thisLayer-1)
   # yNKnot = yNKnot * 2^(thisLayer-1)
-  theta = theta / 2^(thisLayer-1)
+  # theta = theta / 2^(thisLayer-1)
   
   # # generate knot lattice locations and filter out locations 
   # # too far outside of the data domain

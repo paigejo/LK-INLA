@@ -1,5 +1,16 @@
 # this script contains some miscellaneous, but useful functions
 
+logit <- function(x) {
+  log(x/(1-x))
+}
+
+expit <- function(x) {
+  res = exp(x)/(1+exp(x))
+  res[x > 100] = 1
+  res[x < -100] = 0
+  res
+}
+
 # Do precomputations for computing precision matrix for a single layer or a block diagonal sparse 
 # precision matrix for multiple layers
 # kappa: scale of Matern covariance with smoothness 1
@@ -289,7 +300,7 @@ makeQ = function(kappa=1, rho=1, latticeInfo, thisLayer=1, alphas=NULL, nu=NULL,
   if(is.null(alphas) && !is.null(nu)) {
     alphas = getAlphas(nLayer, nu)
   }
-  else if(is.null(nu) && nLayer != 1) {
+  else if(is.null(nu) && nLayer != 1 && is.null(alphas)) {
     warning("Both alphas and nu are NULL. Defaulting to exponential covariance.")
     nu = 0.5
     alphas = getAlphas(nLayer, nu)
@@ -316,7 +327,7 @@ makeQ = function(kappa=1, rho=1, latticeInfo, thisLayer=1, alphas=NULL, nu=NULL,
   B = Diagonal(n=nx*ny, x=kappa^2) - Bxy
   
   # compute precision matrix
-  Q = (1/rho) * t(B) %*% B
+  Q = t(B) %*% B
   
   if(normalized) {
     
@@ -350,7 +361,7 @@ makeQ = function(kappa=1, rho=1, latticeInfo, thisLayer=1, alphas=NULL, nu=NULL,
     
     #  test 2
     if(fastNormalize) {
-      ctilde = as.numeric(Ai %*% inla.qsolve(Q, t(Ai)))/rho
+      ctilde = as.numeric(Ai %*% inla.qsolve(Q, t(Ai)))
       Qtilde = ctilde * Q
       Q = Qtilde # system.time(out <- makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE, newnormalize=TRUE)): 2.72
     }
@@ -364,7 +375,7 @@ makeQ = function(kappa=1, rho=1, latticeInfo, thisLayer=1, alphas=NULL, nu=NULL,
       # QnormInv = sweep(sweep(Qinv, 1, 1/sds), 2, 1/sds)
       procVar = as.numeric(Ai %*% inla.qsolve(Qnorm, t(Ai)))
       # procVar = as.numeric(Ai %*% QnormInv %*% t(Ai))
-      Q = Qnorm * (procVar / rho) # system.time(out <- makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE) ~5.87
+      Q = Qnorm * procVar # system.time(out <- makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE) ~5.87
     }
     # # compute how good an approximation it was
     # hist(diag(solve(Q)))
@@ -381,11 +392,14 @@ makeQ = function(kappa=1, rho=1, latticeInfo, thisLayer=1, alphas=NULL, nu=NULL,
   # return results
   # If multiple layers, return block diagonal sparse matrix
   if(thisLayer == nLayer) {
+    if(thisLayer == 1)
+      Q = Q * (1/rho)
     return(Q)
   }
   else if((thisLayer == 1) && (nLayer != 1)) {
     Q = bdiag(c(list(Q), makeQ(kappa, origRho, latticeInfo, thisLayer+1, alphas, normalized=normalized, 
                                fastNormalize=fastNormalize)))
+    Q = Q * (1/rho)
     return(Q)
   }
   else {
