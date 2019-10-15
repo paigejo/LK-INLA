@@ -111,9 +111,9 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   }
   else if(family == "binomial") {
     if(clusterEffect) {
-      clusterList = list(param=c(.15, 0.01), prior="pc.prec")
+      # clusterList = list(param=c(.15, 0.01), prior="pc.prec")
       mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
-                   f(clust, model="iid", hyper = list(prec = clusterList)), 
+                   f(clust, model="iid", hyper = list(prec = list(param=c(.15, 0.01), prior="pc.prec"))), 
                  data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
                  control.inla=controls, Ntrials=dat$Ntrials, 
                  control.compute=list(config=TRUE), 
