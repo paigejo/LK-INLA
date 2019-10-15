@@ -1110,7 +1110,7 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
 # first.time: is first time evaluating function.  User should always set to FALSE
 testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, sigma2 = .2^2, 
                                    nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
-                                   printVerboseTimings=FALSE, nObs=rep(25, n)) {
+                                   printVerboseTimings=FALSE, nObs=rep(25, n), intStrategy="auto", strategy="gaussian") {
   set.seed(seed)
   
   # compute alphas, the variance weights for each layer, depending on nu if necessary:
@@ -1206,7 +1206,7 @@ testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, s
   # fit the model
   time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC,
                                                nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
-                                               intStrategy="auto", strategy="gaussian", fastNormalize=fastNormalize, 
+                                               intStrategy=intStrategy, strategy=strategy, fastNormalize=fastNormalize, 
                                                printVerboseTimings=printVerboseTimings, family="binomial", obsNs=nObs))
   mod = out$mod
   preds=out$preds
