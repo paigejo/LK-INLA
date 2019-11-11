@@ -8,12 +8,13 @@
 # NC: number of coarse lattice points over the longest dimension of the data
 # int.strategy: "auto" or "eb" for empirical Bayes
 fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
-                             nBuffer=5, priorPar=getPrior(.1, .1, 10), 
-                             xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
-                             intStrategy="grid", strategy="laplace", fastNormalize=TRUE, 
-                             predictionType=c("mean", "median"), significanceCI=0.8, 
-                             printVerboseTimings=FALSE, nPostSamples=10000, family=c("normal", "binomial"),
-                             obsNs=rep(1, length(obsValues)), clusterEffect=TRUE, improveHyperpar=TRUE) {
+                              nBuffer=5, priorPar=getPrior(.1, .1, 10), 
+                              xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
+                              intStrategy="grid", strategy="laplace", fastNormalize=TRUE, 
+                              predictionType=c("mean", "median"), significanceCI=0.8, 
+                              printVerboseTimings=FALSE, nPostSamples=10000, family=c("normal", "binomial"),
+                              obsNs=rep(1, length(obsValues)), clusterEffect=TRUE, latInfo=NULL, 
+                              initialEffectiveRange=NULL, initialAlphas=rep(1/nLayer, nLayer-1)) {
   set.seed(seed)
   
   # get the type of prediction the user wants
@@ -27,7 +28,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # get lattice points, prediction points
   xRangeDat = range(obsCoords[,1])
   yRangeDat = range(obsCoords[,2])
-  latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  if(is.null(latInfo))
+    latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
   nx = latInfo[[1]]$nx
   ny = latInfo[[1]]$ny
   
@@ -42,7 +44,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.standard, latInfo=latInfo, ys=obsValues, 
                               prior=priorPar, normalize=normalize, precomputedMatrices=precomputedMatrices, 
                               X=xObs, nu=nu, datCoords=obsCoords, fastNormalize=fastNormalize, 
-                              printVerboseTimings=printVerboseTimings)
+                              printVerboseTimings=printVerboseTimings, 
+                              initialEffectiveRange=initialEffectiveRange, initialAlphas=initialAlphas)
   # use these global variables for testing calls to inla.rgeneric.lk.model.simple
   # latInfo<<-latInfo; ys<<-obsValues;
   # prior<<-priorPar; normalize<<-normalize; precomputedMatrices<<-precomputedMatrices;
@@ -59,36 +62,73 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   latticeInds = 1:ncol(AEst)
   clust = 1:length(obsValues)
   if(family == "normal") {
-    stack.est = inla.stack(A =list(AEst, 1), 
-                           effects =list(field=latticeInds, X=xObs), 
-                           data =list(y=obsValues, link=1, Ntrials = obsNs), 
-                           tag ="est", 
-                           remove.unused=FALSE)
-    stack.pred = inla.stack(A =list(APred, 1), 
-                            effects =list(field=latticeInds, X=xPred), 
-                            data =list(y=NA, link=1), 
-                            tag ="pred", 
-                            remove.unused=FALSE)
-  }
-  else if(family == "binomial") {
-    if(clusterEffect) {
-      stack.est = inla.stack(A =list(AEst, 1, 1), 
-                             effects =list(field=latticeInds, clust=clust, X=xObs), 
-                             data =list(y=obsValues, link=1, Ntrials = obsNs), 
-                             tag ="est", 
-                             remove.unused=FALSE)
-    } else {
+    if(!is.null(xObs)) {
       stack.est = inla.stack(A =list(AEst, 1), 
                              effects =list(field=latticeInds, X=xObs), 
                              data =list(y=obsValues, link=1, Ntrials = obsNs), 
                              tag ="est", 
                              remove.unused=FALSE)
+      stack.pred = inla.stack(A =list(APred, 1), 
+                              effects =list(field=latticeInds, X=xPred), 
+                              data =list(y=NA, link=1), 
+                              tag ="pred", 
+                              remove.unused=FALSE)
+    } else {
+      stack.est = inla.stack(A =list(AEst), 
+                             effects =list(field=latticeInds), 
+                             data =list(y=obsValues, link=1, Ntrials = obsNs), 
+                             tag ="est", 
+                             remove.unused=FALSE)
+      stack.pred = inla.stack(A =list(APred), 
+                              effects =list(field=latticeInds), 
+                              data =list(y=NA, link=1), 
+                              tag ="pred", 
+                              remove.unused=FALSE)
     }
-    stack.pred = inla.stack(A =list(APred, 1), 
-                            effects =list(field=latticeInds, X=xPred), 
-                            data =list(y=NA, link=1, Ntrials=rep(1, nrow(APred)), 
-                            tag ="pred"), 
-                            remove.unused=FALSE)
+  }
+  else if(family == "binomial") {
+    if(clusterEffect) {
+      if(!is.null(xObs)) {
+        stack.est = inla.stack(A =list(AEst, 1, 1), 
+                               effects =list(field=latticeInds, clust=clust, X=xObs), 
+                               data =list(y=obsValues, link=1, Ntrials = obsNs), 
+                               tag ="est", 
+                               remove.unused=FALSE)
+      } else {
+        stack.est = inla.stack(A =list(AEst, 1), 
+                               effects =list(field=latticeInds, clust=clust), 
+                               data =list(y=obsValues, link=1, Ntrials = obsNs), 
+                               tag ="est", 
+                               remove.unused=FALSE)
+      }
+    } else {
+      if(!is.null(xObs)) {
+        stack.est = inla.stack(A =list(AEst, 1), 
+                               effects =list(field=latticeInds, X=xObs), 
+                               data =list(y=obsValues, link=1, Ntrials = obsNs), 
+                               tag ="est", 
+                               remove.unused=FALSE)
+      } else {
+        stack.est = inla.stack(A =list(AEst), 
+                               effects =list(field=latticeInds), 
+                               data =list(y=obsValues, link=1, Ntrials = obsNs), 
+                               tag ="est", 
+                               remove.unused=FALSE)
+      }
+    }
+    if(!is.null(xObs)) {
+      stack.pred = inla.stack(A =list(APred, 1), 
+                              effects =list(field=latticeInds, X=xPred), 
+                              data =list(y=NA, link=1, Ntrials=rep(1, nrow(APred)), 
+                                         tag ="pred"), 
+                              remove.unused=FALSE)
+    } else {
+      stack.pred = inla.stack(A =list(APred), 
+                              effects =list(field=latticeInds), 
+                              data =list(y=NA, link=1, Ntrials=rep(1, nrow(APred)), 
+                                         tag ="pred"), 
+                              remove.unused=FALSE)
+    }
   }
   stack.full = inla.stack(stack.est, stack.pred, 
                           remove.unused=FALSE)
@@ -101,40 +141,69 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   controls = list(strategy=strategy, int.strategy=intStrategy) 
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
   if(family == "normal") {
-    mod = inla(y ~ - 1 + X + f(field, model=rgen), 
-               data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
-               control.inla=controls, 
-               control.compute=list(config=TRUE), 
-               control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
-               control.fixed=list(quantiles=allQuantiles), 
-               control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
-  }
-  else if(family == "binomial") {
-    if(clusterEffect) {
-      # clusterList = list(param=c(.15, 0.01), prior="pc.prec")
-      mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
-                   f(clust, model="iid", hyper = list(prec = list(param=c(.15, 0.01), prior="pc.prec"))), 
-                 data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
-                 control.inla=controls, Ntrials=dat$Ntrials, 
-                 control.compute=list(config=TRUE), 
-                 control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
-                 control.fixed=list(quantiles=allQuantiles))
-    } else {
+    if(!is.null(xObs)) {
       mod = inla(y ~ - 1 + X + f(field, model=rgen), 
                  data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
-                 control.inla=controls, Ntrials=dat$Ntrials, 
+                 control.inla=controls, 
                  control.compute=list(config=TRUE), 
-                 control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
-                 control.fixed=list(quantiles=allQuantiles))
+                 control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE, quantiles=allQuantiles), 
+                 control.fixed=list(quantiles=allQuantiles), 
+                 control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
+    } else {
+      mod = inla(y ~ - 1 + f(field, model=rgen), 
+                 data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
+                 control.inla=controls, 
+                 control.compute=list(config=TRUE), 
+                 control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE, quantiles=allQuantiles), 
+                 control.fixed=list(quantiles=allQuantiles), 
+                 control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
+    }
+  } else if(family == "binomial") {
+    if(clusterEffect) {
+      # clusterList = list(param=c(.15, 0.01), prior="pc.prec")
+      if(!is.null(xObs)) {
+        mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
+                     f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
+                   data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
+                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.compute=list(config=TRUE), 
+                   control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
+                   control.fixed=list(quantiles=allQuantiles))
+      } else {
+        mod = inla(y ~ - 1 + f(field, model=rgen) + 
+                     f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
+                   data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
+                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.compute=list(config=TRUE), 
+                   control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
+                   control.fixed=list(quantiles=allQuantiles))
+      }
+    } else {
+      if(!is.null(xObs)) {
+        mod = inla(y ~ - 1 + X + f(field, model=rgen), 
+                   data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
+                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.compute=list(config=TRUE), 
+                   control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
+                   control.fixed=list(quantiles=allQuantiles))
+      } else {
+        mod = inla(y ~ - 1 + f(field, model=rgen), 
+                   data=dat, quantiles=allQuantiles, family=family, verbose=TRUE, 
+                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.compute=list(config=TRUE), 
+                   control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, quantiles=allQuantiles), 
+                   control.fixed=list(quantiles=allQuantiles))
+      }
     }
   }
   
-  # improve the approximation of the posterior if requested by the user
-  if(improveHyperpar) {
-    test = inla.hyperpar(mod)
-    browser()
-    # mod = inla.hyperpar(mod)
-  }
+  # # improve the approximation of the posterior if requested by the user
+  # if(improveHyperpar) {
+  #   browser()
+  #   mod = inla.hyperpar(mod)
+  # }
+  
+  # browser()
   
   # get predictive surface, SD, and data
   index = inla.stack.index(stack.full, "pred")$data
@@ -168,7 +237,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                                             totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
                                             spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]))})
     mat = rbind(mat, alpha=1-colSums(mat[8:(7+nLayer-1),]))
-    hyperNames = c("totalVar", "spatialVar", "errorVar", "totalSD", "spatialSD", "errorSD", "spatialRange", 
+    hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
                    paste0("alpha", 1:nLayer))
   } else {
     if(clusterEffect) {
@@ -238,57 +307,83 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     fixedPart = 0
   obsMat = fixedPart + AObs %*% latentMat[fieldIndices,]
   
+  # get draws from basis function coefficients
+  basisCoefMat = latentMat[fieldIndices,]
+  
   # add in cluster effect if necessary
   if((family == "binomial" && clusterEffect) || family == "normal") {
     # get cluster effect variance
     clusterVarI = which(grepl("clusterVar", hyperNames))
     clusterVars = mat[clusterVarI,]
-    predMatClustEffect = predMat + matrix(rnorm(length(predMat), sd=rep(clusterVars, each=nrow(predMat))), nrow=nrow(predMat))
-    obsMatClustEffect = obsMat + matrix(rnorm(length(obsMat), sd=rep(clusterVars, each=nrow(obsMat))), nrow=nrow(obsMat))
+    predMatClustEffect = predMat + matrix(rnorm(length(predMat), sd=rep(sqrt(clusterVars), each=nrow(predMat))), nrow=nrow(predMat))
+    obsMatClustEffect = obsMat + matrix(rnorm(length(obsMat), sd=rep(sqrt(clusterVars), each=nrow(obsMat))), nrow=nrow(obsMat))
   } else {
     clusterVars = NULL
     predMatClustEffect = NULL
     obsMatClustEffect = NULL
   }
   
-  # compute predictive credible intervals
-  if(is.null(predMatClustEffect)) {
-    preds = rowMeans(expit(predMat))
-    predSDs = apply(expit(predMat), 1, sd)
-    lowerPreds = apply(expit(predMat), 1, quantile, probs=(1-significanceCI)/2)
-    medianPreds = apply(expit(predMat), 1, median)
-    upperPreds = apply(expit(predMat), 1, quantile, probs=1-(1-significanceCI)/2)
-    obsPreds = rowMeans(expit(obsMat))
-    obsSDs = apply(expit(obsMat), 1, sd)
-    lowerObs = apply(expit(obsMat), 1, quantile, probs=(1-significanceCI)/2)
-    medianObs = apply(expit(obsMat), 1, median)
-    upperObs = apply(expit(obsMat), 1, quantile, probs=1-(1-significanceCI)/2)
-  } else {
-    preds = rowMeans(expit(predMatClustEffect))
-    predSDs = apply(expit(predMatClustEffect), 1, sd)
-    lowerPreds = apply(expit(predMatClustEffect), 1, quantile, probs=(1-significanceCI)/2)
-    medianPreds = apply(expit(predMatClustEffect), 1, median)
-    upperPreds = apply(expit(predMatClustEffect), 1, quantile, probs=1-(1-significanceCI)/2)
-    obsPreds = rowMeans(expit(obsMatClustEffect))
-    obsSDs = apply(expit(obsMatClustEffect), 1, sd)
-    lowerObs = apply(expit(obsMatClustEffect), 1, quantile, probs=(1-significanceCI)/2)
-    medianObs = apply(expit(obsMatClustEffect), 1, median)
-    upperObs = apply(expit(obsMatClustEffect), 1, quantile, probs=1-(1-significanceCI)/2)
+  g = function(x) {
+    if(family == "normal")
+      x
+    else
+      expit(x)
   }
   
-  interceptSummary=mod$summary.fixed[1,c(1, 2, 4, 3, 5)]
+  # compute predictive credible intervals
+  if(is.null(predMatClustEffect)) {
+    preds = rowMeans(g(predMat))
+    predSDs = apply(g(predMat), 1, sd)
+    lowerPreds = apply(g(predMat), 1, quantile, probs=(1-significanceCI)/2)
+    medianPreds = apply(g(predMat), 1, median)
+    upperPreds = apply(g(predMat), 1, quantile, probs=1-(1-significanceCI)/2)
+    obsPreds = rowMeans(g(obsMat))
+    obsSDs = apply(g(obsMat), 1, sd)
+    lowerObs = apply(g(obsMat), 1, quantile, probs=(1-significanceCI)/2)
+    medianObs = apply(g(obsMat), 1, median)
+    upperObs = apply(g(obsMat), 1, quantile, probs=1-(1-significanceCI)/2)
+  } else {
+    if(family == "normal") {
+      preds = rowMeans(predMat)
+      medianPreds = apply(predMat, 1, median)
+      obsPreds = rowMeans(obsMat)
+      medianObs = apply(obsMat, 1, median)
+    } else {
+      preds = rowMeans(g(predMatClustEffect))
+      medianPreds = apply(g(predMatClustEffect), 1, median)
+      obsPreds = rowMeans(g(obsMatClustEffect))
+      medianObs = apply(g(obsMatClustEffect), 1, median)
+    }
+    predSDs = apply(g(predMatClustEffect), 1, sd)
+    lowerPreds = apply(g(predMatClustEffect), 1, quantile, probs=(1-significanceCI)/2)
+    upperPreds = apply(g(predMatClustEffect), 1, quantile, probs=1-(1-significanceCI)/2)
+    obsSDs = apply(g(obsMatClustEffect), 1, sd)
+    lowerObs = apply(g(obsMatClustEffect), 1, quantile, probs=(1-significanceCI)/2)
+    upperObs = apply(g(obsMatClustEffect), 1, quantile, probs=1-(1-significanceCI)/2)
+  }
+  
+  if(!is.null(xObs) && all(xObs[,1]==1))
+    interceptSummary=mod$summary.fixed[,c(1, 2, 4, 3, 5)]
+  else
+    interceptSummary = matrix(rep(0, 5), nrow=1)
   
   # compute basis function coefficient predictions and standard deviations
-  startI = n+nrow(predCoords)+1
-  endI = n+nrow(predCoords)+nx*ny
-  coefPreds = list(layer1 = linpreds[startI:endI])
-  coefSDs = list(layer1 = linpred.sd[startI:endI])
+  # startI = n+nrow(predCoords)+1
+  # endI = n+nrow(predCoords)+nx*ny
+  startI = 1
+  endI = nx*ny
+  thesePreds = rowMeans(basisCoefMat)
+  theseSDs = apply(basisCoefMat, 1, sd)
+  coefPreds = list(layer1 = thesePreds[startI:endI])
+  coefSDs = list(layer1 = theseSDs[startI:endI])
   if(nLayer >= 2) {
     for(i in 2:nLayer) {
       startI = endI + 1
       endI = startI + nrow(latInfo[[i]]$latCoords) - 1
-      coefPreds = c(coefPreds, list(linpreds[startI:endI]))
-      coefSDs = c(coefSDs, list(linpred.sd[startI:endI]))
+      # coefPreds = c(coefPreds, list(linpreds[startI:endI]))
+      # coefSDs = c(coefSDs, list(linpred.sd[startI:endI]))
+      coefPreds = c(coefPreds, list(thesePreds[startI:endI]))
+      coefSDs = c(coefSDs, list(theseSDs[startI:endI]))
     }
   }
   
@@ -427,7 +522,10 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
   medians = apply(predMat, 1, median)
   upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
   
-  interceptSummary=mod$summary.fixed[,c(1, 2, 4, 3, 5)]
+  if(!is.null(xObs) && all(xObs[,1]==1))
+    interceptSummary=mod$summary.fixed[,c(1, 2, 4, 3, 5)]
+  else
+    interceptSummary = matrix(rep(0, 5), nrow=1)
   
   # get posterior hyperparameter samples and transform them as necessary
   # interpretation of hyperparameters: 

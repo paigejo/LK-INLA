@@ -20,9 +20,10 @@ conditionalNormal = function(Xd, muP, muD, SigmaP, SigmaD, SigmaPtoD) {
 
 # NOTE: cov.fun should be the TRUE underlying covariance
 # NOTE: betas should be the TRUE covariate coefficients for the underlying model
+# A: an observation/aggregation matrix transforming the predictions to another vector of interest
 GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), ncol=1), predCoords, 
                    xPred = matrix(rep(1, nrow(predCoords)), ncol=1), betas=0, 
-                   cov.fun = "stationary.cov", significanceCI=.8) {
+                   cov.fun = "stationary.cov", significanceCI=.8, A=NULL) {
   
   # First construct relevant covariance and cross covariance matrices
   SigmaObs = do.call(cov.fun, list(obsCoords))
@@ -30,14 +31,30 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   SigmaPred = do.call(cov.fun, list(predCoords))
   
   # Now construct relevant mean vectors
-  muObs = xObs * betas
-  muPred = xPred * betas
+  if(length(xObs) != 0) {
+    muObs = xObs * betas
+    muPred = xPred * betas
+  } else {
+    muObs = rep(0, length(obsValues))
+    muPred = rep(0, nrow(predCoords))
+  }
   
   # calculate the predictive distribution
   predictions = conditionalNormal(obsValues, muPred, muObs, SigmaPred, SigmaObs, SigmaPredsObs)
   muc = predictions$muc
   Sigmac = predictions$Sigmac
   sigmac = sqrt(diag(Sigmac))
+  
+  # transform the predictive distribution if necessary
+  if(!is.null(A)) {
+    mucAggregated = A %*% muc[1:ncol(A)]
+    SigmacAggregated = A %*% Sigmac[1:ncol(A),1:ncol(A)] %*% t(A)
+    sigmacAggregated = sqrt(diag(SigmacAggregated))
+    
+    lowerAggregated = mucAggregated + qnorm((1 - significanceCI) / 2, sd=sigmacAggregated)
+    medsAggregated = mucAggregated + qnorm(.5, sd=sigmacAggregated)
+    upperAggregated = mucAggregated + qnorm(1 - (1 - significanceCI) / 2, sd=sigmacAggregated)
+  }
   
   # calculate confidence intervals
   lower = muc + qnorm((1 - significanceCI) / 2, sd=sigmac)
@@ -61,6 +78,8 @@ GPpreds = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   
   # return results
   list(preds=muc, sigmas=sigmac, lower=lower, medians=meds, upper=upper, 
+       predsAggregated=mucAggregated, sigmasAggregated=sigmacAggregated, 
+       lowerAggregated=lowerAggregated, mediansAggregated=medsAggregated, upperAggregated=upperAggregated, 
        interceptSummary=interceptSummary, rangeSummary=rangeSummary, 
        sdSummary=sdSummary, varSummary=varSummary)
 }

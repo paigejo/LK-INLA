@@ -447,8 +447,8 @@ testLKModelBase2 = function(buffer=1, kappa=1, rho=1, seed=1) {
 
 ## function for making prior on corelation scale and marginal variance
 # corScaleMed: median correlation scale
-# var10quant: 10th percentile of the marginal variance
-# var90quant: 90th percentile of the marginal variance
+# var10quant: 10th percentile of the spatial variance
+# var90quant: 90th percentile of the spatial variance
 getPrior = function(corScaleMed, var10quant, var90quant, dirichletConcentration=1.5, nLayer=3) {
   ## set the correlation scale hyperparameter
   corScalePar = corScaleMed*log(2)
@@ -474,7 +474,7 @@ getPrior = function(corScaleMed, var10quant, var90quant, dirichletConcentration=
   list(corScalePar=corScalePar, varPar1=varPar1, varPar2=varPar2, alphaPar=alphaPar, priorType="orig")
 }
 
-## function for making prior on corelation scale and marginal sd (a PC prior)
+## function for making prior on correlation scale and marginal sd (a PC prior)
 # corScaleMed: median correlation scale
 # var10quant: 10th percentile of the marginal variance
 # var90quant: 90th percentile of the marginal variance
@@ -493,6 +493,20 @@ getPrior2 = function(corScaleMed, sd95quant) {
   sdRate = out$par
   
   list(corScalePar=corScalePar, sdRate=sdRate, priorType="pc")
+}
+
+## function for making prior on correlation scale and marginal sd (a PC prior)
+# corScaleMed: median correlation scale
+# var10quant: 10th percentile of the marginal variance
+# var90quant: 90th percentile of the marginal variance
+getPCPrior = function(corScaleMed, varAlpha, varU, dirichletConcentration=1.5, nLayer=3) {
+  ## set the correlation scale hyperparameter
+  corScalePar = corScaleMed*log(2)
+  
+  ## set the layer weight hyperparameters
+  alphaPar = rep(dirichletConcentration / nLayer, nLayer)
+  
+  list(corScalePar=corScalePar, alpha=varAlpha, u=varU, alphaPar=alphaPar, priorType="pc")
 }
 
 # This function returns reasonable default PC priors on the marginal variance of the spatial field.
@@ -1712,13 +1726,24 @@ inla.rgeneric.lk.model.standard = function(
     sigmaSq = var(ys) * r2
     
     # initialize covariance parameters
-    effectiveRangeInit = ((xRangeDat[2] - xRangeDat[1]) + (yRangeDat[2] - yRangeDat[1]))/8
+    if(is.null(initialEffectiveRange)) {
+      # We want the "middle" representable effective range to be an eighth of the domain diameter
+      middleEffectiveRange = ((xRangeDat[2] - xRangeDat[1]) + (yRangeDat[2] - yRangeDat[1]))/8
+      nLayer = length(latInfo)
+      exponent = (nLayer-1)/2
+      effectiveRangeInit = middleEffectiveRange * 2^exponent
+    }
+    else
+      effectiveRangeInit = initialEffectiveRange
     
     # initialize the layer weights to be equal
     if(length(latInfo) == 1)
       c(log(effectiveRangeInit), log(sigmaSq))
     else {
-      initAlphas = rep(1/length(latInfo), length(latInfo)-1)
+      if(is.null(initialAlphas))
+        initAlphas = rep(1/length(latInfo), length(latInfo)-1)
+      else
+        initAlphas = initialAlphas
       c(log(effectiveRangeInit), log(sigmaSq), multivariateLogit(initAlphas))
     }
   }

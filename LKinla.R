@@ -190,9 +190,15 @@ getAlphas = function(nLayer=3, nu=.5) {
   # alphas = exp(-2*(1:nLayer) * nu)
   # alphas = alphas/sum(alphas)
   # alphas
-  thetaL=  2^(-(1:nLayer))
-  alphas = thetaL^(2*nu)
-  alphas = alphas/sum(alphas)
+  if(nu <= exp(-100)) {
+    alphas = rep(1 / nLayer, nLayer)
+  } else if(nu>300) {
+    alphas = c(1, rep(0, nLayer - 1))
+  } else {
+    thetaL=  2^(-(1:nLayer))
+    alphas = thetaL^(2*nu)
+    alphas = alphas/sum(alphas)
+  }
   alphas
 }
 

@@ -802,8 +802,8 @@ testAlphaPrior = function() {
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
 testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, sigma2 = .2^2, 
-                               nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
-                               printVerboseTimings=FALSE) {
+                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
+                                   printVerboseTimings=FALSE) {
   set.seed(seed)
   
   # compute alphas, the variance weights for each layer, depending on nu if necessary:
@@ -892,9 +892,9 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   
   # fit the model
   time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC,
-                                              nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
-                                              intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
-                                              printVerboseTimings=printVerboseTimings))
+                                               nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
+                                               intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
+                                               printVerboseTimings=printVerboseTimings))
   mod = out$mod
   preds=out$preds
   predSDs=out$SDs
@@ -1109,8 +1109,8 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
 testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, sigma2 = .2^2, 
-                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
-                                   printVerboseTimings=FALSE, nObs=rep(25, n), intStrategy="auto", strategy="gaussian") {
+                                           nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, testCovs=TRUE, alphas=NULL, 
+                                           printVerboseTimings=FALSE, nObs=rep(25, n), intStrategy="auto", strategy="gaussian") {
   set.seed(seed)
   
   # compute alphas, the variance weights for each layer, depending on nu if necessary:
@@ -2000,6 +2000,1398 @@ testLKINLAEd = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx
 aggregateModelPreds = function(modelResults, B, addClusterError=TRUE) {
   
 }
+
+##### 
+##### 
+##### 
+##### 
+##### 
+# testing functions for the covariance of mixture data set
+
+# tests the fitLKINLAStandard function using data simulated from the LK model
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+# thetas: originally was c(.1, 3), but 3 is too large
+testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, 
+                                  nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, testCovs=TRUE, 
+                                  printVerboseTimings=FALSE, latInfo=NULL, n=1000, thetas=c(.1, .4), 
+                                  testfrac=.1) {
+  set.seed(seed)
+  
+  # set true parameter values
+  rho = 1
+  effectiveRange = thetas * 2.3
+  sigma2 = sqrt(.1)
+  
+  # load data set if necessary
+  if(is.null(n)) {
+    out = load("mixtureDataSet.RData")
+  } else {
+    spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+    nTest = round(testfrac * n)
+    simulationData = getSimulationDataSetsGivenCovariance(spatialCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
+                                                          saveDataSetPlot=FALSE)
+  }
+  coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
+  ys = simulationData$zTrain[,1]
+  
+  # generate lattice and simulate observations
+  # coords = matrix(runif(2*n), ncol=2)
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  if(is.null(latInfo))
+    latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  
+  AObs = makeA(coords, latInfo)
+  # Q = makeQ(kappa=kappa, rho=rho, latInfo, alphas=alphas, normalized=normalize, fastNormalize=fastNormalize) 
+  # L = as.matrix(t(chol(solve(Q))))
+  # zsims = matrix(rnorm(nrow(Q)), ncol=1)
+  # fieldSims = L %*% zsims
+  # ys = as.numeric(AObs %*% fieldSims) + 1 # add a constant unit mean term to be estimated by INLA
+  # # ys = 1 + as.numeric(AObs %*% fieldSims) + coords[,1] # x-valued mean term to be estimated by INLA
+  # errs = rnorm(n, sd=sqrt(sigma2))
+  # ys = ys + errs
+  
+  # plot the observations
+  pdf(file="Figures/mixtureLKINLAObservations.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys)
+  dev.off()
+  
+  # make prediction coordinates on a grid, and add testing points
+  xRange=c(-1,1)
+  yRange=c(-1,1)
+  mx = 100
+  my = 100
+  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+  ysTest = simulationData$zTest[,1]
+  
+  # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
+  # priorPar = getPrior(.1, .1, 10)
+  # generate hyperparameters for pc priors
+  # median effective range is .4 (a fifth of the spatial domain diameter), median spatial variance is 1
+  priorPar = getPCPrior(.4, .5, 1) 
+  X = matrix(rep(1, nrow(coords)), ncol=1)
+  # X = matrix(coords[,1], ncol=1)
+  XPred = matrix(rep(1, nrow(predPts)), ncol=1)
+  
+  # add linear terms in lat/lon to covariate matrices if requested
+  if(testCovs) {
+    X = cbind(X, coords)
+    XPred = cbind(XPred, predPts)
+  }
+  
+  if(assumeMeanZero) {
+    X = NULL
+    XPred = NULL
+  }
+  
+  # show priors on effective correlation, marginal variance, and error variance:
+  xs1 = seq(.01, 1, l=500)
+  pdf(file="Figures/mixtureLKINLAPriorEffRange.pdf", width=5, height=5)
+  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+       ylab="Prior Density")
+  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  dev.off()
+  
+  if(priorPar$priorType == "orig") {
+    xs2 = seq(.01, 10.5, l=500)
+    pdf(file="Figures/mixtureLKINLAPriorMargVar.pdf", width=5, height=5)
+    plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    dev.off()
+  } else if(priorPar$priorType == "pc") {
+    xs2 = seq(.01, 11.5, l=500)
+    pdf(file="Figures/mixtureLKINLAPriorMargVar.pdf", width=5, height=5)
+    plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=1, col="green")
+    dev.off()
+  }
+  
+  # xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  # pdf(file="Figures/mixtureLKINLAPriorErrorVar.pdf", width=5, height=5)
+  # plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+  #      xlab="Error Variance", main="Error Variance Prior", 
+  #      ylab="Prior Density")
+  # abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  # abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  # dev.off()
+  
+  xs2 = seq(.01, 1, l=500)
+  pdf(file="Figures/mixtureLKINLAPriorErrorVar.pdf", width=5, height=5)
+  plot(xs2, dpcvar(xs2, alpha=.05, u=1), type="l", col="blue", 
+       xlab="Marginal Variance", main="Marginal Variance Prior", 
+       ylab="Prior Density")
+  abline(v=qpcvar(.1, alpha=.05, u=1), col="red")
+  abline(v=qpcvar(.9, alpha=.05, u=1), col="red")
+  abline(v=sqrt(.1), col="green")
+  dev.off()
+  
+  # browser()
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/mixtureLKINLAPriorAlpha", l, ".pdf"), width=5, height=5)
+    xs = seq(0, 1, l=500)
+    tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
+    plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
+         main=TeX(paste0("Marginal for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
+    abline(v=qbeta(c(0.025, 0.975), priorPar$alphaPar[l], sum(priorPar$alphaPar[-l])), col="purple", lty=2)
+    dev.off()
+  }
+  
+  # fit the model
+  time = system.time(fit <- fitLKINLAStandard2(coords, ys, predCoords=predPts, seed=seed, nLayer=nLayer, NC=NC,
+                                               nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
+                                               intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
+                                               printVerboseTimings=printVerboseTimings))
+  mod = fit$mod
+  preds=fit$preds
+  predSDs=fit$sigmas
+  latInfo=fit$latInfo
+  latWidth=fit$latWidth
+  obsPreds=fit$obsPreds
+  obsSDs=fit$obsSDs
+  coefPreds = fit$coefPreds
+  coefSDs = fit$coefSDs
+  
+  # print out the total time
+  print(paste0("Total time: ", time[3]))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  
+  pdf(file="Figures/mixtureLKINLAPreds.pdf", width=15, height=6)
+  if(nLayer==1) {
+    par(mfrow=c(2,3))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
+                         coefSDs[[2]][inRange(gridPtsL2)], coefSDs[[3]][inRange(gridPtsL3)]))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    
+    # quilt.plot(coords, obsPreds, main="Prediction mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat, 
+    #            zlim=range(predSDs[inRange(predPts)]))
+    plot.new()
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+  }
+  else if(nLayer==2) {
+    par(mfrow=c(2,4))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
+    
+    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  else if(nLayer==3) {
+    par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  dev.off()
+  
+  pdf(file="Figures/mixtureLKINLALeftOutResiduals.pdf", width=5, height=5)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+       ylab="Residuals", xlab="Fitted")
+  abline(h=0, lty=2)
+  dev.off()
+  
+  # calculate true effective range and marginal variance:
+  latticeWidth = latInfo[[1]]$latWidth
+  # marginalVar = rho/(4*pi * kappa^2)
+  # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
+  #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
+  marginalVar = rho
+  
+  # plot marginals on interpretable scale (effective range, marginal variance)
+  effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+  varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  covNames = names(mod$marginals.fixed)
+  if(!assumeMeanZero) {
+    XMarginals = list()
+    for(i in 1:length(covNames)) {
+      XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+      XMarginals = c(XMarginals, list(XMarginal))
+    }
+  }
+  
+  
+  par(mfrow=c(1,1))
+  pdf(file="Figures/mixtureLKINLAEffRange.pdf", width=5, height=5)
+  plot(effRangeMarg, type="l", main="Marginal for effective range")
+  abline(v=effectiveRange, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file="Figures/mixtureLKINLAVar.pdf", width=5, height=5)
+  plot(varMarg, type="l", main="Marginal for spatial variance")
+  abline(v=marginalVar, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  pdf(file="Figures/mixtureLKINLASigma2.pdf", width=5, height=5)
+  plot(sigma2Marg, type="l", main="Marginal for error variance")
+  abline(v=sigma2, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+  dev.off()
+  
+  if(!assumeMeanZero) {
+    for(i in 1:length(covNames)) {
+      XMarginal = XMarginals[[i]]
+      pdf(file=paste0("Figures/mixtureLKINLA", covNames[i], ".pdf"), width=5, height=5)
+      plot(XMarginal, type="l", main="Marginal for fixed effect")
+      abline(v=0, col="green")
+      abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+      dev.off()
+    }
+  }
+  
+  # pdf(file="Figures/mixtureLKINLARho.pdf", width=5, height=5)
+  # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  
+  # do the same for kappa, rho
+  # in order to get distribution for rho, must sample from joint hyperparameters
+  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # thetasToRho = function(xs) {
+  #   logCor = xs[2]
+  #   logVar = xs[3]
+  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   sigma2 = exp(logVar)
+  #   sigma2 * 4*pi * kappa^2
+  # }
+  # samples = inla.hyperpar.sample(50000, mod, TRUE)
+  # rhos = apply(samples, 1, thetasToRho)
+  
+  pdf(file="Figures/mixtureLKINLAKappa.pdf", width=5, height=5)
+  plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  dev.off()
+  
+  # pdf(file="Figures/mixtureLKINLARho.pdf", width=5, height=5)
+  # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
+  ## the posterior, and transform them back to the probability scale
+  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  zSamples = out[,4:(3+nLayer-1)]
+  xSamples = apply(zSamples, 1, multivariateExpit)
+  xSamples = rbind(xSamples, 1-colSums(xSamples))
+  
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/mixtureLKINLAAlpha", l, ".pdf"), width=5, height=5)
+    hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
+    abline(v=mean(xSamples[l,]), col="purple", lty=1)
+    abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+    dev.off()
+  }
+  
+  ## plot covariance and correlation functions
+  # first get the true covariance an correlation functions
+  # spatialCovFun = function(x) {0.4 * Exp.cov(x, theta=0.1) + 0.6 * Exp.cov(x, theta=3)}
+  # mixtureCovFun = function(x) {
+  #   out = spatialCovFun(x)[1,]
+  #   out[x == 0] = 1 + sqrt(.1)
+  #   out
+  # }
+  # mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+  spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  spatialCovFun = spatialCorFun
+  mixtureCovFun = function(x) {
+    out = spatialCorFun(x)
+    out[x == 0] = 1 + sqrt(.1)
+    out
+  }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  
+  # first to transform all the hyperparameter samples to their relevant values
+  # 1: error precision
+  # 2: log effective range
+  # 3: log spatial variance
+  # 4-(3 + nLayer - 1): multivariateLogit alpha
+  nuggetVarVals = 1/out[,1]
+  kappaVals = 2.3/exp(out[,2]) * latticeWidth
+  rhoVals = exp(out[,3])
+  alphaMat = xSamples
+  
+  # compute the covariance function for many different hyperparameter samples
+  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI]
+  
+  # plot the covariance function
+  pdf(file=paste0("Figures/mixtureLKINLACov.pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance")
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  lines(d, mixtureCovFun(d), col="green")
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKINLACor.pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance")
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  lines(d, mixtureCorFun(d), col="green")
+  dev.off()
+  
+  yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
+  pdf(file=paste0("Figures/mixtureLKINLACov.pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  lines(d, mixtureCovFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKINLACor.pdf"), width=5, height=5)
+  yRange = range(c(corMean, lowerCor, upperCor, mixtureCorFun(d)))
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance")
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  lines(d, mixtureCorFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
+  # get scoring rules
+  truth = ysTest
+  est = preds[testIndices]
+  vars = predSDs[testIndices]^2
+  lower = fit$lower[testIndices]
+  upper = fit$upper[testIndices]
+  
+  c(getScores(truth, est, vars, lower, upper), Time=time[3])
+}
+
+# tests the fitLKStandard function using data simulated from the LK model
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, 
+                              nBuffer=5, normalize=TRUE, NC=13, testCovs=TRUE, 
+                              printVerboseTimings=FALSE, n=NULL, separatea.wght=FALSE, 
+                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.1, 3), 
+                              testfrac=.1) {
+  set.seed(seed)
+  
+  # set true parameter values
+  rho = 1
+  effectiveRange = thetas * 2.3
+  sigma2 = sqrt(.1)
+  
+  # load data set if necessary
+  spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+  if(is.null(n)) {
+    out = load("mixtureDataSet.RData")
+  } else {
+    nTest = round(testfrac * n)
+    simulationData = getSimulationDataSetsGivenCovariance(spatialCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
+                                                          saveDataSetPlot=FALSE)
+  }
+  coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
+  ys = simulationData$zTrain[,1]
+  
+  # generate lattice and simulate observations
+  # coords = matrix(runif(2*n), ncol=2)
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  
+  # plot the observations
+  pdf(file=paste0("Figures/mixtureObservations", extraPlotName, ".pdf"), width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys)
+  dev.off()
+  
+  # make prediction coordinates on a grid, and add testing points
+  xRange=c(-1,1)
+  yRange=c(-1,1)
+  mx = 100
+  my = 100
+  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+  ysTest = simulationData$zTest[,1]
+  
+  # fit the model
+  time = system.time(out <- fitLKStandard(coords, ys, predCoords=predPts, nLayer=nLayer, NC=NC,
+                                          nBuffer=nBuffer, normalize=normalize, fixedFunctionArgs=list(m=0), 
+                                          xRangeDat=xRange, yRangeDat=yRange, separatea.wght=separatea.wght, 
+                                          doMatern=doMatern, fixNu=fixNu))
+  mod = out$mod
+  preds = out$preds
+  predSDs = out$sigmas
+  parameterSummaryTable = out$parameterSummaryTable
+  parSim = out$parSim
+  
+  # print out the total time
+  print(paste0("Total time: ", time[3]))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  
+  pdf(file=paste0("Figures/mixtureLKPreds", extraPlotName, ".pdf"), width=8, height=8)
+  par(mfrow=c(2,2))
+  
+  # obsInds = 1:n
+  # predInds = (n+1):(n+mx*my)
+  # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+  colRangeDat = range(c(ys, preds))
+  colRangeSD = range(range(predSDs[inRange(predPts)]))
+  
+  quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+             xlim=xRangeDat, ylim=yRangeDat)
+  
+  plot.new()
+  quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
+             xlim=xRangeDat, ylim=yRangeDat)
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKLeftOutResiduals", extraPlotName, ".pdf"), width=5, height=5)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+       ylab="Residuals", xlab="Fitted")
+  abline(h=0, lty=2)
+  dev.off()
+  
+  # calculate true effective range and marginal variance:
+  # marginalVar = rho/(4*pi * kappa^2)
+  # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
+  #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
+  
+  # plot estimates on interpretable scale (effective range, marginal variance)
+  
+  # transform all the hyperparameter samples to their relevant values
+  totalVariance = out$totalVariance
+  lambdaVals = out$lambdaVals
+  rhoVals = out$rhoVals
+  nuggetVarVals = out$nuggetVarVals
+  a.wghtVals = out$a.wghtVals
+  alphaVals = out$alphaVals
+  nuVals = out$nuVals
+  
+  par(mfrow=c(1,1))
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file=paste0("Figures/mixtureLKVar", extraPlotName, ".pdf"), width=5, height=5)
+  hist(rhoVals, main="Estimate of spatial variance", freq=FALSE, breaks=20)
+  abline(v=1 + sqrt(.1), col="green")
+  abline(v=quantile(probs=c(.025, .975), rhoVals), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  pdf(file=paste0("Figures/mixtureLKSigma2", extraPlotName, ".pdf"), width=5, height=5)
+  hist(nuggetVarVals, main="Estimate of error variance", freq=FALSE, breaks=20)
+  abline(v=sigma2, col="green")
+  abline(v=quantile(probs=c(.025, .975), nuggetVarVals), col="purple", lty=2)
+  dev.off()
+  # for(i in 1:length(covNames)) {
+  #   XMarginal = XMarginals[[i]]
+  #   pdf(file=paste0("Figures/mixtureLK", covNames[i], ".pdf"), width=5, height=5)
+  #   plot(XMarginal, type="l", main="Marginal for fixed effect")
+  #   abline(v=0, col="green")
+  #   abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+  #   dev.off()
+  # }
+  
+  pdf(file=paste0("Figures/mixtureLKRho", extraPlotName, ".pdf"), width=5, height=5)
+  hist(rhoVals, main=TeX("Estimate of $\\rho$"), xlab=TeX("$\\rho$"), breaks=20, freq=FALSE)
+  abline(v=quantile(probs=c(.025, .975), rhoVals), col="purple", lty=2)
+  abline(v=rho, col="green")
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKa.wght", extraPlotName, ".pdf"), width=5, height=5)
+  hist(a.wghtVals, xlab="a.wght", main="Marginal for a.wght", breaks=20, freq=FALSE)
+  abline(v=quantile(probs=c(.025, .975), a.wghtVals), col="purple", lty=2)
+  dev.off()
+  
+  # pdf(file=paste0("Figures/mixtureLKRho", extraPlotName, ".pdf"), width=5, height=5)
+  # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now get distribution for the alpha parameters
+  xSamples = alphaVals
+  for(l in 1:nLayer) {
+    pdf(file=paste0("Figures/mixtureLKAlpha", l, extraPlotName, ".pdf"), width=5, height=5)
+    hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=20, freq=F, xlim=c(0,1))
+    abline(v=mean(xSamples[l,]), col="purple", lty=1)
+    abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+    dev.off()
+  }
+  
+  ## plot covariance and correlation functions
+  # first get the true covariance an correlation functions
+  spatialCovFun = spatialCorFun
+  mixtureCovFun = function(x) {
+    out = spatialCorFun(x)[1,]
+    out[x == 0] = 1 + sqrt(.1)
+    out
+  }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  
+  # compute the covariance function for many different hyperparameter samples
+  out = covarianceDistributionLK(mod$LKinfo, alphaVals, lambdaVals, a.wghtVals, rhoVals, nuggetVarVals)
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI,]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI,]
+  corMatNoNugget=out$corMatNoNugget[sortI,]
+  
+  getEffectiveRange = function(ds, cors) {
+    firstI = match(TRUE, cors<.1)
+    if(is.na(firstI)) {
+      warning("effective range larger than spatial domain diameter. Returning spatial domain diameter as effective range")
+      firstI = length(ds)
+    } else if(firstI == 1)
+      warning("effective range is extremely small and more resolution required to accurately determine it")
+    ds[firstI]
+  }
+  effectiveRanges = apply(corMatNoNugget, 2, getEffectiveRange, ds=d)
+  
+  pdf(file=paste0("Figures/mixtureLKEffRange", extraPlotName, ".pdf"), width=5, height=5)
+  hist(effectiveRanges, main="Estimated effective range", freq=FALSE, breaks=20)
+  abline(v=effectiveRange, col="green")
+  abline(v=quantile(probs=c(.025, .975), effectiveRanges), col="purple", lty=2)
+  dev.off()
+  
+  # plot the covariance function
+  yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
+  pdf(file=paste0("Figures/mixtureLKCov", extraPlotName, ".pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Estimated covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  lines(d, mixtureCovFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKCor", extraPlotName, ".pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Estimated correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=c(0, 1))
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  lines(d, mixtureCorFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
+  invisible(NULL)
+}
+
+# tests the fitSPDE function using data simulated from the LK model
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+# thetas: originally was c(.1, 3), but 3 is too large
+testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE, 
+                                testCovs=TRUE, n=1000, thetas=c(.1, .4), 
+                                int.strategy="auto", strategy="gaussian", 
+                                nPostSamples=1000, mesh=getSPDEMesh(), 
+                                prior=getSPDEPrior(mesh), testfrac=.1) {
+  set.seed(seed)
+  
+  # set true parameter values
+  rho = 1
+  effectiveRange = thetas * 2.3
+  sigma2 = sqrt(.1)
+  
+  # load data set if necessary
+  if(is.null(n)) {
+    out = load("mixtureDataSet.RData")
+  } else {
+    mixtureCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+    nTest = round(testfrac * n)
+    simulationData = getSimulationDataSetsGivenCovariance(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
+                                                          saveDataSetPlot=FALSE)
+  }
+  coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
+  ys = simulationData$zTrain[,1]
+  
+  # generate lattice and simulate observations
+  # coords = matrix(runif(2*n), ncol=2)
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  
+  AObs = inla.spde.make.A(mesh, loc = coords)
+  # Q = makeQ(kappa=kappa, rho=rho, latInfo, alphas=alphas, normalized=normalize, fastNormalize=fastNormalize) 
+  # L = as.matrix(t(chol(solve(Q))))
+  # zsims = matrix(rnorm(nrow(Q)), ncol=1)
+  # fieldSims = L %*% zsims
+  # ys = as.numeric(AObs %*% fieldSims) + 1 # add a constant unit mean term to be estimated by INLA
+  # # ys = 1 + as.numeric(AObs %*% fieldSims) + coords[,1] # x-valued mean term to be estimated by INLA
+  # errs = rnorm(n, sd=sqrt(sigma2))
+  # ys = ys + errs
+  
+  # plot the observations
+  pdf(file="Figures/mixtureSPDEObservations.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys)
+  dev.off()
+  
+  # make prediction coordinates on a grid, and add testing points
+  xRange=c(-1,1)
+  yRange=c(-1,1)
+  mx = 100
+  my = 100
+  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+  ysTest = simulationData$zTest[,1]
+  
+  # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
+  # priorPar = getPrior(.1, .1, 10)
+  # generate hyperparameters for pc priors
+  # median effective range is .4 (a fifth of the spatial domain diameter), median spatial variance is 1
+  priorPar = getPCPrior(.4, .5, 1) 
+  X = matrix(rep(1, nrow(coords)), ncol=1)
+  # X = matrix(coords[,1], ncol=1)
+  XPred = matrix(rep(1, nrow(predPts)), ncol=1)
+  
+  # add linear terms in lat/lon to covariate matrices if requested
+  if(testCovs) {
+    X = cbind(X, coords)
+    XPred = cbind(XPred, predPts)
+  }
+  
+  if(assumeMeanZero) {
+    X = NULL
+    XPred = NULL
+  }
+  
+  # show priors on effective correlation, marginal variance, and error variance:
+  xs1 = seq(.01, 1, l=500)
+  pdf(file="Figures/mixtureSPDEPriorEffRange.pdf", width=5, height=5)
+  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+       ylab="Prior Density")
+  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  dev.off()
+  
+  if(priorPar$priorType == "orig") {
+    xs2 = seq(.01, 10.5, l=500)
+    pdf(file="Figures/mixtureSPDEPriorMargVar.pdf", width=5, height=5)
+    plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    dev.off()
+  } else if(priorPar$priorType == "pc") {
+    xs2 = seq(.01, 11.5, l=500)
+    pdf(file="Figures/mixtureSPDEPriorMargVar.pdf", width=5, height=5)
+    plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=1, col="green")
+    dev.off()
+  }
+  
+  # xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  # pdf(file="Figures/mixtureSPDEPriorErrorVar.pdf", width=5, height=5)
+  # plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+  #      xlab="Error Variance", main="Error Variance Prior", 
+  #      ylab="Prior Density")
+  # abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  # abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  # dev.off()
+  
+  xs2 = seq(.01, 1, l=500)
+  pdf(file="Figures/mixtureSPDEPriorErrorVar.pdf", width=5, height=5)
+  plot(xs2, dpcvar(xs2, alpha=.05, u=1), type="l", col="blue", 
+       xlab="Marginal Variance", main="Marginal Variance Prior", 
+       ylab="Prior Density")
+  abline(v=qpcvar(.1, alpha=.05, u=1), col="red")
+  abline(v=qpcvar(.9, alpha=.05, u=1), col="red")
+  abline(v=sqrt(.1), col="green")
+  dev.off()
+  
+  # browser()
+  
+  # fit the model
+  time = system.time(fit <- fitSPDE(coords, ys, predCoords=predPts, seed=seed, prior=prior, 
+                                    xObs=X, xPred=XPred, int.strategy=int.strategy, strategy=strategy, 
+                                    mesh=mesh, nPostSamples=nPostSamples))
+  mod = fit$mod
+  preds=fit$preds
+  predSDs=fit$sigmas
+  latInfo=fit$latInfo
+  latWidth=fit$latWidth
+  obsPreds=fit$obsPreds
+  obsSDs=fit$obsSDs
+  
+  # print out the total time
+  print(paste0("Total time: ", time[3]))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  
+  pdf(file="Figures/mixtureSPDEPreds.pdf", width=8, height=8)
+  par(mfrow=c(2,2), mar=c(5.1, 4.1, 4.1, 6))
+  
+  # obsInds = 1:n
+  # predInds = (n+1):(n+mx*my)
+  # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+  # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+  colRangeDat = range(c(ys, obsPreds, preds))
+  colRangeSD = range(c(predSDs, obsSDs))
+  quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+             xlim=xRangeDat, ylim=yRangeDat)
+  
+  quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+             xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+  dev.off()
+  
+  pdf(file="Figures/mixtureSPDELeftOutResiduals.pdf", width=5, height=5)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+       ylab="Residuals", xlab="Fitted")
+  abline(h=0, lty=2)
+  dev.off()
+  
+  # calculate true effective range and marginal variance:
+  marginalVar = rho
+  
+  # plot marginals on interpretable scale (effective range, marginal variance)
+  effRangeMarg = mod$marginals.hyperpar$`Range for field`
+  varMarg = inla.tmarginal(function(x) {x^2}, mod$marginals.hyperpar$`Stdev for field`)
+  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  covNames = names(mod$marginals.fixed)
+  
+  if(!assumeMeanZero) {
+    XMarginals = list()
+    for(i in 1:length(covNames)) {
+      XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+      XMarginals = c(XMarginals, list(XMarginal))
+    }
+  }
+  
+  par(mfrow=c(1,1))
+  pdf(file="Figures/mixtureSPDEEffRange.pdf", width=5, height=5)
+  plot(effRangeMarg, type="l", main="Marginal for effective range")
+  abline(v=effectiveRange, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file="Figures/mixtureSPDEVar.pdf", width=5, height=5)
+  plot(varMarg, type="l", main="Marginal for spatial variance")
+  abline(v=marginalVar, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  pdf(file="Figures/mixtureSPDESigma2.pdf", width=5, height=5)
+  plot(sigma2Marg, type="l", main="Marginal for error variance")
+  abline(v=sigma2, col="green")
+  abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+  dev.off()
+  
+  if(!assumeMeanZero) {
+    for(i in 1:length(covNames)) {
+      XMarginal = XMarginals[[i]]
+      pdf(file=paste0("Figures/mixtureSPDE", covNames[i], ".pdf"), width=5, height=5)
+      plot(XMarginal, type="l", main="Marginal for fixed effect")
+      abline(v=0, col="green")
+      abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+      dev.off()
+    }
+  }
+  
+  # pdf(file="Figures/mixtureSPDERho.pdf", width=5, height=5)
+  # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
+  ## the posterior, and transform them back to the probability scale
+  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  
+  ## plot covariance and correlation functions
+  # first get the true covariance an correlation functions
+  spatialCovFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  mixtureCovFun = function(x) {
+    out = spatialCovFun(x)
+    out[x == 0] = 1 + sqrt(.1)
+    out
+  }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  
+  # first to transform all the hyperparameter samples to their relevant values
+  # 1: error precision
+  # 2: log effective range
+  # 3: log spatial variance
+  # 4-(3 + nLayer - 1): multivariateLogit alpha
+  nuggetVarVals = 1/out[,1]
+  effectiveRangeVals = out[,2]
+  varVals = out[,3]^2
+  
+  # compute the covariance function for many different hyperparameter samples
+  out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=c(-1,1), yRangeDat=c(-1,1))
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[,sortI]
+  lowerCov=out$lowerCov[,sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[,sortI]
+  lowerCor=out$lowerCor[,sortI]
+  corMat=out$corMat[sortI]
+  
+  # plot the covariance function
+  yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
+  pdf(file=paste0("Figures/mixtureSPDECov.pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov[1,], lty=2)
+  lines(d, upperCov[1,], lty=2)
+  lines(d, lowerCov[2,], lty=3)
+  lines(d, upperCov[2,], lty=3)
+  lines(d, mixtureCovFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI", "95% CI"), lty=c(1, 1, 2, 3), col=c("green", "black", "black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureSPDECor.pdf"), width=5, height=5)
+  yRange = range(c(corMean, lowerCor, upperCor, mixtureCorFun(d)))
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCor[1,], lty=2)
+  lines(d, upperCor[1,], lty=2)
+  lines(d, lowerCor[2,], lty=3)
+  lines(d, upperCor[2,], lty=3)
+  lines(d, mixtureCorFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI", "95% CI"), lty=c(1, 1, 2, 3), col=c("green", "black", "black", "black"))
+  dev.off()
+  
+  # get scoring rules
+  truth = ysTest
+  est = preds[testIndices]
+  vars = predSDs[testIndices]^2
+  lower = fit$lower[testIndices]
+  upper = fit$upper[testIndices]
+  
+  c(getScores(truth, est, vars, lower, upper), Time=time[3])
+}
+
+# test how close we can get to the spatial correlation function:
+testCorrelationApproximation = function(seed=1, nLayer=3, NP=200, 
+                                        nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, 
+                                        latInfo=NULL, thetas=c(.1, .4), 
+                                        initialEffectiveRange=1, initialAlphas=rep(1/nLayer, nLayer-1), 
+                                        nu=.5) {
+  set.seed(seed)
+  
+  # set true parameter values
+  rho = 1
+  effectiveRange = thetas * 2.3
+  sigma2 = sqrt(.1)
+  # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  spatialCorFun = function(x) {0.4 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.6 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
+  
+  # construct the lattice
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  if(is.null(latInfo))
+    latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  
+  # set initial parameter values
+  initialKappa = (2.3 * latInfo[[1]]$latWidth /initialEffectiveRange)
+  
+  xlim <- latInfo[[1]]$xRangeDat
+  ux <- seq(xlim[1], xlim[2], , NP)
+  ylim <- latInfo[[1]]$yRangeDat
+  uy <- seq(ylim[1], ylim[2], , NP)
+  center <- rbind(c(ux[NP/2], uy[NP/2]))
+  
+  # precompute relevant matrices
+  Qprecomputations = precomputationsQ2(latInfo)
+  Acenter = makeA(center, latInfo)
+  Ax = makeA(cbind(ux, uy[NP/2]), latInfo)
+  Ay = makeA(cbind(ux[NP/2], uy), latInfo)
+  
+  testFun = function(parameters) {
+    kappa = exp(parameters[1])
+    logitAlphas = parameters[2:nLayer]
+    alphas = multivariateExpit(logitAlphas)
+    alphas = c(alphas, 1 - sum(alphas))
+    test = getLKInlaCovarianceFun(kappa, 1, 0, alphas, latticeInfo = latInfo, 
+                                  precomputedMatrices=Qprecomputations, precomputedAcenter=Acenter, precomputedAx=Ax, precomputedAy=Ay)
+    
+    ds = test[-1,1]
+    mean((spatialCorFun(ds) - test[-1,2])^2 * (1/ds)) # inverse distance weighted mean squared error of the correlation function fit
+    # mean((spatialCorFun(ds) - test[-1,2])^2)
+  }
+  
+  print("Beginning optimization...")
+  temp = optim(c(log(initialKappa), multivariateLogit(initialAlphas)), testFun)
+  outPar = temp$par
+  outkappa = exp(outPar[1])
+  outlogitAlphas = outPar[2:nLayer]
+  outalphas = multivariateExpit(outlogitAlphas)
+  outalphas = c(outalphas, 1 - sum(outalphas))
+  outEffectiveRange = (1/outkappa) * 2.3 * latInfo[[1]]$latWidth
+  
+  trueEffectiveRangeOverall = getTrueLKEffectiveRange(nLayer, NP, sigma2=0, rho=1, nBuffer, normalize, fastNormalize, 
+                                                      NC, latInfo, outEffectiveRange, outalphas)
+  trueEffectiveRanges = rep(0, nLayer)
+  for(i in 1:nLayer) {
+    theseAlphas = rep(0, nLayer)
+    theseAlphas[i] = 1
+    trueEffectiveRanges[i] = getTrueLKEffectiveRange(nLayer, NP, sigma2=0, rho=1, nBuffer, normalize, fastNormalize, 
+                                                     NC, latInfo, outEffectiveRange, theseAlphas)
+    
+    print(paste0("Layer ", i, " weight: ", outalphas[i], ", true effective range: ", trueEffectiveRanges[i]))
+  }
+  
+  test = getLKInlaCovarianceFun(outkappa, 1, 0, outalphas, latticeInfo = latInfo)
+  ds = test[,1]
+  pdf(paste0("Figures/approxCorrelation_nLayer", nLayer, "_NC", NC, "_nBuffer", nBuffer, "_nu", nu, ".pdf"), width=5, height=5)
+  plot(ds, spatialCorFun(ds), type="l", col="green", ylim=c(0,1), ylab="Correlation", main="Correlation", xlab="Distance")
+  lines(ds, test[,2], col="blue")
+  legend("topright", c("Truth", "Approximate"), col=c("green", "blue"), lty=1)
+  dev.off()
+}
+
+getCorrelationApproximation = function(thetas=c(.1, .4), nu=0.5) {
+  NP = 200
+  # set true parameter values
+  rho = 1
+  effectiveRange = thetas * 2.3
+  sigma2 = sqrt(.1)
+  # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  spatialCorFun = function(x) {0.4 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.6 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
+  
+  # construct the lattice
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  ds = seq(0, 1, l=NP)[-1]
+  
+  testFun = function(parameters) {
+    theta = exp(parameters[1])
+    
+    mean((spatialCorFun(ds) - Matern(ds, range=theta, smoothness=1))^2 / ds) # inverse distance weighted mean squared error of the correlation function fit
+    # mean((spatialCorFun(ds) - test[-1,2])^2)
+  }
+  
+  print("Beginning optimization...")
+  temp = optim(log(.2), testFun)
+  theta = exp(temp$par)
+  
+  pdf(paste0("Figures/approxCorrelation_MaternNu1.pdf"), width=5, height=5)
+  plot(ds, spatialCorFun(ds), type="l", col="green", ylim=c(0,1), ylab="Correlation", main="Correlation", xlab="Distance")
+  lines(ds, Matern(ds, range=theta, smoothness=1), col="blue")
+  legend("topright", c("Truth", "Approximate"), col=c("green", "blue"), lty=1)
+  dev.off()
+  theta # 0.1256181
+}
+
+maternMixture = function(x, thetas=c(.1, .4), nu=0.5, alphas=c(0.4, 0.6)) {
+  alphas[1] * Matern(x, range=thetas[1], smoothness=nu) + 
+    alphas[2] * Matern(x, range=thetas[2], smoothness=nu)
+}
+maternMixtureCor = function(x1, x2=NULL, thetas=c(.1, .4), nu=0.5, alphas=c(0.4, 0.6), distMat=NA) {
+  tempFun = function(d) {maternMixture(d, thetas, nu, alphas)}
+  stationary.cov(x1, x2, Covariance=tempFun, distMat=distMat)
+}
+maternApproxCor = function(x1, x2=NULL, theta=0.1256181, smoothness=1, distMat=NA) {
+  approxCorrelation=function(d) {Matern(d, range=theta, smoothness=smoothness)}
+  stationary.cov(x1, x2, Covariance=approxCorrelation, distMat=distMat)
+}
+
+# nx, ny: resolution of prediction grid in the x and y directions
+# mx, my: the number of aggregation regions (rectangles) in the x and y directions
+testCorrelationApproximation = function(trueCorrelation = maternMixtureCor, 
+                                        approxCorrelation = maternApproxCor, 
+                                        nx=75, ny=75, seed=1, n=900, 
+                                        mx=3, my=3) {
+  set.seed(seed)
+  
+  # set true parameter values
+  rho = 1
+  # sigma2 = sqrt(.1)
+  sigma2 = 0
+  
+  # generate data set
+  nTest = 100
+  simulationData = getSimulationDataSetsGivenCovarianceTest(trueCorrelation, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=0, 
+                                                        nDataSets=2, plotNameRoot=paste0("(0.4*Exp(.1) + 0.6*Exp(.4))"), fileNameRoot="mix", 
+                                                        saveDataSetPlot=FALSE, doPredGrid=TRUE)
+  coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
+  testCoords = cbind(simulationData$xTest[,1], simulationData$yTest[,1])
+  ys = simulationData$zTrain[,1]
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  gridValues = simulationData$zGrid[,1]
+  
+  # generate lattice and simulate observations
+  # coords = matrix(runif(2*n), ncol=2)
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  
+  # plot the observations
+  pdf(file="Figures/mixtureMaternObservations.pdf", width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys)
+  dev.off()
+  
+  # make prediction coordinates on a grid, and add testing points
+  xRange=c(-1,1)
+  yRange=c(-1,1)
+  predPts = rbind(gridCoords, testCoords)
+  ysGrid = gridValues
+  ysTest = simulationData$zTest[,1]
+  
+  # construct aggregation matrix for predictions by testing which prediction locations 
+  # are in which aggregation regions
+  xRegionGrid = seq(-1, 1, l=mx + 1)[-1]
+  yRegionGrid = seq(-1, 1, l=my + 1)[-1]
+  xRegion = function(x) {
+    match(TRUE, x <= xRegionGrid)
+  }
+  yRegion = function(y) {
+    match(TRUE, y <= yRegionGrid)
+  }
+  xRegionI = sapply(gridCoords[,1], xRegion)
+  yRegionI = sapply(gridCoords[,2], yRegion)
+  regionI = (yRegionI-1)*mx + xRegionI
+  getARow = function(ai) {regionI == ai}
+  
+  # A = t(sapply(1:(mx*my), getARow))
+  # A = sweep(A, 1, rowSums(A), "/")
+  A = makeNumericalIntegralMat(gridCoords, mx=mx, my=my)
+  
+  # generate the true aggregated values of the field
+  # NOTE: this includes any nugget effect. Is that a good idea??
+  gridValuesAggregated = A %*% gridValues
+  
+  # fit the model true and approximate models
+  time = system.time(fit <- GPpreds(coords, ys, predCoords=predPts, 
+                                    xObs=NULL, xPred=NULL, cov.fun=trueCorrelation, A=A))
+  predsGrid=fit$preds[1:ncol(A)]
+  predSDsGrid=fit$sigmas[1:ncol(A)]
+  predsTest=fit$preds[-(1:ncol(A))]
+  predSDsTest=fit$sigmas[-(1:ncol(A))]
+  predsAggregated=fit$predsAggregated
+  predSDsAggregated=fit$sigmasAggregated
+  
+  time = system.time(fit <- GPpreds(coords, ys, predCoords=predPts, 
+                                    xObs=NULL, xPred=NULL, cov.fun=approxCorrelation, A=A))
+  predsApproxGrid=fit$preds[1:ncol(A)]
+  predSDsApproxGrid=fit$sigmas[1:ncol(A)]
+  predsApproxTest=fit$preds[-(1:ncol(A))]
+  predSDsApproxTest=fit$sigmas[-(1:ncol(A))]
+  predsApproxAggregated=fit$predsAggregated
+  predSDsApproxAggregated=fit$sigmasAggregated
+  
+  # print results
+  print(data.frame(list(truth=gridValuesAggregated, truePredsAggregated=predsAggregated, approxPredsAggregated=predsApproxAggregated, trueSDsAggregated=predSDsAggregated, approxSDsAggregated=predSDsApproxAggregated)))
+  print(data.frame(list(trueMean=mean(ysTest), truePredsMean=mean(predsTest), approxPredsMean=mean(predsApproxTest), 
+                        trueSDsMean=mean(predSDsTest), approxSDsMean=mean(predSDsApproxTest), 
+                        trueMSE=mean((ysTest-predsTest)^2), approxMSE=mean((ysTest-predsApproxTest)^2))))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+    inX & inY
+  }
+  
+  # show predictive surface, SD, and data
+  browser()
+  
+  pdf(file="Figures/mixtureMaternPreds.pdf", width=12, height=8)
+  par(mfrow=c(2,3), mar=c(5.1, 4.1, 4.1, 6))
+  
+  colRangeDat = range(c(ys, predsGrid, predsApproxGrid, gridValues))
+  colRangeSD = range(c(predSDsGrid[inRange(gridCoords, rangeShrink=.01)], predSDsApproxGrid[inRange(gridCoords, rangeShrink=.01)]))
+  quilt.plot(gridCoords[,1], gridCoords[,2], gridValues, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(gridCoords[,1], gridCoords[,2], predsGrid, main="Prediction Mean (True Covariance)", zlim=colRangeDat, 
+             xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(gridCoords[,1], gridCoords[,2], predsApproxGrid, main="Prediction Mean (Approx. Covariance)", zlim=colRangeDat, 
+             xlim=xRangeDat, ylim=yRangeDat)
+  
+  quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(gridCoords[,1], gridCoords[,2], predSDsGrid, main="Prediction SD (True Covariance)",
+             xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeSD)
+  quilt.plot(gridCoords[,1], gridCoords[,2], predSDsApproxGrid, main="Prediction SD (Approx. Covariance)",
+             xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeSD)
+  dev.off()
+  
+  my_line <- function(x,y,...){
+    abline(a = 0,b = 1,...)
+    points(x,y,..., col="blue")
+  }
+  
+  pdf(file="Figures/mixtureMaternLeftOutPairGrid.pdf", width=6, height=6)
+  thisRange = range(c(cbind(Truth=gridValues, BLUP=predsGrid, ApproxCov=predsApproxGrid)))
+  pairs(cbind(Truth=gridValues, BLUP=predsGrid, ApproxCov=predsApproxGrid), pch=19, cex=.1, xlim=thisRange, ylim=thisRange, 
+        upper.panel=my_line, lower.panel=my_line, main="Full Domain Grid Pair Plot")
+  dev.off()
+  
+  pdf(file="Figures/mixtureMaternLeftOutPairTest.pdf", width=6, height=6)
+  thisRange = range(c(cbind(Truth=ysTest, BLUP=predsTest, ApproxCov=predsApproxTest)))
+  pairs(cbind(Truth=ysTest, BLUP=predsTest, ApproxCov=predsApproxTest), pch=19, cex=.4, xlim=thisRange, ylim=thisRange, 
+        upper.panel=my_line, lower.panel=my_line, main="Left Out Area Pair Plot")
+  dev.off()
+  
+  # pdf(file="Figures/mixtureMaternLeftOutResidualsGrid.pdf", width=5, height=5)
+  # testIndices = (length(predsGrid) - length(ysGrid) + 1):length(predsGrid)
+  # plot(predsGrid[testIndices], ysGrid-predsGrid[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+  #      ylab="Residuals", xlab="Fitted")
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file="Figures/mixtureMaternLeftOutResidualsTest.pdf", width=5, height=5)
+  # testIndices = (length(predsGrid) - length(ysGrid) + 1):length(predsGrid)
+  # plot(predsGrid[testIndices], ysGrid-predsGrid[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+  #      ylab="Residuals", xlab="Fitted")
+  # abline(h=0, lty=2)
+  # dev.off()
+}
+
+# The same as getSimulationDataSetsGivenCovariance, but test observations all come from a left out region in the center
+getSimulationDataSetsGivenCovarianceTest = function(corFun, nTotal=900, nTest=round(nTotal / 9), marginalVar=1, errorVar=sqrt(.1), nDataSets=100, 
+                                                    printEvery=10, saveDataSetPlot=TRUE, fileNameRoot="", plotNameRoot="", 
+                                                    doPredGrid=FALSE, nTestGrid=70^2) {
+  
+  # set the spatial domain
+  xRange = c(-1, 1)
+  yRange = c(-1, 1)
+  
+  # set the region grid
+  mx=3
+  my=3
+  xRegionGrid = seq(-1, 1, l=mx + 1)[-1]
+  yRegionGrid = seq(-1, 1, l=my + 1)[-1]
+  centerxLeftI = floor((mx - 1) / 2)
+  
+  # if generating prediction grid, make that grid here
+  if(doPredGrid) {
+    nx = round(sqrt(nTestGrid))
+    ny = nx
+    if(nx * ny != nTestGrid)
+      stop("nTestGrid must be a square number if we are constructing a prediction grid")
+    xValuesGrid = seq(-1, 1, l=nx)
+    yValuesGrid = xValuesGrid
+    glist = make.surface.grid(list(x=xValuesGrid, y=yValuesGrid))
+    xValuesGrid = glist[,1]
+    yValuesGrid = glist[,2]
+  } else {
+    nx = 0
+    ny = 0
+    xValuesGrid = c()
+    yValuesGrid = c()
+  }
+  
+  # simulate observation spatial locations
+  # xValues = matrix(runif(nTotal * nDataSets, xRange[1], xRange[2]), ncol=nDataSets)
+  # yValues = matrix(runif(nTotal * nDataSets, yRange[1], yRange[2]), ncol=nDataSets)
+  nTrain = nTotal - nTest
+  coordsTrain = runifsqMissingRectangle(nTrain * nDataSets)
+  coordsTest = runifsq(nTest * nDataSets, c(-1/3, 1/3), c(-1/3, 1/3))
+  xValuesTrain = matrix(coordsTrain[,1], ncol=nDataSets)
+  yValuesTrain = matrix(coordsTrain[,2], ncol=nDataSets)
+  xValuesTest = matrix(coordsTest[,1], ncol=nDataSets)
+  yValuesTest = matrix(coordsTest[,2], ncol=nDataSets)
+  xValues = rbind(xValuesTrain, xValuesTest)
+  yValues = rbind(yValuesTrain, yValuesTest)
+  
+  # preallocate observation matrix, and pregenerate standard normal draws
+  observations = matrix(nrow=nTotal+nx*ny, ncol=nDataSets)
+  zsims = matrix(rnorm((nTotal + nx*ny) * nDataSets), ncol=nDataSets)
+  
+  # generate spatial component of observation values
+  for(i in 1:nDataSets) {
+    if(i %% printEvery == 0 || i == 1)
+      print(paste0("Simulating data set ", i, "/", nDataSets))
+    
+    thisx = xValues[,i]
+    thisy = yValues[,i]
+    L = t(chol(corFun(cbind(c(thisx, xValuesGrid), c(thisy, yValuesGrid)))))
+    observations[,i] = L %*% zsims[,i]
+  }
+  
+  # scale by marginal standard deviation and add in error variance
+  observations = observations * sqrt(marginalVar) + matrix(rnorm((nTotal + nx*ny) * nDataSets, sd=sqrt(errorVar)), ncol=nDataSets)
+  
+  # separate out test and train results
+  trainI = 1:(nTotal - nTest)
+  testI = (nTotal - nTest + 1):nTotal
+  gridI = (nTotal + 1):(nTotal + nx * ny)
+  if(nTotal - nTest != 0) {
+    xTrain = xValues[trainI,]
+    yTrain = yValues[trainI,]
+    zTrain = observations[trainI,]
+  } else {
+    xTrain = c()
+    yTrain = c()
+    zTrain = c()
+  }
+  if(nTest != 0) {
+    xTest = xValues[testI,]
+    yTest = yValues[testI,]
+    zTest = observations[testI,]
+  }
+  else {
+    xTest = c()
+    yTest = c()
+    zTest = c()
+  }
+  # get grid results if necessary
+  if(doPredGrid) {
+    xGrid = xValuesGrid
+    yGrid = yValuesGrid
+    zGrid = observations[gridI,]
+  } else {
+    xGrid = NULL
+    yGrid = NULL
+    zGrid = NULL
+  }
+  
+  # put relevant values into a list
+  out = list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
+             xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
+             corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange)
+  
+  # plot the results
+  plotExampleDataSets(out, saveDataSetPlot=saveDataSetPlot, plotNameRoot=plotNameRoot, fileNameRoot=fileNameRoot)
+  
+  # return the results
+  out
+}
+
+
 
 
 

@@ -22,7 +22,7 @@ getSPDEPrior = function(mesh, sigma0=1, strictPrior=FALSE, U=3, alpha=0.01) {
 }
 
 # get a reasonable default mesh triangulation for the SPDE model
-getSPDEMesh = function(locs, n=3500, max.n=5000, doPlot=TRUE, max.edge=c(.01, .1), 
+getSPDEMesh = function(locs=cbind(c(-1, -1, 1, 1), c(-1, 1, -1, 1)), n=3500, max.n=5000, doPlot=TRUE, max.edge=c(.01, .1), 
                             offset=-.08, cutoff=.005) {
   
   
@@ -62,11 +62,19 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   latticeInds = 1:n
   
   # construct the observation stack 
-  stack.est = inla.stack(A =list(AEst, 1),
-                         effects =list(field=latticeInds, X=xObs),
-                         data =list(y=ys, link=1),
-                         tag ="est",
-                         remove.unused=FALSE)
+  if(!is.null(xObs)) {
+    stack.est = inla.stack(A =list(AEst, 1),
+                           effects =list(field=latticeInds, X=xObs),
+                           data =list(y=ys, link=1),
+                           tag ="est",
+                           remove.unused=FALSE)
+  } else {
+    stack.est = inla.stack(A =list(AEst),
+                           effects =list(field=latticeInds),
+                           data =list(y=ys, link=1),
+                           tag ="est",
+                           remove.unused=FALSE)
+  }
   
   # make mesh index
   mesh.index <- inla.spde.make.index(name = "field", n.spde = prior$n.spde)
@@ -81,14 +89,25 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   
   # see: inla.doc("loggamma")
   # shape=.1, scale=10 for unit mean, variance 100 prior
-  mod = inla(y ~ - 1 + X + f(field, model=prior), 
-             data = stackDat, 
-             control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, link=stackDat$link, quantiles=allQuantiles), 
-             family="gaussian", verbose=verbose, control.inla=control.inla, 
-             control.compute=list(config=TRUE), 
-             control.mode=modeControl, 
-             control.fixed=list(quantiles=allQuantiles), 
-             control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
+  if(!is.null(xObs)) {
+    mod = inla(y ~ - 1 + X + f(field, model=prior), 
+               data = stackDat, 
+               control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, link=stackDat$link, quantiles=allQuantiles), 
+               family="gaussian", verbose=verbose, control.inla=control.inla, 
+               control.compute=list(config=TRUE), 
+               control.mode=modeControl, 
+               control.fixed=list(quantiles=allQuantiles), 
+               control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
+  } else {
+    mod = inla(y ~ - 1 + f(field, model=prior), 
+               data = stackDat, 
+               control.predictor=list(A=inla.stack.A(stack.full), compute=TRUE, link=stackDat$link, quantiles=allQuantiles), 
+               family="gaussian", verbose=verbose, control.inla=control.inla, 
+               control.compute=list(config=TRUE), 
+               control.mode=modeControl, 
+               control.fixed=list(quantiles=allQuantiles), 
+               control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
+  }
   
   # get predictive surface, SD, and data
   n = nrow(obsCoords)
@@ -107,6 +126,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   latentMat = sapply(postSamples, function(x) {x$latent})
   # if(clusterEffect)
   #   clusterVars = sapply(postSamples, function(x) {1 / x$hyperpar[3]})
+  nuggetVars = sapply(postSamples, function(x) {1 / x$hyperpar[1]})
   latentVarNames = rownames(postSamples[[1]]$latent)
   fieldIndices = which(grepl("field", latentVarNames))
   fixedIndices = which(grepl("X", latentVarNames))
@@ -119,6 +139,7 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   else
     fixedPart = 0
   predMat = fixedPart + APred %*% latentMat[fieldIndices,]
+  predMatNugget = predMat + matrix(rnorm(length(predMat), sd=rep(sqrt(nuggetVars), each=nrow(predMat))), ncol=ncol(predMat))
   
   # if(clusterEffect) {
   #   # add in estimated cluster effects at the sampled enumeration areas
@@ -130,12 +151,15 @@ fitSPDE = function(obsCoords, obsValues, xObs=matrix(rep(1, length(obsValues)), 
   # }
   
   preds = rowMeans(predMat)
-  predSDs = apply(predMat, 1, sd)
-  lower = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
+  predSDs = apply(predMatNugget, 1, sd)
+  lower = apply(predMatNugget, 1, quantile, probs=(1-significanceCI)/2)
   medians = apply(predMat, 1, median)
-  upper = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
+  upper = apply(predMatNugget, 1, quantile, probs=1-(1-significanceCI)/2)
   
-  interceptSummary=mod$summary.fixed[,1:5]
+  if(length(xPred) != 0)
+    interceptSummary=mod$summary.fixed[,1:5]
+  else
+    interceptSummary = matrix(rep(0, 5), nrow=1)
   rangeSummary=mod$summary.hyperpar[2,1:5]
   spatialSDSummary = mod$summary.hyperpar[3,1:5]
   

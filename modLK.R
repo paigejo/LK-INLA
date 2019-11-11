@@ -5,7 +5,7 @@
 # nLayer: number of layers to include
 # NOTE: includes a first order linear polynomial in spatial coordinates, so do not include that in the covariates
 fitLKSimple = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
-                 nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8) {
+                       nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8) {
   # if(!simpleMod)
   #   stop("non simple models not yet supported for LatticeKrig prediction function")
   
@@ -25,8 +25,8 @@ fitLKSimple = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xP
       print(paste0("predicting covariate ", i, "/", ncol(xObs)))
       thisCov = xObs[,i]
       out = fitLKSimple(obsCoords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
-                  nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
-                  a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
+                        nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
+                        a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
       xPred[,i] = out$preds
     }
   }
@@ -83,20 +83,39 @@ fitLKSimple = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xP
 # NOTE: includes a first order linear polynomial in spatial coordinates, so do not include that in the covariates
 # NOTE: lambda is sigma^2 / rho
 fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, normalize=TRUE, 
-                 nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, doSEs=TRUE, significanceCI=.8, 
-                 lowerBoundLogLambda =-16,
-                 upperBoundLogLambda = 4,
-                 lowerBoundLogitAlpha = rep(-10, nLayer-1),
-                 upperBoundLogitAlpha= rep(10, nLayer-1),
-                 lowerBoundOmega = -3,
-                 upperBoundOmega = .75,
-                 factr=1e7,
-                 pgtol=1e-1,
-                 maxit=15, 
-                 nsimConditional=100, 
-                 fixedFunctionArgs = list(m = 1)) {
+                         nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, doSEs=TRUE, significanceCI=.8, 
+                         lowerBoundLogLambda =-16,
+                         upperBoundLogLambda = 4,
+                         lowerBoundLogNu =-15,
+                         upperBoundLogNu = 3,
+                         lowerBoundLogitAlpha = rep(-10, nLayer-1),
+                         upperBoundLogitAlpha= rep(10, nLayer-1),
+                         lowerBoundOmega = -3,
+                         upperBoundOmega = .75,
+                         factr=1e7,
+                         pgtol=1e-1,
+                         maxit=15, 
+                         nsimConditional=100, 
+                         fixedFunctionArgs = list(m = 1), 
+                         xRangeDat=NULL, yRangeDat=NULL, 
+                         separatea.wght=FALSE, 
+                         doMatern=FALSE, 
+                         fixNu=FALSE) {
   # if(!simpleMod)
   #   stop("non simple models not yet supported for LatticeKrig prediction function")
+  
+  if(separatea.wght) {
+    a.wghtStart = as.list(rep(a.wghtStart, nLayer))
+    lowerBoundOmega = rep(lowerBoundOmega, nLayer)
+    upperBoundOmega = rep(upperBoundOmega, nLayer)
+  }
+  
+  # set spatial domain if not already set
+  if(is.null(xRangeDat))
+    xRangeDat = range(c(obsCoords[,1], predCoords[,1]))
+  if(is.null(yRangeDat))
+    yRangeDat = range(c(obsCoords[,2], predCoords[,2]))
+  domainCoords = cbind(xRangeDat, yRangeDat)
   
   # if are missing the predictive covariates, predict them using the observation covariates
   if(!is.null(xObs) && is.null(xPred)) {
@@ -110,15 +129,16 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
       print(paste0("predicting covariate ", i, "/", ncol(xObs)))
       thisCov = xObs[,i]
       out = fitLKStandard(obsCoords, thisCov, NC=NC, nLayer=nLayer, simpleMod=simpleMod, normalize=normalize, 
-                  nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, 
-                  a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE)
+                          nBuffer=nBuffer, nu=nu, verbose=verbose, lambdaStart=lambdaStart, fixedFunctionArgs=fixedFunctionArgs, 
+                          a.wghtStart=a.wghtStart, maxit=maxit, doSEs=FALSE, doMatern=doMatern, separatea.wght=separatea.wght, 
+                          xRangeDat=xRangeDat, yRangeDat=yRangeDat)
       xPred[,i] = out$preds
     }
   }
   
   # do initial latticeKrig fit
   # set up the lattice, the arguments to LatticeKrig
-  LKinfoStart = LKrigSetup(obsCoords, nlevel=nLayer, nu=1, NC=NC, normalize=normalize, 
+  LKinfoStart = LKrigSetup(domainCoords, nlevel=nLayer, nu=nu, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
                            lambda=lambdaStart, a.wght=a.wghtStart, fixedFunctionArgs=fixedFunctionArgs)
   
   # make a function to convert from a vector of parameters to a corresponding set of different, named parameters
@@ -126,30 +146,59 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     # omega =  log( a.wght -4)/2
     # transform from optimized parameters to probabilities summing to 1 to get alphas
     if(nLayer != 1) {
-      alphas = multivariateExpit(parameters[1:(nLayer-1)])
-      alphas = c(alphas, 1 - sum(alphas))
-      log.lambda = parameters[nLayer-1 + 1]
-      omega = parameters[nLayer-1 + 2]
-      list(alphas=alphas, log.lambda=log.lambda, lambda=exp(log.lambda), omega=omega, a.wght=omega2Awght(omega, LKinfoStart))
+      if(!doMatern) {
+        thisnu = NULL
+        alphas = multivariateExpit(parameters[1:(nLayer-1)])
+        alphas = c(alphas, 1 - sum(alphas))
+        log.lambda = parameters[nLayer-1 + 1]
+        
+        if(!separatea.wght)
+          omega = parameters[nLayer-1 + 2]
+        else
+          omega = parameters[(nLayer-1 + 2):(2*nLayer)]
+      } else {
+        if(fixNu) {
+          thisnu = nu
+          alphas = getAlphas(nLayer, thisnu)
+          log.lambda = parameters[1]
+          
+          if(!separatea.wght)
+            omega = parameters[2]
+          else
+            omega = parameters[2:(1 + nLayer)]
+        } else {
+          thisnu = exp(parameters[1])
+          alphas = getAlphas(nLayer, thisnu)
+          log.lambda = parameters[2]
+          
+          if(!separatea.wght)
+            omega = parameters[3]
+          else
+            omega = parameters[3:(2 + nLayer)]
+        }
+      }
+      
+      list(nu=thisnu, alphas=alphas, log.lambda=log.lambda, lambda=exp(log.lambda), omega=omega, a.wght=omega2Awght(omega, LKinfoStart))
     }
     else {
       log.lambda = parameters[1]
       omega = parameters[2]
-      list(alphas=1, log.lambda=log.lambda, lambda=exp(log.lambda), omega=omega, a.wght=omega2Awght(omega, LKinfoStart))
+      list(nu=NULL, alphas=1, log.lambda=log.lambda, lambda=exp(log.lambda), omega=omega, a.wght=omega2Awght(omega, LKinfoStart))
     }
   }
   
   # make a wrapper function around LKrig in order to optimize overall parameters including alpha
   outerFun = function(parameters, thisVerbose=verbose) {
     parameterList = getParameters(parameters)
+    thisnu = parameterList$nu
     alphas = parameterList$alphas
     log.lambda = parameterList$log.lambda
     lambda = parameterList$lambda
     omega = parameterList$omega
-    a.wght = parameterList$a.wght
+    a.wght = as.list(parameterList$a.wght)
     
     # set up the lattice, the arguments to LatticeKrig
-    LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize, 
+    LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=thisnu, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
                         lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
     
     # if(is.null(xObs) || is.null(xPred))
@@ -162,14 +211,25 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # get initial parameters and optimization bounds
   if(nLayer == 1) {
-    init = c(log.lambda=log(lambdaStart), omega=Awght2Omega(a.wghtStart, LKinfoStart))
+    init = c(log.lambda=log(lambdaStart), omega=Awght2Omega(unlist(a.wghtStart), LKinfoStart))
     lower = c(lowerBoundLogLambda, lowerBoundOmega)
     upper = c(upperBoundLogLambda, upperBoundOmega)
-  }
-  else {
-    init = c(logit.alphas=multivariateLogit(rep(1 / nLayer, nLayer-1)), log.lambda=log(lambdaStart), omega=Awght2Omega(a.wghtStart, LKinfoStart))
-    lower = c(lowerBoundLogitAlpha, lowerBoundLogLambda, lowerBoundOmega)
-    upper = c(upperBoundLogitAlpha, upperBoundLogLambda, upperBoundOmega)
+  } else {
+    if(doMatern) {
+      if(fixNu) {
+        init = c(log.lambda=log(lambdaStart), omega=Awght2Omega(unlist(a.wghtStart), LKinfoStart))
+        lower = c(lowerBoundLogLambda, lowerBoundOmega)
+        upper = c(upperBoundLogLambda, upperBoundOmega)
+      } else {
+        init = c(log.nu=log(nu), log.lambda=log(lambdaStart), omega=Awght2Omega(unlist(a.wghtStart), LKinfoStart))
+        lower = c(lowerBoundLogNu, lowerBoundLogLambda, lowerBoundOmega)
+        upper = c(upperBoundLogNu, upperBoundLogLambda, upperBoundOmega)
+      }
+    } else {
+      init = c(logit.alphas=multivariateLogit(rep(1 / nLayer, nLayer-1)), log.lambda=log(lambdaStart), omega=Awght2Omega(unlist(a.wghtStart), LKinfoStart))
+      lower = c(lowerBoundLogitAlpha, lowerBoundLogLambda, lowerBoundOmega)
+      upper = c(upperBoundLogitAlpha, upperBoundLogLambda, upperBoundOmega)
+    }
   }
   
   # Maximum Likelihood
@@ -193,6 +253,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # final fit
   parameterList = getParameters(result$par)
+  nuMLE = parameterList$nu
   alphasMLE = parameterList$alphas
   log.lambdaMLE = parameterList$log.lambda
   lambdaMLE = parameterList$lambda
@@ -200,8 +261,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   a.wghtMLE = parameterList$a.wght
   
   # set up the lattice, the arguments to LatticeKrig
-  LKinfo = LKrigSetup(obsCoords, nlevel=nLayer, nu=NULL, NC=NC, normalize=normalize,
-                      lambda=lambdaMLE, a.wght=a.wghtMLE, alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
+  LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=nuMLE, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
+                      lambda=lambdaMLE, a.wght=as.list(a.wghtMLE), alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
   if(is.null(xObs) || is.null(xPred)) {
     mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo)
     preds = predict.LKrig(mod, predCoords)
@@ -209,8 +270,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
       predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, M=nsimConditional)
     else
       predSimulations = NULL
-  }
-  else {
+  } else {
     mod = LKrig(obsCoords, obsValues, LKinfo=LKMLE$LKinfo, Z=xObs)
     preds = predict.LKrig(mod, predCoords, Znew=xPred)
     if(doSEs)
@@ -221,7 +281,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # calculate predictive standard errors
   predSEs = predSimulations$SE
-
+  
   # calculate confidence intervals
   lower = preds + qnorm((1 - significanceCI) / 2, sd=predSEs)
   medians = preds
@@ -229,33 +289,61 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   ## now we calculate uncertainty intervals for all parameters
   # intercept
-  interceptSummary = c(Est=mod$d.coef[1], SD=sd(predSimulations$d.coef.draw[1,]),
-                       Qlower=quantile(probs=(1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]),
-                       Q50=quantile(probs=.5, predSimulations$d.coef.draw[1,]),
-                       Qupper=quantile(probs=1 - (1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]))
+  if(fixedFunctionArgs$m >= 1) {
+    interceptSummary = c(Est=mod$d.coef[1], SD=sd(predSimulations$d.coef.draw[1,]),
+                         Qlower=quantile(probs=(1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]),
+                         Q50=quantile(probs=.5, predSimulations$d.coef.draw[1,]),
+                         Qupper=quantile(probs=1 - (1 - significanceCI) / 2, predSimulations$d.coef.draw[1,]))
+  } else
+    interceptSummary = c(Est=0, SD=0, Qlower=0, Q50=0, Qupper=0)
   
   # to calculate summaries for the parameters, must calculate inverse of negative hessian
   print("Calculating hessian...")
   hess = hessian(outerFun, result$par, thisVerbose=FALSE)
   parSigma = solve(-hess)
   
-  # simulate possible parameter values and do any necessary transformations for any parameters from the 
-  # optimization scale
-  L = t(chol(parSigma))
-  zSim = matrix(rnorm(nsimConditional * nrow(L)), nrow=nrow(L))
-  parSim = L %*% zSim
-  parSim = sweep(parSim, 1, result$par, "+")
-  
   # make a function to convert from a vector of parameters to a final set of different, named parameters
   getParametersFinal = function(parameters) {
     # omega =  log( a.wght -4)/2
     # transform from optimized parameters to probabilities summing to 1 to get alphas
     if(nLayer != 1) {
-      alphas = multivariateExpit(parameters[1:(nLayer-1)])
-      alphas = c(alphas, 1 - sum(alphas))
-      log.lambda = parameters[nLayer-1 + 1]
-      omega = parameters[nLayer-1 + 2]
-      c(alphas=alphas, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
+      if(!doMatern) {
+        thisnu = NULL
+        alphas = multivariateExpit(parameters[1:(nLayer-1)])
+        alphas = c(alphas, 1 - sum(alphas))
+        log.lambda = parameters[nLayer-1 + 1]
+        
+        if(!separatea.wght)
+          omega = parameters[nLayer-1 + 2]
+        else
+          omega = parameters[(nLayer-1 + 2):(2*nLayer)]
+        
+        c(alphas=alphas, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
+      } else {
+        if(fixNu) {
+          thisnu = nu
+          alphas = getAlphas(nLayer, thisnu)
+          log.lambda = parameters[1]
+          
+          if(!separatea.wght)
+            omega = parameters[2]
+          else
+            omega = parameters[2:(1 + nLayer)]
+          
+          c(alphas=alphas, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
+        } else {
+          thisnu = exp(parameters[1])
+          alphas = getAlphas(nLayer, thisnu)
+          log.lambda = parameters[2]
+          
+          if(!separatea.wght)
+            omega = parameters[3]
+          else
+            omega = parameters[3:(2 + nLayer)]
+          
+          c(nu=thisnu, alphas=alphas, lambda=exp(log.lambda), a.wght=omega2Awght(omega, LKinfoStart))
+        }
+      }
     }
     else {
       log.lambda = parameters[1]
@@ -264,7 +352,33 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     }
   }
   
-  finalParSim = apply(parSim, 2, getParametersFinal)
+  # simulate possible parameter values and do any necessary transformations for any parameters from the 
+  # optimization scale
+  U = try(chol(parSigma))
+  if(!class(U) == "try-error") {
+    L = t(U)
+    zSim = matrix(rnorm(nsimConditional * nrow(L)), nrow=nrow(L))
+    parSim = L %*% zSim
+    parSim = sweep(parSim, 1, result$par, "+")
+    
+    finalParSim = apply(parSim, 2, getParametersFinal)
+    
+    getSummaryStatistics = function(draws) {
+      c(Est=mean(draws), SD=sd(draws), 
+        Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
+        Q50=quantile(probs=0.5, draws), 
+        Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+    }
+    
+    parameterSummaryTable = t(apply(finalParSim, 1, getSummaryStatistics))
+    summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
+    colnames(parameterSummaryTable) = summaryNames
+  } else {
+    warning("bad hessian: fixing singular hyperparameter distribution to the estimates")
+    finalParSim = matrix(rep(getParametersFinal(result$par), nsimConditional), ncol=nsimConditional)
+    parameterSummaryTable = cbind(getParametersFinal(result$par), NA, NA, NA, NA)
+  }
+  
   
   # # for each simulated set of parameters, call LKrig and calculate the reparameterizations
   # getMLEs = function(parameters) {
@@ -301,16 +415,36 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   # 
   # parameterDrawTable = apply(rbind(1:nsimConditional, parSim), 2, getMLEs)
   
-  getSummaryStatistics = function(draws) {
-    c(Est=mean(draws), SD=sd(draws), 
-      Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
-      Q50=quantile(probs=0.5, draws), 
-      Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+  totalVariance = mod$rho.MLE + mod$sigma.MLE
+  
+  if(!separatea.wght) {
+    if(!doMatern) {
+      lambdaVals = finalParSim[nLayer + 1,]
+      a.wghtVals = finalParSim[nrow(finalParSim),]
+      alphaVals = finalParSim[1:nLayer,]
+      nuVals = NULL
+    } else {
+      lambdaVals = finalParSim[nLayer + 2,]
+      a.wghtVals = finalParSim[nrow(finalParSim),]
+      alphaVals = finalParSim[2:(nLayer+1),]
+      nuVals = finalParSim[1,]
+    }
+  } else {
+    if(!doMatern) {
+      lambdaVals = finalParSim[nLayer + 1,]
+      alphaVals = finalParSim[1:nLayer,]
+      nuVals = NULL
+    } else {
+      lambdaVals = finalParSim[nLayer + 2,]
+      alphaVals = finalParSim[2:(nLayer+1),]
+      nuVals = finalParSim[1,]
+    }
+    a.wghtVals = finalParSim[(nrow(finalParSim) - nLayer + 1):nrow(finalParSim),]
   }
   
-  parameterSummaryTable = t(apply(finalParSim, 1, getSummaryStatistics))
-  summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
-  colnames(parameterSummaryTable) = summaryNames
+  rhoVals = (1 / lambdaVals) * totalVariance / (1 + 1 / lambdaVals)
+  nuggetVarVals = lambdaVals * totalVariance / (1 + lambdaVals)
+  
   
   ## preds
   ## sigmas
@@ -321,7 +455,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   ## sdSummary
   ## varSummary
   return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, medians=medians, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo, 
-              interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c()))
+              interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c(), parSim=finalParSim, fixHyperpar=is.na(parameterSummaryTable[1,5]), 
+              rhoVals=rhoVals, nuggetVarVals=nuggetVarVals, lambdaVals=lambdaVals, alphaVals=alphaVals, nuVals=nuVals, a.wghtVals=a.wghtVals, totalVariance=totalVariance))
 }
 
 # this function generates results for the simulation study for the LK (standard) model

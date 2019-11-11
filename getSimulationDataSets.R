@@ -12,7 +12,8 @@ getSimulationDataSets = function(nTotal=1000, nTest=100, marginalVar=1, errorVar
   maternCorFuns = list(function(x) {stationary.cov(x, theta=0.1, Covariance="Matern", nu=1)}, 
                        function(x) {stationary.cov(x, theta=0.5, Covariance="Matern", nu=1)}, 
                        function(x) {stationary.cov(x, theta=1, Covariance="Matern", nu=1)})
-  mixtureCorFun = function(x) {0.4 * Exp.cov(x, theta=0.1) + 0.6 * Exp.cov(x, theta=3)}
+  # mixtureCorFun = function(x) {0.4 * Exp.cov(x, theta=0.1) + 0.6 * Exp.cov(x, theta=3)}
+  mixtureCorFun = function(x) {0.4 * Exp.cov(x, theta=0.1) + 0.6 * Exp.cov(x, theta=.4)}
   
   ##### simulate the corresponding data sets
   ## simulate the exponential correlation function data sets
@@ -62,19 +63,38 @@ getSimulationDataSets = function(nTotal=1000, nTest=100, marginalVar=1, errorVar
 }
 
 getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, marginalVar=1, errorVar=sqrt(.1), nDataSets=100, 
-                                                printEvery=10, saveDataSetPlot=TRUE, fileNameRoot="", plotNameRoot="") {
+                                                printEvery=10, saveDataSetPlot=TRUE, fileNameRoot="", plotNameRoot="", 
+                                                doPredGrid=FALSE, nTestGrid=70^2) {
   
   # set the spatial domain
   xRange = c(-1, 1)
   yRange = c(-1, 1)
   
+  # if generating prediction grid, make that grid here
+  if(doPredGrid) {
+    nx = round(sqrt(nTestGrid))
+    ny = nx
+    if(nx * ny != nTestGrid)
+      stop("nTestGrid must be a square number if we are constructing a prediction grid")
+    xValuesGrid = seq(-1, 1, l=nx)
+    yValuesGrid = xValuesGrid
+    glist = make.surface.grid(list(x=xValuesGrid, y=yValuesGrid))
+    xValuesGrid = glist[,1]
+    yValuesGrid = glist[,2]
+  } else {
+    nx = 0
+    ny = 0
+    xValuesGrid = c()
+    yValuesGrid = c()
+  }
+  
   # simulate observation spatial locations
-  xValues = matrix(runif(nTotal * nDataSets, xRange[1], xRange[2]), nrow=nTotal, ncol=nDataSets)
-  yValues = matrix(runif(nTotal * nDataSets, yRange[1], yRange[2]), nrow=nTotal, ncol=nDataSets)
+  xValues = matrix(runif(nTotal * nDataSets, xRange[1], xRange[2]), ncol=nDataSets)
+  yValues = matrix(runif(nTotal * nDataSets, yRange[1], yRange[2]), ncol=nDataSets)
   
   # preallocate observation matrix, and pregenerate standard normal draws
-  observations = matrix(nrow=nTotal, ncol=nDataSets)
-  zsims = matrix(rnorm(nTotal * nDataSets), nrow=nTotal, ncol=nDataSets)
+  observations = matrix(nrow=nTotal+nx*ny, ncol=nDataSets)
+  zsims = matrix(rnorm((nTotal + nx*ny) * nDataSets), ncol=nDataSets)
   
   # generate spatial component of observation values
   for(i in 1:nDataSets) {
@@ -83,25 +103,50 @@ getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, 
     
     thisx = xValues[,i]
     thisy = yValues[,i]
-    L = t(chol(corFun(cbind(thisx, thisy))))
+    L = t(chol(corFun(cbind(c(thisx, xValuesGrid), c(thisy, yValuesGrid)))))
     observations[,i] = L %*% zsims[,i]
   }
   
   # scale by marginal standard deviation and add in error variance
-  observations = observations * sqrt(marginalVar) + matrix(rnorm(nTotal * nDataSets, sd=sqrt(errorVar)), nrow=nTotal, ncol=nDataSets)
+  observations = observations * sqrt(marginalVar) + matrix(rnorm((nTotal + nx*ny) * nDataSets, sd=sqrt(errorVar)), ncol=nDataSets)
   
   # separate out test and train results
   trainI = 1:(nTotal - nTest)
   testI = (nTotal - nTest + 1):nTotal
-  xTest = xValues[testI,]
-  xTrain = xValues[trainI,]
-  yTest = yValues[testI,]
-  yTrain = yValues[trainI,]
-  zTest = observations[testI,]
-  zTrain = observations[trainI,]
+  gridI = (nTotal + 1):(nTotal + nx * ny)
+  if(nTotal - nTest != 0) {
+    xTrain = xValues[trainI,]
+    yTrain = yValues[trainI,]
+    zTrain = observations[trainI,]
+  } else {
+    xTrain = c()
+    yTrain = c()
+    zTrain = c()
+  }
+  if(nTest != 0) {
+    xTest = xValues[testI,]
+    yTest = yValues[testI,]
+    zTest = observations[testI,]
+  }
+  else {
+    xTest = c()
+    yTest = c()
+    zTest = c()
+  }
+  # get grid results if necessary
+  if(doPredGrid) {
+    xGrid = xValuesGrid
+    yGrid = yValuesGrid
+    zGrid = observations[gridI,]
+  } else {
+    xGrid = NULL
+    yGrid = NULL
+    zGrid = NULL
+  }
   
   # put relevant values into a list
   out = list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
+             xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
              corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange)
   
   # plot the results
@@ -128,3 +173,7 @@ plotExampleDataSets = function(simulatedDataSets, saveDataSetPlot=TRUE, plotName
   if(saveDataSetPlot)
     dev.off()
 }
+
+
+
+

@@ -29,10 +29,10 @@ if(inf$platform != "x86_64-apple-darwin15.6.0 (64-bit)" && inf$platform != "x86_
   options(error=recover)
 } else {
   setwd("U:/git/LK-INLA/")
+  inla.setOption(num.threads=1)
   options(error=recover)
 }
 
-source('compareModels.R')
 source('LKinla.R')
 source('LKinla_rgeneric.R')
 source('modGP.R')
@@ -40,10 +40,14 @@ source('modSPDE.R')
 source('modLKinla.R')
 source('modLK.R')
 source('modelResults.R')
+source("scores.R")
+source('compareModels.R')
+source("utilityFuns.R")
 source('getCommandArgs.R')
 # source('mapOver.R')
 source('utilityFuns.R')
 # source('~/git/M9/exploratoryAnalysisFuns.R')
+source('getSimulationDataSets.R')
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {
