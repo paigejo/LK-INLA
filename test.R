@@ -2079,7 +2079,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # priorPar = getPrior(.1, .1, 10)
   # generate hyperparameters for pc priors
   # median effective range is .4 (a fifth of the spatial domain diameter), median spatial variance is 1
-  priorPar = getPCPrior(.4, .5, 1) 
+  priorPar = getPCPrior(.4, .5, 1, nLayer=nLayer) 
   X = matrix(rep(1, nrow(coords)), ncol=1)
   # X = matrix(coords[,1], ncol=1)
   XPred = matrix(rep(1, nrow(predPts)), ncol=1)
@@ -3004,7 +3004,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
 }
 
 # test how close we can get to the spatial correlation function:
-testCorrelationApproximation = function(seed=1, nLayer=3, NP=200, 
+testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200, 
                                         nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, 
                                         latInfo=NULL, thetas=c(.1, .4), 
                                         initialEffectiveRange=1, initialAlphas=rep(1/nLayer, nLayer-1), 
@@ -3083,6 +3083,8 @@ testCorrelationApproximation = function(seed=1, nLayer=3, NP=200,
   dev.off()
 }
 
+# get correlation function from the Matern family with smoothness given by nu that is best approximation to
+# the exponential mixture correlation function
 getCorrelationApproximation = function(thetas=c(.1, .4), nu=0.5) {
   NP = 200
   # set true parameter values
@@ -3219,6 +3221,17 @@ testCorrelationApproximation = function(trueCorrelation = maternMixtureCor,
   print(data.frame(list(trueMean=mean(ysTest), truePredsMean=mean(predsTest), approxPredsMean=mean(predsApproxTest), 
                         trueSDsMean=mean(predSDsTest), approxSDsMean=mean(predSDsApproxTest), 
                         trueMSE=mean((ysTest-predsTest)^2), approxMSE=mean((ysTest-predsApproxTest)^2))))
+  
+  # Calculate all scoring rules and print them
+  aggregatedScoresTrue = getScores(gridValuesAggregated, predsAggregated, predSDsAggregated)
+  aggregatedScoresApprox = getScores(gridValuesAggregated, predsApproxAggregated, predSDsApproxAggregated)
+  scoresTrue = getScores(ysTest, predsTest, predSDsTest)
+  scoresApprox = getScores(ysTest, predsApproxTest, predSDsApproxTest)
+  
+  print(aggregatedScoresTrue)
+  print(aggregatedScoresApprox)
+  print(scoresTrue)
+  print(scoresApprox)
   
   # function for determining if points are in correct range
   inRange = function(pts, rangeShrink=0) {
