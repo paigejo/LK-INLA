@@ -1681,234 +1681,547 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKINLAEd = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=900, 
-                        nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=5, spatialFixedEffect=TRUE, 
-                        printVerboseTimings=FALSE, nObs=rep(25, n), urbanEffect=TRUE, popGrid=NULL, 
-                        kmres=5) {
+testLKINLAKenyaDat = function(seed=1, nLayer=3, NC=13, nBuffer=5, 
+                              normalize=TRUE, fastNormalize=TRUE, urbanEffect=TRUE, clusterEffect=TRUE, 
+                              printVerboseTimings=FALSE, latInfo=NULL, 
+                              plotNameRoot="", effRangeRange=NULL, urbanOverSamplefrac=0, 
+                              intStrategy="ccd", strategy="gaussian", 
+                              targetPop=c("women", "children"), separateRanges=FALSE, dropUrban=FALSE, 
+                              clusterLevel=TRUE, pixelLevel=TRUE, countyLevel=TRUE, regionLevel=TRUE, 
+                              family=c("binomial", "betabinomial")) {
   set.seed(seed)
+  targetPop = match.arg(targetPop)
+  family = match.arg(family)
   
-  # load secondary education prevalence data
-  out= load("~/git/U5MR/kenyaDataEd.RData")
-  
-  # load population density data (adjusted for target population)
-  if(is.null(popGrid)) {
-    if(kmres == 5)
-      load("~/git/U5MR/popGridAdjustedWomen.RData")
-    else
-      stop("kmres other than 5km not supported")
+  # make sure input arguments are compatible
+  if(dropUrban) {
+    if(urbanEffect)
+      warning("dropUrban and urbanEffect both set to TRUE. Setting urbanEffect to FALSE...")
+    urbanEffect=FALSE
   }
-  predPts = cbind(popGrid$east, popGrid$north)
+  if(family == "betabinomial") {
+    if(clusterEffect)
+      stop("cluster effect must not be set to TRUE for betaBinomial model")
+  }
+  # if(separateRanges) {
+    # if(clusterEffect)
+    #   warning("separateRanges and clusterEffect both set to TRUE. Setting clusterEffect to FALSE...")
+    # clusterEffect=FALSE
+  # }
   
-  # generate lattice and simulate observations
-  coords = cbind(ed$east, ed$north) # TODO: lon,lat?
-  xRangeDat = range(coords[,1])
-  yRangeDat = range(coords[,2])
-  latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  # set default resolution if using separate layer ranges
+  if(length(NC) == 1) {
+    if(separateRanges)
+      NC = c(30, 107) # by default, use two layers with the finest layer having resolution equal to 10km
+  }
+  if(separateRanges)
+    nLayer = length(NC)
   
-  # set observations
-  nObs = ed$n
-  ys = ed$y
+  # set plotNameRoot
+  ncText = ""
+  if(length(NC) == 1) {
+    if(separateRanges)
+      ncText = "_NC30_107"
+    else {
+      ncText = paste0("_NC", NC)
+    }
+  } else {
+    tempText = do.call("paste0", as.list(c(NC[1], paste0("_", NC[-1]))))
+    ncText = paste0("_NC", tempText)
+  }
+  if(family == "betabinomial")
+    familyText = "_BBin"
+  else
+    familyText = "_Bin"
+  if(targetPop == "women") {
+    dataType = "ed"
+    plotNameRoot = paste0(plotNameRoot, "_Ed", familyText, "_L", nLayer, ncText, "_sepRange", separateRanges, 
+                          "_urb", urbanEffect, "_clust", clusterEffect, "_dropUrb", dropUrban)
+  }
+  else {
+    dataType = "mort"
+    plotNameRoot = paste0(plotNameRoot, "_Mort", familyText, "_L", nLayer, ncText, "_sepRange", separateRanges, 
+                          "_urb", urbanEffect, "_clust", clusterEffect, "_dropUrb", dropUrban)
+  }
+  
+  # load data set
+  if(dataType == "mort") {
+    out = load("../U5MR/kenyaData.RData")
+    dat = mort
+  }
+  else {
+    out = load("../U5MR/kenyaDataEd.RData")
+    dat = ed
+  }
+  if(dropUrban) {
+    dat = dat[!dat$urban,]
+  }
+  coords = cbind(dat$east, dat$north)
+  ys = dat$y
+  ns = dat$n
+  obsUrban = dat$urban
   
   # plot the observations
-  pdf(file="Figures/standardObservationsBinom.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/LKINLAObservations", plotNameRoot, ".pdf"), width=5, height=5)
   par(mfrow=c(1,1))
-  quilt.plot(coords, ys, main="Number observations")
+  quilt.plot(coords, ys/ns, FUN=function(x) {mean(x, na.rm=TRUE)})
   dev.off()
   
-  pdf(file="Figures/standardLatentBinom.pdf", width=5, height=5)
-  par(mfrow=c(1,1))
-  quilt.plot(coords, ps, main="Latent probabilities")
-  dev.off()
-  
-  # make prediction coordinates on a grid
-  xRange=c(0,1)
-  yRange=c(0,1)
-  mx = 100
-  my = 100
-  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
+  # create default lattice basis
+  latInfo = makeLatGridsKenya(nLayer=nLayer, NC=NC, nBuffer=nBuffer)
   
   # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
-  priorPar = getPrior(.1, .1, 10)
-  
-  ## set fixed effects
-  # intercept
-  X = matrix(rep(1, n), ncol=1)
-  # X = matrix(coords[,1], ncol=1)
-  XPred = matrix(rep(1, mx*my), ncol=1)
-  
-  # add linear terms in lat/lon to covariate matrices if requested
-  if(spatialFixedEffect) {
-    X = cbind(X, coords)
-    XPred = cbind(XPred, predPts)
-  }
-  
-  # add urban effect
-  if(urbanEffect) {
-    X = cbind(X, ed$urban)
-    XPred = cbind(XPred, predPts)
-  }
+  # priorPar = getPrior(.1, .1, 10)
+  # generate hyperparameters for pc priors
+  # median effective range is .4 or 200 for kenya data (a fifth of the spatial domain diameter), median spatial variance is 1
+  priorPar = getPCPrior(200, .01, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo)
   
   # show priors on effective correlation, marginal variance, and error variance:
-  xs1 = seq(.01, 1, l=500)
-  pdf(file="Figures/standardPriorEffRangeBinom.pdf", width=5, height=5)
-  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
-       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
-       ylab="Prior Density")
-  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
-  dev.off()
+  xs1 = seq(1, 500, l=500)
+  if(!separateRanges) {
+    pdf(file=paste0("Figures/LKINLAPriorEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+         xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+         ylab="Prior Density")
+    abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+    dev.off()
+  } else {
+    for(i in 1:nLayer) {
+      if(i == nLayer && identical(NC, c(30, 107)))
+        xs1 = seq(1, 200, l=500)
+      pdf(file=paste0("Figures/LKINLAPriorEff", i, "Range", plotNameRoot, ".pdf"), width=5, height=5)
+      plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar[i]), type="l", col="blue", 
+           xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+           ylab="Prior Density")
+      abline(v=qinvexp(.5, rate=priorPar$corScalePar[i]), col="red")
+      dev.off()
+    }
+  }
   
-  xs2 = seq(.01, 10.5, l=500)
-  pdf(file="Figures/standardPriorMargVarBinom.pdf", width=5, height=5)
-  plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+  if(priorPar$priorType == "orig") {
+    xs2 = seq(.01, 10.5, l=500)
+    pdf(file=paste0("Figures/LKINLAPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+    dev.off()
+  } else if(priorPar$priorType == "pc") {
+    xs2 = seq(.01, 11.5, l=500)
+    pdf(file=paste0("Figures/LKINLAPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
+    abline(v=1, col="green")
+    dev.off()
+  }
+  
+  # xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  # pdf(file="Figures/mixtureLKINLAPriorErrorVar.pdf", width=5, height=5)
+  # plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+  #      xlab="Error Variance", main="Error Variance Prior", 
+  #      ylab="Prior Density")
+  # abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  # abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  # dev.off()
+  
+  xs2 = seq(.01, 1, l=500)
+  pdf(file=paste0("Figures/LKINLAPriorErrorVar", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(xs2, dpcvar(xs2, alpha=.05, u=1), type="l", col="blue", 
        xlab="Marginal Variance", main="Marginal Variance Prior", 
        ylab="Prior Density")
-  abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
-  abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  abline(v=qpcvar(.1, alpha=.05, u=1), col="red")
+  abline(v=qpcvar(.9, alpha=.05, u=1), col="red")
+  abline(v=sqrt(.1), col="green")
   dev.off()
   
-  xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
-  pdf(file="Figures/standardPriorErrorVarBinom.pdf", width=5, height=5)
-  plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
-       xlab="Error Variance", main="Error Variance Prior", 
-       ylab="Prior Density")
-  abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
-  abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
-  dev.off()
+  # browser()
+  
   
   for(l in 1:nLayer) {
-    pdf(file=paste0("Figures/standardPriorAlpha", l, "Binom.pdf"), width=5, height=5)
+    pdf(file=paste0("Figures/LKINLAPriorAlpha", l, plotNameRoot, ".pdf"), width=5, height=5)
     xs = seq(0, 1, l=500)
     tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
     plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
-         main=TeX(paste0("Marginal for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
-    abline(v=alphas[l], col="green")
+         main=TeX(paste0("Prior for $\\alpha_", l, "$")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
     abline(v=qbeta(c(0.025, 0.975), priorPar$alphaPar[l], sum(priorPar$alphaPar[-l])), col="purple", lty=2)
     dev.off()
   }
   
+  # prior of overdispersion
+  if(family == "betabinomial") {
+    # lambda = getLambdapcBeta(U=1, logitU=TRUE, alpha=0.01, p=.5, normalize=TRUE)
+    # set median at .04 and upper 97.5th pctile at 0.2
+    mu = logit(0.04)
+    prec = 1/((logit(.2)-logit(.04))/qnorm(.975))^2
+    rhos = seq(0, 1, l=1000)
+    # tempYs = dpcBeta2(rhos, lambda=lambda, normalize=TRUE)
+    tempYs = dlogitNormal(rhos, mu=mu, prec=prec)
+    pdf(file=paste0("Figures/LKINLAPriorRho", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(rhos, tempYs, type="l", xlab=TeX(paste0("$\\rho$")), ylab="Density", 
+         main=TeX(paste0("Overdispersion Prior")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
+    # abline(v=qpcBeta2(c(0.025, 0.975), lambda=lambda, normalize=TRUE), col="purple", lty=2)
+    abline(v=expit(qnorm(c(0.025, 0.975), mu, sqrt(1/prec))), col="purple", lty=2)
+    dev.off()
+  }
+  
+  # prior on covariogram
+  alphaVals = t(rdirichlet(100, alpha=priorPar$alphaPar))
+  rhoVals = rpcvar(100, alpha=priorPar$alpha, u=priorPar$u)
+  effectiveRangeVals = t(matrix(rinvexp(100*length(priorPar$corScalePar), rate=priorPar$corScalePar), nrow=length(priorPar$corScalePar)))
+  if(separateRanges) {
+    latticeWidth = sapply(latInfo, function(x) {x$latWidth})
+    kappaVals = t(sweep(2.3/effectiveRangeVals, 2, latticeWidth, "*"))
+  } else {
+    latticeWidth = latInfo[[1]]$latWidth
+    kappaVals = c(2.3/exp(effectiveRangeVals) * latticeWidth)
+  }
+  if(clusterEffect)
+    nuggetVarVals = rpcvar(100, alpha=.05, u=1)
+  else
+    nuggetVarVals = rep(0, 100)
+  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaVals, 
+                                     normalize=normalize, fastNormalize=fastNormalize)
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI]
+  
+  # correlation and covariance functions
+  
+  # plot the covariance an correlation priors
+  yRange = range(c(covMean, lowerCov, upperCov))
+  pdf(file=paste0("Figures/LKINLAPriorCov", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Prior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/LKINLAPriorCor", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Prior of correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=c(0,1))
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
   
   # fit the model
-  time = system.time(out <- fitLKINLAStandard2(coords, ys, predCoords=predPts, seed=seed, nLayer=nLayer, NC=NC,
-                                               nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
-                                               intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
-                                               printVerboseTimings=printVerboseTimings, family="binomial", obsNs=nObs))
-  mod = out$mod
-  preds=out$preds
-  predSDs=out$SDs
-  latInfo=out$latInfo
-  latWidth=out$latWidth
-  obsPreds=out$obsPreds
-  obsSDs=out$obsSDs
-  coefPreds = out$coefPreds
-  coefSDs = out$coefSDs
+  time = system.time(fit <- fitLKINLAKenyaDat(dat, dataType, nu=1, seed=seed, nLayer=nLayer, NC=NC, nBuffer=nBuffer, 
+                                              priorPar=priorPar, normalize=normalize, fastNormalize=fastNormalize, 
+                                              latInfo=latInfo, urbanEffect=urbanEffect, clusterEffect=clusterEffect, 
+                                              intStrategy=intStrategy, strategy=strategy, 
+                                              printVerboseTimings=printVerboseTimings, separateRanges=separateRanges, 
+                                              family=family))
+  mod = fit$mod
+  preds=fit$preds
+  predSDs=fit$sigmas
+  latInfo=fit$latInfo
+  latWidth=fit$latWidth
+  obsPreds=fit$obsPreds
+  obsSDs=fit$obsSDs
+  coefPreds = fit$coefPreds
+  coefSDs = fit$coefSDs
+  predPts = fit$predPts
+  predsUrban = fit$predsUrban
   
   # print out the total time
-  print(paste0("Total time: ", time[3]))
+  print(paste0("Total time before aggregation: ", time[3]))
+  
+  # aggregate the model
+  aggregationTime = 
+    system.time(aggregatedFit <- 
+                  aggregateModelResultsKenya(fit, clusterLevel=clusterLevel, pixelLevel=pixelLevel, 
+                                             countyLevel=countyLevel, regionLevel=regionLevel, 
+                                             targetPop=targetPop)
+                )[3]
+  allResults = list(fit=fit, aggregatedResults=aggregatedFit)
+  
+  print(paste0("Time to aggregate: ", aggregationTime))
   
   # show a model summary
   print(summary(mod))
   
   # function for determining if points are in correct range
   inRange = function(pts, rangeShrink=0) {
-    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
-    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
-    inX & inY
+    rep(TRUE, nrow(pts))
   }
   
-  # show predictive surface, SD, and data
+  xRangeDat = latInfo[[1]]$xRangeDat
+  yRangeDat = latInfo[[1]]$yRangeDat
   
-  pdf(file="Figures/standardPredsBinom.pdf", width=15, height=6)
+  # show predictive surface, SD, and data
+  out = load("../U5MR/adminMapData.RData")
+  # kenyaMap = adm0
+  kenyaMap = adm1
   if(nLayer==1) {
+    pdf(file=paste0("Figures/LKINLAPreds", plotNameRoot, ".pdf"), width=9, height=6)
     par(mfrow=c(2,3))
     
     # obsInds = 1:n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
-    colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
-    colRangeSD = range(c(range(predSDs[inRange(predPts)]), coefSDs[[1]][inRange(gridPtsL1)], 
-                         coefSDs[[2]][inRange(gridPtsL2)], coefSDs[[3]][inRange(gridPtsL3)]))
+    colRangeDat = range(c(ys/ns, obsPreds, preds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs))
+    colRangeSDCoef = range(c(coefSDs))
     gridPtsL1 = latInfo[[1]]$latCoords
-    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, ys/ns, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     
     # quilt.plot(coords, obsPreds, main="Prediction mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat, 
     #            zlim=range(predSDs[inRange(predPts)]))
     plot.new()
     quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
                xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
                xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
   }
   else if(nLayer==2) {
-    par(mfrow=c(2,4))
+    pdf(file=paste0("Figures/LKINLAPreds", plotNameRoot, ".pdf"), width=12, height=6)
+    par(mfrow=c(2,4), mar=c(5.1, 4.1, 4.1, 6))
     
     # obsInds = 1:n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
-    colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys/ns, obsPreds, preds))
     colRangeCoef = range(c(coefPreds))
-    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    colRangeSD = range(c(predSDs, obsSDs))
+    colRangeSDCoef = range(c(coefSDs))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
-    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
-               xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, ys/ns, main="Empirical Proportions", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", 
+               xlim=xRangeDat, ylim=yRangeDat, nx=100, ny=100)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", xlim=xRangeDat, ylim=yRangeDat, 
+               zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", xlim=xRangeDat, ylim=yRangeDat, 
+               zlim=colRangeCoef, nx=100, ny=100)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     
-    quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, obsPreds, main="Observation Predictions", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD", 
-               xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeSD, nx=100, ny=100)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat, 
+               nx=100, ny=100)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
   }
   else if(nLayer==3) {
+    pdf(file=paste0("Figures/LKINLAPreds", plotNameRoot, ".pdf"), width=15, height=6)
     par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
     
     # obsInds = 1:n
     # predInds = (n+1):(n+mx*my)
     # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
-    # colRangeDat = range(c(ys-errs, obsPreds, preds, coefPreds))
-    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys/ns, obsPreds, preds))
     colRangeCoef = range(c(coefPreds))
-    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    colRangeSD = range(c(predSDs, obsSDs))
+    colRangeSDCoef = range(c(coefSDs))
     gridPtsL1 = latInfo[[1]]$latCoords
     gridPtsL2 = latInfo[[2]]$latCoords
     gridPtsL3 = latInfo[[3]]$latCoords
-    quilt.plot(coords, ys-errs, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, ys/ns, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
                xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
                xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
                xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
                xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     
     # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
     # plot.new()
-    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(coords, ys/ns, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
     quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
                xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
-    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
-    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
   }
+  else if(nLayer==4) {
+    pdf(file=paste0("Figures/LKINLAPreds", plotNameRoot, ".pdf"), width=18, height=6)
+    par(mfrow=c(2,6), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys/ns, obsPreds, preds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs))
+    colRangeSDCoef = range(c(coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    gridPtsL4 = latInfo[[4]]$latCoords
+    quilt.plot(coords, ys/ns, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefPreds[[4]], main="Basis Coefficient Mean (Layer 4)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys/ns, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefSDs[[4]], main="Basis Coefficient SD (Layer 4)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+  }
+  else if(nLayer==5) {
+    pdf(file=paste0("Figures/LKINLAPreds", plotNameRoot, ".pdf"), width=21, height=6)
+    par(mfrow=c(2,7), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys/ns, obsPreds, preds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs))
+    colRangeSDCoef = range(c(coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    gridPtsL4 = latInfo[[4]]$latCoords
+    gridPtsL5 = latInfo[[5]]$latCoords
+    quilt.plot(coords, ys/ns, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefPreds[[4]], main="Basis Coefficient Mean (Layer 4)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL5[,1], gridPtsL5[,2], coefPreds[[5]], main="Basis Coefficient Mean (Layer 5)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys/ns, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefSDs[[4]], main="Basis Coefficient SD (Layer 4)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+    quilt.plot(gridPtsL5[,1], gridPtsL5[,2], coefSDs[[5]], main="Basis Coefficient SD (Layer 5)", zlim=colRangeSDCoef, xlim=xRangeDat, ylim=yRangeDat)
+    plotMapDat(mapDat=kenyaMap, lwd=.5, project=TRUE)
+  }
+  dev.off()
+  
+  plotSingleModelPredictions(dat=dat, allResults, modelName="", targetPop=targetPop, 
+                             areaLevels=c("Region", "County", "Pixel", "Cluster"), 
+                             plotNameRoot=plotNameRoot, 
+                             meanRange=NULL, meanTicks=NULL, meanTickLabels=NULL, widthRange=NULL, widthTicks=NULL, widthTickLabels=NULL, 
+                             meanCols=makeRedBlueDivergingColors(64), 
+                             widthCols=makeBlueYellowSequentialColors(64), 
+                             kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0))
+  
+  pdf(file=paste0("Figures/LKINLAInSampleResidualsLabeled", plotNameRoot, ".pdf"), width=5, height=5)
+  ylim = range(ys/ns-obsPreds)
+  xlim = range(obsPreds)
+  plot(obsPreds, ys/ns-obsPreds, pch=19, cex=.1, main="Residuals versus fitted", 
+       ylab="Residuals", xlab="Fitted", xlim=xlim, ylim=ylim, type="n")
+  points(obsPreds[!obsUrban], ys[!obsUrban]/ns[!obsUrban]-obsPreds[!obsUrban], pch=19, cex=.1, col="green")
+  points(obsPreds[obsUrban], ys[obsUrban]/ns[obsUrban]-obsPreds[obsUrban], pch=19, cex=.1, col="blue")
+  abline(h=0, lty=2)
+  legend("topright", c("Rural", "Urban"), col=c("green", "blue"), pch=19)
   dev.off()
   
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
-  effRange = 2.3/kappa * latticeWidth
-  # marginalVar = rho/(4*pi * kappa^2)
-  # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
-  #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
-  marginalVar = rho
+  if(separateRanges)
+    latticeWidth = sapply(latInfo, function(x) {x$latWidth})
   
   # plot marginals on interpretable scale (effective range, marginal variance)
-  effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
-  varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
-  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  if(!separateRanges) {
+    effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+    varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  } else {
+    numberThetas = nLayer + 1 + nLayer - 1
+    allNames = paste0("Theta", 1:numberThetas, " for field")
+    effRangeMargs = list()
+    for(i in 1:nLayer) {
+      effRangeMargs = c(effRangeMargs, list(inla.tmarginal(exp, mod$marginals.hyperpar[[allNames[i]]])))
+    }
+    varMarg = inla.tmarginal(exp, mod$marginals.hyperpar[[allNames[nLayer+1]]])
+  }
+  if(clusterEffect)
+    sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar[[length(mod$marginals.hyperpar)]])
+  else if(family == "betabinomial")
+    overdispersionMarg = mod$marginals.hyperpar$`overdispersion for the betabinomial observations`
   covNames = names(mod$marginals.fixed)
   XMarginals = list()
   for(i in 1:length(covNames)) {
@@ -1917,82 +2230,639 @@ testLKINLAEd = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx
   }
   
   par(mfrow=c(1,1))
-  pdf(file="Figures/standardEffRangeBinom.pdf", width=5, height=5)
-  plot(effRangeMarg, type="l", main="Marginal for effective range")
-  abline(v=effRange, col="green")
-  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
-  dev.off()
+  
+  if(!separateRanges) {
+    pdf(file=paste0("Figures/LKINLAEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(effRangeMarg, type="l", main="Marginal for effective range")
+    abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+    dev.off()
+  } else {
+    for(i in 1:nLayer) {
+      pdf(file=paste0("Figures/LKINLAEffRange", i, plotNameRoot, ".pdf"), width=5, height=5)
+      plot(effRangeMargs[[i]], type="l", main="Marginal for effective range")
+      abline(v=inla.qmarginal(c(.025, .975), effRangeMargs[[i]]), col="purple", lty=2)
+      dev.off()
+    }
+  }
+  
   # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
-  pdf(file="Figures/standardVarBinom.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/LKINLAVar", plotNameRoot, ".pdf"), width=5, height=5)
   plot(varMarg, type="l", main="Marginal for spatial variance")
-  abline(v=marginalVar, col="green")
   abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
   dev.off()
   # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
-  pdf(file="Figures/standardSigma2Binom.pdf", width=5, height=5)
-  plot(sigma2Marg, type="l", main="Marginal for error variance")
-  abline(v=sigma2, col="green")
-  abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
-  dev.off()
+  if(clusterEffect) {
+    pdf(file=paste0("Figures/LKINLASigma2", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(sigma2Marg, type="l", main="Marginal for error variance")
+    abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+    dev.off()
+  } else if(family == "betabinomial") {
+    pdf(file=paste0("Figures/LKINLARho", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(overdispersionMarg, type="l", main="Marginal for overdispersion")
+    abline(v=inla.qmarginal(c(.025, .975), overdispersionMarg), col="purple", lty=2)
+    dev.off()
+  }
+  
   for(i in 1:length(covNames)) {
     XMarginal = XMarginals[[i]]
-    pdf(file=paste0("Figures/standard", covNames[i], "Binom.pdf"), width=5, height=5)
-    plot(XMarginal, type="l", main="Marginal for fixed effect")
-    if(i==1)
-      abline(v=1, col="green")
-    else
-      abline(v=0, col="green")
+    pdf(file=paste0("Figures/LKINLA", covNames[i], plotNameRoot, ".pdf"), width=5, height=5)
+    plot(XMarginal, type="l", main=paste0("Marginal for fixed effect ", i))
     abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
     dev.off()
   }
   
-  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # pdf(file="Figures/LKINLARho.pdf", width=5, height=5)
   # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
   # abline(v=rho, col="green")
   # dev.off()
   
   
-  # do the same for kappa, rho
-  # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
-  # thetasToRho = function(xs) {
-  #   logCor = xs[2]
-  #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
-  #   sigma2 = exp(logVar)
-  #   sigma2 * 4*pi * kappa^2
-  # }
-  # samples = inla.hyperpar.sample(50000, mod, TRUE)
-  # rhos = apply(samples, 1, thetasToRho)
-  
-  pdf(file="Figures/standardKappaBinom.pdf", width=5, height=5)
-  plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
-  abline(v=kappa, col="green")
-  abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
-  dev.off()
-  
-  # pdf(file="Figures/standardRhoBinom.pdf", width=5, height=5)
+  # # do the same for kappa, rho
+  # # in order to get distribution for rho, must sample from joint hyperparameters
+  # kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # # thetasToRho = function(xs) {
+  # #   logCor = xs[2]
+  # #   logVar = xs[3]
+  # #   kappa = 2.3/exp(logCor) * latticeWidth
+  # #   sigma2 = exp(logVar)
+  # #   sigma2 * 4*pi * kappa^2
+  # # }
+  # # samples = inla.hyperpar.sample(50000, mod, TRUE)
+  # # rhos = apply(samples, 1, thetasToRho)
+  # 
+  # pdf(file=paste0("Figures/LKINLAKappa", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  # abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  # dev.off()
+  # 
+  # pdf(file="Figures/LKINLARho.pdf", width=5, height=5)
   # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
   # abline(v=rho, col="green")
   # dev.off()
   
-  ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
+  ## Now generate marginals for the alpha parameters if they exist. In order to do this, we must generate draws from 
   ## the posterior, and transform them back to the probability scale
-  out = inla.hyperpar.sample(10000, mod, improve.marginals=TRUE)
-  zSamples = out[,4:(3+nLayer-1)]
-  xSamples = apply(zSamples, 1, multivariateExpit)
-  xSamples = rbind(xSamples, 1-colSums(xSamples))
+  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  if(nLayer >= 2) {
+    if(!separateRanges) {
+      zSamples = out[,3:(2+nLayer-1)]
+      xSamples = apply(zSamples, 1, multivariateExpit)
+      xSamples = rbind(xSamples, 1-colSums(xSamples))
+    } else {
+      zSamples = matrix(out[,(nLayer+1+1):(nLayer + 1 + 1 + nLayer-2)], ncol=nLayer-1)
+      xSamples = matrix(apply(zSamples, 1, multivariateExpit), nrow=nLayer-1)
+      xSamples = rbind(xSamples, 1-colSums(xSamples))
+    }
+    
+    for(l in 1:nLayer) {
+      thisQuantileRange = abs(diff(quantile(probs=c(.025, .975), xSamples[l,])))
+      if(thisQuantileRange <= 0.2) {
+        plotRange = range(xSamples[l,])
+      } else {
+        plotRange = c(0, 1)
+      }
+      pdf(file=paste0("Figures/LKINLAAlpha", l, plotNameRoot, ".pdf"), width=5, height=5)
+      hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=plotRange)
+      abline(v=mean(xSamples[l,]), col="purple", lty=1)
+      abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+      dev.off()
+    }
+  }
   
-  for(l in 1:nLayer) {
-    pdf(file=paste0("Figures/standardAlpha", l, "Binom.pdf"), width=5, height=5)
-    hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
-    abline(v=alphas[l], col="green")
-    abline(v=mean(xSamples[l,]), col="purple", lty=1)
-    abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
+  ## plot covariance and correlation functions
+  
+  # first to transform all the hyperparameter samples to their relevant values
+  # !separateRanges:
+  # 1: log effective range
+  # 2: log spatial variance
+  # 3:(3 + nLayer - 2): multivariateLogit alpha
+  # 3 + nLayer - 1: error precision
+  # separateRanges:
+  # 1:nLayer: log effective range
+  # nLayer + 1: log spatial variance
+  # (nLayer + 2):(nLayer + 2 + nLayer - 2): multivariateLogit alpha
+  # nLayer + 1 + nLayer - 1 + 1: error precision
+  if(clusterEffect)
+    nuggetVarVals = 1/out[,ncol(out)]
+  else
+    nuggetVarVals = rep(0, nrow(out))
+  
+  if(separateRanges) {
+    kappaVals = t(sweep(2.3/exp(out[,1:nLayer]), 2, latticeWidth, "*"))
+    rhoVals = exp(out[,nLayer+1])
+  } else {
+    kappaVals = 2.3/exp(out[,1]) * latticeWidth
+    rhoVals = exp(out[,2])
+  }
+  alphaMat = xSamples
+  
+  # compute the covariance function for many different hyperparameter samples
+  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI]
+  
+  # plot the covariance function
+  
+  yRange = range(c(covMean, lowerCov, upperCov))
+  pdf(file=paste0("Figures/LKINLACov", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/LKINLACor", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=c(0,1))
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
+  
+  # get scoring rules
+  truth = ys / ns
+  est = obsPreds
+  vars = obsSDs^2
+  # lower = fit$obsLower
+  # upper = fit$obsUpper
+  lower = NULL
+  upper = NULL # these will be recalculated including binomial variation in the getScores function
+  estMat = fit$obsMat
+  estMatBinomial = addBinomialVar(estMat, ns)
+  
+  if(!dropUrban) {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper, estMatBinomial, doRandomReject=TRUE), Time=time[3])))
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth[!obsUrban], est[!obsUrban], vars[!obsUrban], lower[!obsUrban], upper[!obsUrban], estMatBinomial[!obsUrban,], doRandomReject=TRUE), Time=time[3])))
+    print("Urban scores:")
+    print(data.frame(c(getScores(truth[obsUrban], est[obsUrban], vars[obsUrban], lower[obsUrban], upper[obsUrban], estMatBinomial[obsUrban,], doRandomReject=TRUE), Time=time[3])))
+  } else {
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper, estMatBinomial, doRandomReject=TRUE), Time=time[3])))
+  }
+}
+
+# tests the LKINLA model applied to Kenya secondary education prevalence data
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+testSPDEKenyaDat = function(seed=1, urbanEffect=TRUE, clusterEffect=TRUE, 
+                            plotNameRoot="", nPostSamples=1000, significanceCI=.8, 
+                            mesh=getSPDEMeshKenya(), prior=getSPDEPrior(mesh), 
+                            intStrategy="ccd", strategy="gaussian", 
+                            targetPop=c("women", "children"), dropUrban=FALSE, 
+                            clusterLevel=TRUE, pixelLevel=TRUE, countyLevel=TRUE, regionLevel=TRUE, 
+                            family=c("binomial", "betabinomial"), verbose=TRUE) {
+  
+  set.seed(seed)
+  targetPop = match.arg(targetPop)
+  family = match.arg(family)
+  
+  # make sure input arguments are compatible
+  if(dropUrban) {
+    if(urbanEffect)
+      warning("dropUrban and urbanEffect both set to TRUE. Setting urbanEffect to FALSE...")
+    urbanEffect=FALSE
+  }
+  if(family == "betabinomial") {
+    if(clusterEffect)
+      stop("cluster effect must not be set to TRUE for betaBinomial model")
+  }
+  # if(separateRanges) {
+  # if(clusterEffect)
+  #   warning("separateRanges and clusterEffect both set to TRUE. Setting clusterEffect to FALSE...")
+  # clusterEffect=FALSE
+  # }
+  
+  # set default mesh
+  
+  
+  # set plotNameRoot
+  if(family == "betabinomial")
+    familyText = "_BBin"
+  else
+    familyText = "_Bin"
+  if(targetPop == "women") {
+    dataType = "ed"
+    plotNameRoot = paste0(plotNameRoot, "_Ed", familyText, "_urb", urbanEffect, "_clust", clusterEffect, "_dropUrb", dropUrban)
+  }
+  else {
+    dataType = "mort"
+    plotNameRoot = paste0(plotNameRoot, "_Mort", familyText, "_urb", urbanEffect, "_clust", clusterEffect, "_dropUrb", dropUrban)
+  }
+  
+  # load data set
+  if(dataType == "mort") {
+    out = load("../U5MR/kenyaData.RData")
+    dat = mort
+  }
+  else {
+    out = load("../U5MR/kenyaDataEd.RData")
+    dat = ed
+  }
+  if(dropUrban) {
+    dat = dat[!dat$urban,]
+  }
+  coords = cbind(dat$east, dat$north)
+  ys = dat$y
+  ns = dat$n
+  obsUrban = dat$urban
+  
+  # plot the observations
+  pdf(file=paste0("Figures/SPDEObservations", plotNameRoot, ".pdf"), width=5, height=5)
+  par(mfrow=c(1,1))
+  quilt.plot(coords, ys/ns, FUN=function(x) {mean(x, na.rm=TRUE)})
+  dev.off()
+  
+  # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
+  # priorPar = getPrior(.1, .1, 10)
+  # generate hyperparameters for pc priors
+  # median effective range is .4 or 200 for kenya data (a fifth of the spatial domain diameter), median spatial variance is 1
+  # priorPar = getPCPrior(200, .01, 1, nLayer=nLayer, separateRanges=FALSE, latticeInfo=latInfo)
+  # # show priors on effective correlation, marginal variance, and error variance:
+  # xs1 = seq(1, 500, l=500)
+  # if(!separateRanges) {
+  #   pdf(file=paste0("Figures/SPDEPriorEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+  #        xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+  #        ylab="Prior Density")
+  #   abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  #   dev.off()
+  # } else {
+  #   for(i in 1:nLayer) {
+  #     if(i == nLayer && identical(NC, c(30, 107)))
+  #       xs1 = seq(1, 200, l=500)
+  #     pdf(file=paste0("Figures/SPDEPriorEff", i, "Range", plotNameRoot, ".pdf"), width=5, height=5)
+  #     plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar[i]), type="l", col="blue", 
+  #          xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+  #          ylab="Prior Density")
+  #     abline(v=qinvexp(.5, rate=priorPar$corScalePar[i]), col="red")
+  #     dev.off()
+  #   }
+  # }
+  # 
+  # if(priorPar$priorType == "orig") {
+  #   xs2 = seq(.01, 10.5, l=500)
+  #   pdf(file=paste0("Figures/SPDEPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+  #        xlab="Marginal Variance", main="Marginal Variance Prior", 
+  #        ylab="Prior Density")
+  #   abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  #   abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  #   dev.off()
+  # } else if(priorPar$priorType == "pc") {
+  #   xs2 = seq(.01, 11.5, l=500)
+  #   pdf(file=paste0("Figures/SPDEPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
+  #        xlab="Marginal Variance", main="Marginal Variance Prior", 
+  #        ylab="Prior Density")
+  #   abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
+  #   abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
+  #   abline(v=1, col="green")
+  #   dev.off()
+  # }
+  
+  # xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
+  # pdf(file="Figures/mixtureSPDEPriorErrorVar.pdf", width=5, height=5)
+  # plot(xs2, invgamma::dinvgamma(xs2, shape=0.1, rate=0.1), type="l", col="blue", 
+  #      xlab="Error Variance", main="Error Variance Prior", 
+  #      ylab="Prior Density")
+  # abline(v=invgamma::qinvgamma(.1, shape=0.1, rate=0.1), col="red")
+  # abline(v=invgamma::qinvgamma(.9, shape=0.1, rate=0.1), col="red")
+  # dev.off()
+  
+  # prior of cluster variance or overdispersion
+  if(clusterEffect) {
+    xs2 = seq(.01, 1, l=500)
+    pdf(file=paste0("Figures/SPDEPriorErrorVar", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(xs2, dpcvar(xs2, alpha=.01, u=1), type="l", col="blue", 
+         xlab="Marginal Variance", main="Marginal Variance Prior", 
+         ylab="Prior Density")
+    abline(v=qpcvar(.1, alpha=.01, u=1), col="red")
+    abline(v=qpcvar(.9, alpha=.01, u=1), col="red")
+    dev.off()
+  } else if(family == "betabinomial") {
+    # lambda = getLambdapcBeta(U=1, logitU=TRUE, alpha=0.01, p=.5, normalize=TRUE)
+    # set median at .04 and upper 97.5th pctile at 0.2
+    mu = logit(0.04)
+    prec = 1/((logit(.2)-logit(.04))/qnorm(.975))^2
+    rhos = seq(0, 1, l=1000)
+    # tempYs = dpcBeta2(rhos, lambda=lambda, normalize=TRUE)
+    tempYs = dlogitNormal(rhos, mu=mu, prec=prec)
+    pdf(file=paste0("Figures/SPDEPriorRho", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(rhos, tempYs, type="l", xlab=TeX(paste0("$\\rho$")), ylab="Density", 
+         main=TeX(paste0("Overdispersion Prior")), xlim=c(0,1), ylim=c(0, max(tempYs[is.finite(tempYs)])))
+    # abline(v=qpcBeta2(c(0.025, 0.975), lambda=lambda, normalize=TRUE), col="purple", lty=2)
+    abline(v=expit(qnorm(c(0.025, 0.975), mu, sqrt(1/prec))), col="purple", lty=2)
     dev.off()
   }
   
-  invisible(NULL)
+  # # prior on covariogram
+  # alphaVals = t(rdirichlet(100, alpha=priorPar$alphaPar))
+  # rhoVals = rpcvar(100, alpha=priorPar$alpha, u=priorPar$u)
+  # effectiveRangeVals = t(matrix(rinvexp(100*length(priorPar$corScalePar), rate=priorPar$corScalePar), nrow=length(priorPar$corScalePar)))
+  # if(separateRanges) {
+  #   latticeWidth = sapply(latInfo, function(x) {x$latWidth})
+  #   kappaVals = t(sweep(2.3/effectiveRangeVals, 2, latticeWidth, "*"))
+  # } else {
+  #   latticeWidth = latInfo[[1]]$latWidth
+  #   kappaVals = c(2.3/exp(effectiveRangeVals) * latticeWidth)
+  # }
+  # if(clusterEffect)
+  #   nuggetVarVals = rpcvar(100, alpha=.05, u=1)
+  # else
+  #   nuggetVarVals = rep(0, 100)
+  # out = covarianceDistributionSPDE(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaVals, 
+  #                                    normalize=normalize, fastNormalize=fastNormalize)
+  # d = out$d
+  # sortI = sort(d, index.return=TRUE)$ix
+  # d = d[sortI]
+  # covMean = out$cov[sortI]
+  # upperCov=out$upperCov[sortI]
+  # lowerCov=out$lowerCov[sortI]
+  # covMat=out$covMat[sortI]
+  # corMean = out$cor[sortI]
+  # upperCor=out$upperCor[sortI]
+  # lowerCor=out$lowerCor[sortI]
+  # corMat=out$corMat[sortI]
+  # 
+  # # correlation and covariance functions
+  # 
+  # # plot the covariance an correlation priors
+  # yRange = range(c(covMean, lowerCov, upperCov))
+  # pdf(file=paste0("Figures/SPDEPriorCov", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(d, covMean, type="l", main="Prior of covariance function", xlab="Distance", ylab="Covariance", 
+  #      ylim=yRange)
+  # lines(d, lowerCov, lty=2)
+  # lines(d, upperCov, lty=2)
+  # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/SPDEPriorCor", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(d, corMean, type="l", main="Prior of correlation function", xlab="Distance", ylab="Covariance", 
+  #      ylim=c(0,1))
+  # lines(d, lowerCor, lty=2)
+  # lines(d, upperCor, lty=2)
+  # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  # dev.off()
+  
+  # fit the model
+  time = system.time(fit <- fitSPDEKenyaDat(dat, dataType, mesh, prior, significanceCI, intStrategy, strategy, nPostSamples, 
+                                            verbose, seed=seed, urbanEffect=urbanEffect, clusterEffect=clusterEffect, 
+                                            family=family))
+  mod = fit$mod
+  preds=fit$preds
+  predSDs=fit$sigmas
+  obsPreds=fit$obsPreds
+  obsSDs=fit$obsSDs
+  coefPreds = fit$coefPreds
+  coefSDs = fit$coefSDs
+  predPts = fit$predPts
+  predsUrban = fit$predsUrban
+  
+  # print out the total time
+  print(paste0("Total time before aggregation: ", time[3]))
+  
+  # aggregate the model
+  aggregationTime = 
+    system.time(aggregatedFit <- 
+                  aggregateModelResultsKenya(fit, clusterLevel=clusterLevel, pixelLevel=pixelLevel, 
+                                             countyLevel=countyLevel, regionLevel=regionLevel, 
+                                             targetPop=targetPop)
+    )[3]
+  allResults = list(fit=fit, aggregatedResults=aggregatedFit)
+  
+  print(paste0("Time to aggregate: ", aggregationTime))
+  
+  # show a model summary
+  print(summary(mod))
+  
+  # function for determining if points are in correct range
+  inRange = function(pts, rangeShrink=0) {
+    rep(TRUE, nrow(pts))
+  }
+  
+  # xRangeDat = latInfo[[1]]$xRangeDat
+  # yRangeDat = latInfo[[1]]$yRangeDat
+  xRangeDat = range(coords[,1])
+  yRangeDat = range(coords[,2])
+  
+  # show predictive surface, SD, and data
+  out = load("../U5MR/adminMapData.RData")
+  # kenyaMap = adm0
+  kenyaMap = adm1
+  pdf(file=paste0("Figures/SPDEPreds", plotNameRoot, ".pdf"), width=8, height=8)
+  par(mfrow=c(2,2), mar=c(5.1, 4.1, 4.1, 6))
+  
+  # obsInds = 1:n
+  # predInds = (n+1):(n+mx*my)
+  # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+  # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+  colRangeDat = range(c(ys, obsPreds, preds))
+  colRangeSD = range(c(predSDs, obsSDs))
+  quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+             xlim=xRangeDat, ylim=yRangeDat)
+  
+  quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+  quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+             xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+  dev.off()
+  
+  plotSingleModelPredictions(dat=dat, allResults, modelName="", targetPop=targetPop, 
+                             areaLevels=c("Region", "County", "Pixel", "Cluster"), 
+                             plotNameRoot=plotNameRoot, 
+                             meanRange=NULL, meanTicks=NULL, meanTickLabels=NULL, widthRange=NULL, widthTicks=NULL, widthTickLabels=NULL, 
+                             meanCols=makeRedBlueDivergingColors(64), 
+                             widthCols=makeBlueYellowSequentialColors(64), 
+                             kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0))
+  
+  pdf(file=paste0("Figures/SPDEInSampleResidualsLabeled", plotNameRoot, ".pdf"), width=5, height=5)
+  ylim = range(ys/ns-obsPreds)
+  xlim = range(obsPreds)
+  plot(obsPreds, ys/ns-obsPreds, pch=19, cex=.1, main="Residuals versus fitted", 
+       ylab="Residuals", xlab="Fitted", xlim=xlim, ylim=ylim, type="n")
+  points(obsPreds[!obsUrban], ys[!obsUrban]/ns[!obsUrban]-obsPreds[!obsUrban], pch=19, cex=.1, col="green")
+  points(obsPreds[obsUrban], ys[obsUrban]/ns[obsUrban]-obsPreds[obsUrban], pch=19, cex=.1, col="blue")
+  abline(h=0, lty=2)
+  legend("topright", c("Rural", "Urban"), col=c("green", "blue"), pch=19)
+  dev.off()
+  
+  # plot marginals on interpretable scale (effective range, marginal variance)
+  effRangeMarg = mod$marginals.hyperpar$`Range for field`
+  varMarg = inla.tmarginal(function(x) {x^2}, mod$marginals.hyperpar$`Stdev for field`)
+  if(clusterEffect)
+    sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar[[length(mod$marginals.hyperpar)]])
+  else if(family == "betabinomial")
+    overdispersionMarg = mod$marginals.hyperpar$`overdispersion for the betabinomial observations`
+  covNames = names(mod$marginals.fixed)
+  XMarginals = list()
+  for(i in 1:length(covNames)) {
+    XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+    XMarginals = c(XMarginals, list(XMarginal))
+  }
+  
+  par(mfrow=c(1,1))
+  
+  pdf(file=paste0("Figures/SPDEEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(effRangeMarg, type="l", main="Marginal for effective range")
+  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  dev.off()
+  
+  # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
+  pdf(file=paste0("Figures/SPDEVar", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(varMarg, type="l", main="Marginal for spatial variance")
+  abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
+  dev.off()
+  # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
+  if(clusterEffect) {
+    pdf(file=paste0("Figures/SPDESigma2", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(sigma2Marg, type="l", main="Marginal for error variance")
+    abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
+    dev.off()
+  } else if(family == "betabinomial") {
+    pdf(file=paste0("Figures/SPDERho", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(overdispersionMarg, type="l", main="Marginal for overdispersion")
+    abline(v=inla.qmarginal(c(.025, .975), overdispersionMarg), col="purple", lty=2)
+    dev.off()
+  }
+  
+  for(i in 1:length(covNames)) {
+    XMarginal = XMarginals[[i]]
+    pdf(file=paste0("Figures/SPDE", covNames[i], plotNameRoot, ".pdf"), width=5, height=5)
+    plot(XMarginal, type="l", main=paste0("Marginal for fixed effect ", i))
+    abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
+    dev.off()
+  }
+  
+  # pdf(file="Figures/SPDERho.pdf", width=5, height=5)
+  # plot(sigma2Marg, type="l", main=TeX("Marginal for $\\rho$"), xlab=TeX("$\\rho$"))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  
+  # # do the same for kappa, rho
+  # # in order to get distribution for rho, must sample from joint hyperparameters
+  # kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # # thetasToRho = function(xs) {
+  # #   logCor = xs[2]
+  # #   logVar = xs[3]
+  # #   kappa = 2.3/exp(logCor) * latticeWidth
+  # #   sigma2 = exp(logVar)
+  # #   sigma2 * 4*pi * kappa^2
+  # # }
+  # # samples = inla.hyperpar.sample(50000, mod, TRUE)
+  # # rhos = apply(samples, 1, thetasToRho)
+  # 
+  # pdf(file=paste0("Figures/SPDEKappa", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  # abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  # dev.off()
+  # 
+  # pdf(file="Figures/SPDERho.pdf", width=5, height=5)
+  # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
+  # abline(v=rho, col="green")
+  # dev.off()
+  
+  ## Now generate marginals for the alpha parameters if they exist. In order to do this, we must generate draws from 
+  ## the posterior, and transform them back to the probability scale
+  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  
+  ## plot covariance and correlation functions
+  
+  # first to transform all the hyperparameter samples to their relevant values
+  # !separateRanges:
+  # 1: log effective range
+  # 2: log spatial variance
+  # 3:(3 + nLayer - 2): multivariateLogit alpha
+  # 3 + nLayer - 1: error precision
+  # separateRanges:
+  # 1:nLayer: log effective range
+  # nLayer + 1: log spatial variance
+  # (nLayer + 2):(nLayer + 2 + nLayer - 2): multivariateLogit alpha
+  # nLayer + 1 + nLayer - 1 + 1: error precision
+  if(clusterEffect)
+    nuggetVarVals = 1/out[,ncol(out)]
+  else
+    nuggetVarVals = rep(0, nrow(out))
+  effectiveRangeVals = out[,2]
+  varVals = out[,3]^2
+  
+  # compute the covariance function for many different hyperparameter samples
+  # NOTE: this is on a logit scale for binomial and beta binomial case, and does not 
+  #       account for overdispersion in beta binomial case
+  out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
+  
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI]
+  
+  # plot the covariance function
+  
+  yRange = range(c(covMean, lowerCov, upperCov))
+  pdf(file=paste0("Figures/SPDECov", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/SPDECor", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=c(0,1))
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col=c("black", "black"))
+  dev.off()
+  
+  # get scoring rules
+  truth = ys / ns
+  est = obsPreds
+  vars = obsSDs^2
+  # lower = fit$obsLower
+  # upper = fit$obsUpper
+  lower = NULL
+  upper = NULL # these will be recalculated including binomial variation in the getScores function
+  estMat = fit$obsMat
+  estMatBinomial = addBinomialVar(estMat, ns)
+  
+  if(!dropUrban) {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper, estMatBinomial, doRandomReject=TRUE), Time=time[3])))
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth[!obsUrban], est[!obsUrban], vars[!obsUrban], lower[!obsUrban], upper[!obsUrban], estMatBinomial[!obsUrban,], doRandomReject=TRUE), Time=time[3])))
+    print("Urban scores:")
+    print(data.frame(c(getScores(truth[obsUrban], est[obsUrban], vars[obsUrban], lower[obsUrban], upper[obsUrban], estMatBinomial[obsUrban,], doRandomReject=TRUE), Time=time[3])))
+  } else {
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper, estMatBinomial, doRandomReject=TRUE), Time=time[3])))
+  }
 }
 
 # modelResults must have matrices "predMat" and "hyperMat"
@@ -2019,34 +2889,92 @@ aggregateModelPreds = function(modelResults, B, addClusterError=TRUE) {
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
 # thetas: originally was c(.1, 3), but 3 is too large
-testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, 
-                                  nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, testCovs=TRUE, 
-                                  printVerboseTimings=FALSE, latInfo=NULL, n=1000, thetas=c(.1, .4), 
-                                  testfrac=.1) {
+testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, nu=1, 
+                                  nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, testCovs=FALSE, 
+                                  printVerboseTimings=FALSE, latInfo=NULL, n=900, thetas=NULL, 
+                                  testfrac=.1, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
+                                  effRangeRange=NULL, urbanOverSamplefrac=0, 
+                                  intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
+                                  leaveOutRegion=TRUE) {
   set.seed(seed)
+  clusterEffect=TRUE
+  
+  if(useKenya)
+    distanceBreaks = seq(0, 300, l=20)
+  else
+    distanceBreaks = seq(0, 0.5, l=20)
+  
+  # set plotNameRoot
+  if(length(NC) == 1) {
+    if(separateRanges)
+      NC = c(14, 126) # by default, use two layers with the finest layer having resolution equal to 10km
+  }
+  if(separateRanges)
+    nLayer = length(NC)
+  
+  # set plotNameRoot
+  # > 2/.08 * 5
+  # [1] 125
+  # > 2/.8 * 5
+  # [1] 12.5
+  ncText = ""
+  if(length(NC) == 1) {
+    if(separateRanges)
+      ncText = "_NC14_126"
+    else {
+      ncText = paste0("_NC", NC)
+    }
+  } else {
+    tempText = do.call("paste0", as.list(c(NC[1], paste0("_", NC[-1]))))
+    ncText = paste0("_NC", tempText)
+  }
+  plotNameRoot = paste0(plotNameRoot, "_L", nLayer, ncText, "_sepRange", separateRanges, "_n", n, "_nu", nu, "_nugV", 
+                        round(sigma2, 2), "_Kenya", useKenya, "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
   
   # set true parameter values
+  if(useKenya) {
+    if(is.null(thetas))
+      thetas=c(.08, .8) * (1000/2) / 2.3
+  } else {
+    if(is.null(thetas))
+      thetas=c(.08, .8) / 2.3
+  }
   rho = 1
   effectiveRange = thetas * 2.3
-  sigma2 = sqrt(.1)
   
   # load data set if necessary
   if(is.null(n)) {
     out = load("mixtureDataSet.RData")
   } else {
-    spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+    spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+        0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
+    mixtureCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+        0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
     nTest = round(testfrac * n)
-    simulationData = getSimulationDataSetsGivenCovariance(spatialCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
-                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
-                                                          saveDataSetPlot=FALSE)
+    if(leaveOutRegion) {
+      simulationData = getSimulationDataSetsGivenCovarianceTest(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                                nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                                saveDataSetPlot=FALSE, doPredGrid=TRUE)
+    } else {
+      simulationData = getSimulationDataSetsGivenCovariance(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                            nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                            saveDataSetPlot=FALSE, useKenyaLocations=useKenya, urbanOverSamplefrac=urbanOverSamplefrac)
+    }
   }
   coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
   ys = simulationData$zTrain[,1]
   
   # generate lattice and simulate observations
   # coords = matrix(runif(2*n), ncol=2)
-  xRangeDat = c(-1, 1)
-  yRangeDat = c(-1, 1)
+  if(useKenya) {
+    xRangeDat = simulationData$xRange
+    yRangeDat = simulationData$yRange
+    # if(is.null(effRangeRange))
+    #   effRangeRange=exp(c(-6, 7))
+  } else {
+    xRangeDat = c(-1, 1)
+    yRangeDat = c(-1, 1)
+  }
   if(is.null(latInfo))
     latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
   
@@ -2061,25 +2989,47 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # ys = ys + errs
   
   # plot the observations
-  pdf(file="Figures/mixtureLKINLAObservations.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLAObservations", plotNameRoot, ".pdf"), width=5, height=5)
   par(mfrow=c(1,1))
   quilt.plot(coords, ys)
   dev.off()
   
   # make prediction coordinates on a grid, and add testing points
-  xRange=c(-1,1)
-  yRange=c(-1,1)
   mx = 100
   my = 100
-  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
-  predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
-  ysTest = simulationData$zTest[,1]
+  predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
+  if(useKenya) {
+    # remove grid points outside of Kenya national boundaries
+    load("../U5MR/adminMapData.RData")
+    polys = adm0@polygons
+    kenyaPoly = polys[[1]]@Polygons[[77]]@coords
+    kenyaPolyProj = projKenya(kenyaPoly)
+    inKenya = in.poly(predPts, kenyaPolyProj)
+    predPts = predPts[inKenya,]
+    
+    # add other testing locations to matrix of prediction locations and remember which 
+    predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+    predPts = rbind(predPts, cbind(simulationData$xTestRural[,1], simulationData$yTestRural[,1]))
+    predPts = rbind(predPts, cbind(simulationData$xTestUrban[,1], simulationData$yTestUrban[,1]))
+    plotGridI = 1:sum(inKenya)
+    overallTestI = simulationData$overallTestI
+    ruralTestI = simulationData$ruralTestI
+    urbanTestI = simulationData$urbanTestI
+    gridTestI = (max(urbanTestI) + 1):(max(urbanTestI) + length(simulationData$xGrid))
+  } else {
+    predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+  }
+  predPts = rbind(predPts, cbind(simulationData$xGrid, simulationData$yGrid))
+  ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
   
   # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
   # priorPar = getPrior(.1, .1, 10)
   # generate hyperparameters for pc priors
-  # median effective range is .4 (a fifth of the spatial domain diameter), median spatial variance is 1
-  priorPar = getPCPrior(.4, .5, 1, nLayer=nLayer) 
+  # median effective range is .4 or 200 for kenya data (a fifth of the spatial domain diameter), median spatial variance is 1
+  if(!useKenya)
+    priorPar = getPCPrior(.4, .5, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo)
+  else
+    priorPar = getPCPrior(200, .5, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo)
   X = matrix(rep(1, nrow(coords)), ncol=1)
   # X = matrix(coords[,1], ncol=1)
   XPred = matrix(rep(1, nrow(predPts)), ncol=1)
@@ -2096,17 +3046,40 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   }
   
   # show priors on effective correlation, marginal variance, and error variance:
-  xs1 = seq(.01, 1, l=500)
-  pdf(file="Figures/mixtureLKINLAPriorEffRange.pdf", width=5, height=5)
-  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
-       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
-       ylab="Prior Density")
-  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
-  dev.off()
+  if(!useKenya)
+    xs1 = seq(.01, 2, l=500)
+  else
+    xs1 = seq(.01, 1000, l=500)
+  if(!separateRanges) {
+    pdf(file=paste0("Figures/mixtureLKINLAPriorEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+         xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+         ylab="Prior Density")
+    abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+    dev.off()
+  } else {
+    for(i in 1:nLayer) {
+      if(!useKenya)
+        xs1 = seq(.01, 2, l=500)
+      else
+        xs1 = seq(.01, 1000, l=500)
+      
+      if(i == nLayer && useKenya)
+        xs1 = seq(1, 200, l=500)
+      else if(!useKenya)
+        xs1 = seq(.001, .4, l=500)
+      pdf(file=paste0("Figures/mixtureLKINLAPriorEff", i, "Range", plotNameRoot, ".pdf"), width=5, height=5)
+      plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar[i]), type="l", col="blue", 
+           xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+           ylab="Prior Density")
+      abline(v=qinvexp(.5, rate=priorPar$corScalePar[i]), col="red")
+      dev.off()
+    }
+  }
   
   if(priorPar$priorType == "orig") {
     xs2 = seq(.01, 10.5, l=500)
-    pdf(file="Figures/mixtureLKINLAPriorMargVar.pdf", width=5, height=5)
+    pdf(file=paste0("Figures/mixtureLKINLAPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
     plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
          xlab="Marginal Variance", main="Marginal Variance Prior", 
          ylab="Prior Density")
@@ -2115,7 +3088,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     dev.off()
   } else if(priorPar$priorType == "pc") {
     xs2 = seq(.01, 11.5, l=500)
-    pdf(file="Figures/mixtureLKINLAPriorMargVar.pdf", width=5, height=5)
+    pdf(file=paste0("Figures/mixtureLKINLAPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
     plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
          xlab="Marginal Variance", main="Marginal Variance Prior", 
          ylab="Prior Density")
@@ -2135,9 +3108,9 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # dev.off()
   
   xs2 = seq(.01, 1, l=500)
-  pdf(file="Figures/mixtureLKINLAPriorErrorVar.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLAPriorErrorVar", plotNameRoot, ".pdf"), width=5, height=5)
   plot(xs2, dpcvar(xs2, alpha=.05, u=1), type="l", col="blue", 
-       xlab="Marginal Variance", main="Marginal Variance Prior", 
+       xlab="Error Variance", main="Error Variance Prior", 
        ylab="Prior Density")
   abline(v=qpcvar(.1, alpha=.05, u=1), col="red")
   abline(v=qpcvar(.9, alpha=.05, u=1), col="red")
@@ -2147,7 +3120,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # browser()
   
   for(l in 1:nLayer) {
-    pdf(file=paste0("Figures/mixtureLKINLAPriorAlpha", l, ".pdf"), width=5, height=5)
+    pdf(file=paste0("Figures/mixtureLKINLAPriorAlpha", l, plotNameRoot, ".pdf"), width=5, height=5)
     xs = seq(0, 1, l=500)
     tempYs = dbeta(xs, priorPar$alphaPar[l], sum(priorPar$alphaPar[-l]))
     plot(xs, tempYs, type="l", xlab=TeX(paste0("$\\alpha_", l, "$")), ylab="Density", 
@@ -2156,11 +3129,67 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     dev.off()
   }
   
+  # prior on covariogram
+  alphaVals = t(rdirichlet(100, alpha=priorPar$alphaPar))
+  rhoVals = rpcvar(100, alpha=priorPar$alpha, u=priorPar$u)
+  if(!separateRanges) {
+    kappaVals = 2.3/rinvexp(100, rate=priorPar$corScalePar) * latInfo[[1]]$latWidth
+  } else {
+    kappaVals = matrix(2.3/rinvexp(100*3, rate=priorPar$corScalePar) * sapply(latInfo, function(x) {x$latWidth}), nrow=nLayer)
+  }
+  nuggetVarVals = rpcvar(100, alpha=.05, u=1)
+  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaVals, 
+                                     normalize=normalize, fastNormalize=fastNormalize)
+  d = out$d
+  sortI = sort(d, index.return=TRUE)$ix
+  d = d[sortI]
+  covMean = out$cov[sortI]
+  upperCov=out$upperCov[sortI]
+  lowerCov=out$lowerCov[sortI]
+  covMat=out$covMat[sortI]
+  corMean = out$cor[sortI]
+  upperCor=out$upperCor[sortI]
+  lowerCor=out$lowerCor[sortI]
+  corMat=out$corMat[sortI]
+  
+  # true correlation and covariance functions
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
+  spatialCovFun = spatialCorFun
+  mixtureCovFun = function(x) {
+    out = spatialCorFun(x)
+    out[x == 0] = 1 + sigma2
+    out
+  }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
+  
+  # plot the covariance an correlation priors
+  yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
+  pdf(file=paste0("Figures/mixtureLKINLAPriorCov", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
+       ylim=yRange)
+  lines(d, lowerCov, lty=2)
+  lines(d, upperCov, lty=2)
+  lines(d, mixtureCovFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKINLAPriorCor", plotNameRoot, ".pdf"), width=5, height=5)
+  yRange = range(c(corMean, lowerCor, upperCor, mixtureCorFun(d)))
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance", 
+       ylim=c(0,1))
+  lines(d, lowerCor, lty=2)
+  lines(d, upperCor, lty=2)
+  lines(d, mixtureCorFun(d), col="green")
+  legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+  dev.off()
+  
   # fit the model
   time = system.time(fit <- fitLKINLAStandard2(coords, ys, predCoords=predPts, seed=seed, nLayer=nLayer, NC=NC,
                                                nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
-                                               intStrategy="auto", strategy="laplace", fastNormalize=fastNormalize, 
-                                               printVerboseTimings=printVerboseTimings))
+                                               intStrategy=intStrategy, strategy=strategy, fastNormalize=fastNormalize, 
+                                               printVerboseTimings=printVerboseTimings, latInfo=latInfo, effRangeRange=effRangeRange, 
+                                               separateRanges=separateRanges, clusterEffect=clusterEffect))
   mod = fit$mod
   preds=fit$preds
   predSDs=fit$sigmas
@@ -2178,16 +3207,22 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   print(summary(mod))
   
   # function for determining if points are in correct range
-  inRange = function(pts, rangeShrink=0) {
-    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
-    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
-    inX & inY
+  if(!useKenya) {
+    inRange = function(pts, rangeShrink=0) {
+      inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+      inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+      inX & inY
+    }
+  } else {
+    inRange = function(pts, rangeShrink=0) {
+      rep(TRUE, nrow(pts))
+    }
   }
   
   # show predictive surface, SD, and data
   
-  pdf(file="Figures/mixtureLKINLAPreds.pdf", width=15, height=6)
   if(nLayer==1) {
+    pdf(file=paste0("Figures/mixtureLKINLAPreds", plotNameRoot, ".pdf"), width=9, height=6)
     par(mfrow=c(2,3))
     
     # obsInds = 1:n
@@ -2210,6 +3245,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                xlim=xRangeDat, ylim=yRangeDat)
   }
   else if(nLayer==2) {
+    pdf(file=paste0("Figures/mixtureLKINLAPreds", plotNameRoot, ".pdf"), width=12, height=6)
     par(mfrow=c(2,4))
     
     # obsInds = 1:n
@@ -2233,6 +3269,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
   }
   else if(nLayer==3) {
+    pdf(file=paste0("Figures/mixtureLKINLAPreds", plotNameRoot, ".pdf"), width=15, height=6)
     par(mfrow=c(2,5), mar=c(5.1, 4.1, 4.1, 6))
     
     # obsInds = 1:n
@@ -2264,50 +3301,195 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
     quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
   }
+  else if(nLayer==4) {
+    pdf(file=paste0("Figures/mixtureLKINLAPreds", plotNameRoot, ".pdf"), width=18, height=6)
+    par(mfrow=c(2,6), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    gridPtsL4 = latInfo[[4]]$latCoords
+    quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefPreds[[4]], main="Basis Coefficient Mean (Layer 4)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefSDs[[4]], main="Basis Coefficient SD (Layer 4)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
+  else if(nLayer==5) {
+    pdf(file=paste0("Figures/mixtureLKINLAPreds", plotNameRoot, ".pdf"), width=21, height=6)
+    par(mfrow=c(2,7), mar=c(5.1, 4.1, 4.1, 6))
+    
+    # obsInds = 1:n
+    # predInds = (n+1):(n+mx*my)
+    # coefInds = (n+mx*my+1):(n+mx*my+nx*ny)
+    # colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeDat = range(c(ys, obsPreds, preds, coefPreds))
+    colRangeCoef = range(c(coefPreds))
+    colRangeSD = range(c(predSDs, obsSDs, coefSDs))
+    gridPtsL1 = latInfo[[1]]$latCoords
+    gridPtsL2 = latInfo[[2]]$latCoords
+    gridPtsL3 = latInfo[[3]]$latCoords
+    gridPtsL4 = latInfo[[4]]$latCoords
+    gridPtsL5 = latInfo[[5]]$latCoords
+    quilt.plot(coords, ys, main="True Process", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], preds, main="Prediction Mean", zlim=colRangeDat, 
+               xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefPreds[[1]], main="Basis Coefficient Mean (Layer 1)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefPreds[[2]], main="Basis Coefficient Mean (Layer 2)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefPreds[[3]], main="Basis Coefficient Mean (Layer 3)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefPreds[[4]], main="Basis Coefficient Mean (Layer 4)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    quilt.plot(gridPtsL5[,1], gridPtsL5[,2], coefPreds[[5]], main="Basis Coefficient Mean (Layer 5)", 
+               xlim=xRangeDat, ylim=yRangeDat, zlim=colRangeCoef)
+    
+    # quilt.plot(coords, obsPreds, main="Observation Mean", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    # plot.new()
+    quilt.plot(coords, ys, main="Observations", zlim=colRangeDat, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(predPts[,1], predPts[,2], predSDs, main="Prediction SD",
+               xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
+    quilt.plot(gridPtsL1[,1], gridPtsL1[,2], coefSDs[[1]], main="Basis Coefficient SD (Layer 1)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL2[,1], gridPtsL2[,2], coefSDs[[2]], main="Basis Coefficient SD (Layer 2)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL3[,1], gridPtsL3[,2], coefSDs[[3]], main="Basis Coefficient SD (Layer 3)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL4[,1], gridPtsL4[,2], coefSDs[[4]], main="Basis Coefficient SD (Layer 4)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+    quilt.plot(gridPtsL5[,1], gridPtsL5[,2], coefSDs[[5]], main="Basis Coefficient SD (Layer 5)", zlim=colRangeSD, xlim=xRangeDat, ylim=yRangeDat)
+  }
   dev.off()
   
-  pdf(file="Figures/mixtureLKINLALeftOutResiduals.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLALeftOutResiduals", plotNameRoot, ".pdf"), width=5, height=5)
   testIndices = (length(preds) - length(ysTest) + 1):length(preds)
   plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
        ylab="Residuals", xlab="Fitted")
   abline(h=0, lty=2)
   dev.off()
   
+  if(useKenya) {
+    pdf(file=paste0("Figures/mixtureLKINLALeftOutResidualsLabeled", plotNameRoot, ".pdf"), width=5, height=5)
+    testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+    gridIndices = 
+    ylim = range(ysTest-preds[testIndices])
+    xlim = range(preds[testIndices])
+    plot(preds[testIndices][overallTestI], ysTest[overallTestI]-preds[testIndices][overallTestI], pch=19, cex=.1, col="black", main="Residuals versus fitted", 
+         ylab="Residuals", xlab="Fitted", xlim=xlim, ylim=ylim)
+    points(preds[testIndices][ruralTestI], ysTest[ruralTestI]-preds[testIndices][ruralTestI], pch=19, cex=.1, col="green")
+    points(preds[testIndices][urbanTestI], ysTest[urbanTestI]-preds[testIndices][urbanTestI], pch=19, cex=.1, col="blue")
+    points(preds[testIndices][gridTestI], ysTest[gridTestI]-preds[testIndices][gridTestI], pch=19, cex=.1, col="red")
+    abline(h=0, lty=2)
+    legend("topright", c("Overall", "Rural", "Urban", "Grid"), col=c("black", "green", "blue", "red"), pch=19)
+    dev.off()
+  }
+  
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
+  if(separateRanges)
+    latticeWidth = sapply(latInfo, function(x) {x$latWidth})#
   # marginalVar = rho/(4*pi * kappa^2)
   # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
   #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
   marginalVar = rho
   
+  # # plot marginals on interpretable scale (effective range, marginal variance)
+  # effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+  # varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  # sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  # covNames = names(mod$marginals.fixed)
+  # if(!assumeMeanZero) {
+  #   XMarginals = list()
+  #   for(i in 1:length(covNames)) {
+  #     XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
+  #     XMarginals = c(XMarginals, list(XMarginal))
+  #   }
+  # }
+  # 
+  # par(mfrow=c(1,1))
+  # if(!separateRanges) {
+  #   pdf(file=paste0("Figures/mixtureLKINLAEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(effRangeMarg, type="l", main="Marginal for effective range")
+  #   abline(v=effectiveRange, col="green")
+  #   abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  #   dev.off()
+  # } else {
+  #   for(l in 1:nLayer) {
+  #     pdf(file=paste0("Figures/mixtureLKINLAEffRange", "Layer", l, plotNameRoot, ".pdf"), width=5, height=5)
+  #     plot(effRangeMarg, type="l", main=paste0("Marginal for effective range (Layer ", l, ")"))
+  #     abline(v=effectiveRange, col="green")
+  #     abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+  #     dev.off()
+  #   }
+  # }
+  
   # plot marginals on interpretable scale (effective range, marginal variance)
-  effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
-  varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
-  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar$`Precision for the Gaussian observations`)
+  if(!separateRanges) {
+    effRangeMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta1 for field`)
+    varMarg = inla.tmarginal(exp, mod$marginals.hyperpar$`Theta2 for field`)
+  } else {
+    numberThetas = nLayer + 1 + nLayer - 1
+    allNames = paste0("Theta", 1:numberThetas, " for field")
+    effRangeMargs = list()
+    for(i in 1:nLayer) {
+      effRangeMargs = c(effRangeMargs, list(inla.tmarginal(exp, mod$marginals.hyperpar[[allNames[i]]])))
+    }
+    varMarg = inla.tmarginal(exp, mod$marginals.hyperpar[[allNames[nLayer+1]]])
+  }
+  sigma2Marg = inla.tmarginal(function(x) {1/x}, mod$marginals.hyperpar[[1]])
   covNames = names(mod$marginals.fixed)
-  if(!assumeMeanZero) {
-    XMarginals = list()
+  XMarginals = list()
+  if(length(covNames) != 0) {
     for(i in 1:length(covNames)) {
       XMarginal = inla.tmarginal(function(x) {x}, mod$marginals.fixed[[covNames[i]]])
       XMarginals = c(XMarginals, list(XMarginal))
     }
   }
   
-  
   par(mfrow=c(1,1))
-  pdf(file="Figures/mixtureLKINLAEffRange.pdf", width=5, height=5)
-  plot(effRangeMarg, type="l", main="Marginal for effective range")
-  abline(v=effectiveRange, col="green")
-  abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
-  dev.off()
+  
+  if(!separateRanges) {
+    pdf(file=paste0("Figures/mixtureLKINLAEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+    plot(effRangeMarg, type="l", main="Marginal for effective range")
+    abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
+    dev.off()
+  } else {
+    for(i in 1:nLayer) {
+      pdf(file=paste0("Figures/mixtureLKINLAEffRange", i, plotNameRoot, ".pdf"), width=5, height=5)
+      plot(effRangeMargs[[i]], type="l", main="Marginal for effective range")
+      abline(v=inla.qmarginal(c(.025, .975), effRangeMargs[[i]]), col="purple", lty=2)
+      dev.off()
+    }
+  }
+  
   # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
-  pdf(file="Figures/mixtureLKINLAVar.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLAVar", plotNameRoot, ".pdf"), width=5, height=5)
   plot(varMarg, type="l", main="Marginal for spatial variance")
   abline(v=marginalVar, col="green")
   abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
   dev.off()
   # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
-  pdf(file="Figures/mixtureLKINLASigma2.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLASigma2", plotNameRoot, ".pdf"), width=5, height=5)
   plot(sigma2Marg, type="l", main="Marginal for error variance")
   abline(v=sigma2, col="green")
   abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
@@ -2316,7 +3498,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   if(!assumeMeanZero) {
     for(i in 1:length(covNames)) {
       XMarginal = XMarginals[[i]]
-      pdf(file=paste0("Figures/mixtureLKINLA", covNames[i], ".pdf"), width=5, height=5)
+      pdf(file=paste0("Figures/mixtureLKINLA", covNames[i], plotNameRoot, ".pdf"), width=5, height=5)
       plot(XMarginal, type="l", main="Marginal for fixed effect")
       abline(v=0, col="green")
       abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
@@ -2343,10 +3525,10 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # samples = inla.hyperpar.sample(50000, mod, TRUE)
   # rhos = apply(samples, 1, thetasToRho)
   
-  pdf(file="Figures/mixtureLKINLAKappa.pdf", width=5, height=5)
-  plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
-  abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
-  dev.off()
+  # pdf(file=paste0("Figures/mixtureLKINLAKappa", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(kappaMarg, type="l", xlab="kappa", main="Marginal for kappa")
+  # abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)
+  # dev.off()
   
   # pdf(file="Figures/mixtureLKINLARho.pdf", width=5, height=5)
   # hist(rhos, xlab="rho", main="Marginal for Rho", breaks=1000, freq=F, xlim=c(0, quantile(probs=.95, rhos)))
@@ -2356,12 +3538,16 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
   ## the posterior, and transform them back to the probability scale
   out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
-  zSamples = out[,4:(3+nLayer-1)]
-  xSamples = apply(zSamples, 1, multivariateExpit)
+  if(separateRanges)
+    alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
+  else
+    alphaI = 4:(3+nLayer-1)
+  zSamples = matrix(out[,alphaI], ncol=length(alphaI))
+  xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
   xSamples = rbind(xSamples, 1-colSums(xSamples))
   
   for(l in 1:nLayer) {
-    pdf(file=paste0("Figures/mixtureLKINLAAlpha", l, ".pdf"), width=5, height=5)
+    pdf(file=paste0("Figures/mixtureLKINLAAlpha", l, plotNameRoot, ".pdf"), width=5, height=5)
     hist(xSamples[l,], xlab=TeX(paste0("$\\alpha_", l, "$")), main=TeX(paste0("Marginal for $\\alpha_", l, "$")), breaks=100, freq=F, xlim=c(0,1))
     abline(v=mean(xSamples[l,]), col="purple", lty=1)
     abline(v=quantile(probs=c(.025, .975), xSamples[l,]), col="purple", lty=2)
@@ -2378,23 +3564,29 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # }
   # mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
   # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
-  spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
   spatialCovFun = spatialCorFun
   mixtureCovFun = function(x) {
     out = spatialCorFun(x)
-    out[x == 0] = 1 + sqrt(.1)
+    out[x == 0] = 1 + sigma2
     out
   }
-  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
   
   # first to transform all the hyperparameter samples to their relevant values
   # 1: error precision
   # 2: log effective range
   # 3: log spatial variance
   # 4-(3 + nLayer - 1): multivariateLogit alpha
-  nuggetVarVals = 1/out[,1]
-  kappaVals = 2.3/exp(out[,2]) * latticeWidth
-  rhoVals = exp(out[,3])
+  nuggetVarVals = 1 / out[,1]
+  if(separateRanges) {
+    kappaVals = t(sweep(2.3/exp(out[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
+    rhoVals = exp(out[,nLayer+2])
+  } else {
+    kappaVals = 2.3/exp(out[,2]) * latticeWidth
+    rhoVals = exp(out[,3])
+  }
   alphaMat = xSamples
   
   # compute the covariance function for many different hyperparameter samples
@@ -2412,22 +3604,22 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   corMat=out$corMat[sortI]
   
   # plot the covariance function
-  pdf(file=paste0("Figures/mixtureLKINLACov.pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLACov", plotNameRoot, ".pdf"), width=5, height=5)
   plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance")
   lines(d, lowerCov, lty=2)
   lines(d, upperCov, lty=2)
   lines(d, mixtureCovFun(d), col="green")
   dev.off()
   
-  pdf(file=paste0("Figures/mixtureLKINLACor.pdf"), width=5, height=5)
-  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance")
+  pdf(file=paste0("Figures/mixtureLKINLACor", plotNameRoot, ".pdf"), width=5, height=5)
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Correlation")
   lines(d, lowerCor, lty=2)
   lines(d, upperCor, lty=2)
   lines(d, mixtureCorFun(d), col="green")
   dev.off()
   
   yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
-  pdf(file=paste0("Figures/mixtureLKINLACov.pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLACov", plotNameRoot, ".pdf"), width=5, height=5)
   plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
        ylim=yRange)
   lines(d, lowerCov, lty=2)
@@ -2436,9 +3628,10 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
   dev.off()
   
-  pdf(file=paste0("Figures/mixtureLKINLACor.pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/mixtureLKINLACor", plotNameRoot, ".pdf"), width=5, height=5)
   yRange = range(c(corMean, lowerCor, upperCor, mixtureCorFun(d)))
-  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance")
+  plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Correlation", 
+       ylim=c(0,1))
   lines(d, lowerCor, lty=2)
   lines(d, upperCor, lty=2)
   lines(d, mixtureCorFun(d), col="green")
@@ -2452,7 +3645,80 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   lower = fit$lower[testIndices]
   upper = fit$upper[testIndices]
   
-  c(getScores(truth, est, vars, lower, upper), Time=time[3])
+  # compute nearest neighbor distances and scores as a function of them
+  testPts = predPts[testIndices,]
+  distMat = rdist(coords, testPts)
+  nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  print("Binned scores:")
+  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  print(scoringRules$binnedResults)
+  # print("Grid scores:")
+  # print(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                 distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults)
+  # 
+  # # plot scores as a function of distance
+  # distanceScores = getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                            distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreBias", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Bias, pch=19, col="blue", main="Bias", ylab="Bias", xlab="Nearest neighbor distance (km)")
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreVar", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Var, pch=19, col="blue", main="Variance", ylab="Variance", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Var)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$MSE, pch=19, col="blue", main="MSE", ylab="MSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$MSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreRMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$RMSE, pch=19, col="blue", main="RMSE", ylab="RMSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$RMSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCRPS", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$CRPS, pch=19, col="blue", main="CRPS", ylab="CRPS", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$CRPS)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCvg", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Coverage, pch=19, col="blue", main="80% Coverage", ylab="80% Coverage", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Coverage)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreWidth", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Width, pch=19, col="blue", main="Width", ylab="Width", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Width)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  
+  if(!useKenya) {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+  } else {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+    print("Overall scores:")
+    print(data.frame(c(getScores(truth[overallTestI], est[overallTestI], vars[overallTestI], lower[overallTestI], upper[overallTestI]), Time=time[3])))
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth[ruralTestI], est[ruralTestI], vars[ruralTestI], lower[ruralTestI], upper[ruralTestI]), Time=time[3])))
+    print("Urban scores:")
+    print(data.frame(c(getScores(truth[urbanTestI], est[urbanTestI], vars[urbanTestI], lower[urbanTestI], upper[urbanTestI]), Time=time[3])))
+    print("Grid scores:")
+    print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
+  }
+  
+  save(scoringRules, file=paste0("savedOutput/simulations/mixtureLKINLAscoringRules", plotNameRoot, ".RData"))
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
@@ -2466,26 +3732,33 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
 testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, 
-                              nBuffer=5, normalize=TRUE, NC=13, testCovs=TRUE, 
-                              printVerboseTimings=FALSE, n=NULL, separatea.wght=FALSE, 
-                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.1, 3), 
-                              testfrac=.1) {
+                              nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
+                              printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
+                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.04, .8) / 2.3, 
+                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0) {
   set.seed(seed)
   
   # set true parameter values
   rho = 1
   effectiveRange = thetas * 2.3
-  sigma2 = sqrt(.1)
   
   # load data set if necessary
-  spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+  spatialCorFun = function(x) {0.5 * Exp.cov(x, theta=thetas[1]) + 0.5 * Exp.cov(x, theta=thetas[2])}
   if(is.null(n)) {
     out = load("mixtureDataSet.RData")
   } else {
+    mixtureCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+        0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
     nTest = round(testfrac * n)
-    simulationData = getSimulationDataSetsGivenCovariance(spatialCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
-                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
-                                                          saveDataSetPlot=FALSE)
+    if(leaveOutRegion) {
+      simulationData = getSimulationDataSetsGivenCovarianceTest(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                                nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                                saveDataSetPlot=FALSE, doPredGrid=TRUE)
+    } else {
+      simulationData = getSimulationDataSetsGivenCovariance(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                            nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                            saveDataSetPlot=FALSE, useKenyaLocations=useKenya, urbanOverSamplefrac=urbanOverSamplefrac)
+    }
   }
   coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
   ys = simulationData$zTrain[,1]
@@ -2702,34 +3975,72 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx,
 # first.time: is first time evaluating function.  User should always set to FALSE
 # thetas: originally was c(.1, 3), but 3 is too large
 testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE, 
-                                testCovs=TRUE, n=1000, thetas=c(.1, .4), 
+                                testCovs=FALSE, n=900, thetas=NULL, 
                                 int.strategy="auto", strategy="gaussian", 
-                                nPostSamples=1000, mesh=getSPDEMesh(), 
-                                prior=getSPDEPrior(mesh), testfrac=.1) {
+                                nPostSamples=1000, mesh=NULL, 
+                                prior=NULL, testfrac=.1, nu=1, 
+                                plotNameRoot="", sigma2 = 0, useKenya=FALSE, 
+                                urbanOverSamplefrac=0, leaveOutRegion=TRUE) {
   set.seed(seed)
   
+  if(useKenya)
+    distanceBreaks = seq(0, 300, l=20)
+  else
+    distanceBreaks = seq(0, 0.5, l=20)
+  
+  # set plotNameRoot
+  plotNameRoot = paste0(plotNameRoot, "_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", useKenya, 
+                        "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
+  
   # set true parameter values
+  if(useKenya) {
+    if(is.null(thetas))
+      thetas=c(.08, .8) * (1000/2) / 2.3
+  } else {
+    if(is.null(thetas))
+      thetas=c(.08, .8) / 2.3
+  }
   rho = 1
   effectiveRange = thetas * 2.3
-  sigma2 = sqrt(.1)
+  
+  # set the SPDE mesh if necessary
+  if(is.null(mesh)) {
+    if(useKenya)
+      mesh = getSPDEMeshKenya()
+    else
+      mesh = getSPDEMesh()
+  }
   
   # load data set if necessary
   if(is.null(n)) {
     out = load("mixtureDataSet.RData")
   } else {
-    mixtureCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1]) + 0.6 * Exp.cov(x, theta=thetas[2])}
+    mixtureCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+        0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
     nTest = round(testfrac * n)
-    simulationData = getSimulationDataSetsGivenCovariance(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
-                                                          nDataSets=2, plotNameRoot=paste0("(0.4*Exp(", thetas[1], ") + 0.6*Exp(", thetas[2], "))"), fileNameRoot="mix", 
-                                                          saveDataSetPlot=FALSE)
+    if(leaveOutRegion) {
+      simulationData = getSimulationDataSetsGivenCovarianceTest(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                                nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                                saveDataSetPlot=FALSE, doPredGrid=TRUE)
+    } else {
+      simulationData = getSimulationDataSetsGivenCovariance(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                            nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                            saveDataSetPlot=FALSE, useKenyaLocations=useKenya, urbanOverSamplefrac=urbanOverSamplefrac)
+    }
+    
   }
   coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
   ys = simulationData$zTrain[,1]
   
   # generate lattice and simulate observations
   # coords = matrix(runif(2*n), ncol=2)
-  xRangeDat = c(-1, 1)
-  yRangeDat = c(-1, 1)
+  if(useKenya) {
+    xRangeDat = simulationData$xRange
+    yRangeDat = simulationData$yRange
+  } else {
+    xRangeDat = c(-1, 1)
+    yRangeDat = c(-1, 1)
+  }
   
   AObs = inla.spde.make.A(mesh, loc = coords)
   # Q = makeQ(kappa=kappa, rho=rho, latInfo, alphas=alphas, normalized=normalize, fastNormalize=fastNormalize) 
@@ -2742,25 +4053,52 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   # ys = ys + errs
   
   # plot the observations
-  pdf(file="Figures/mixtureSPDEObservations.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDEObservations", plotNameRoot, ".pdf"), width=5, height=5)
   par(mfrow=c(1,1))
   quilt.plot(coords, ys)
   dev.off()
   
   # make prediction coordinates on a grid, and add testing points
-  xRange=c(-1,1)
-  yRange=c(-1,1)
   mx = 100
   my = 100
-  predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
-  predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
-  ysTest = simulationData$zTest[,1]
+  predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
+  if(useKenya) {
+    # remove grid points outside of Kenya national boundaries
+    load("../U5MR/adminMapData.RData")
+    polys = adm0@polygons
+    kenyaPoly = polys[[1]]@Polygons[[77]]@coords
+    kenyaPolyProj = projKenya(kenyaPoly)
+    inKenya = in.poly(predPts, kenyaPolyProj)
+    predPts = predPts[inKenya,]
+    
+    # add other testing locations to matrix of prediction locations and remember which 
+    predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+    predPts = rbind(predPts, cbind(simulationData$xTestRural[,1], simulationData$yTestRural[,1]))
+    predPts = rbind(predPts, cbind(simulationData$xTestUrban[,1], simulationData$yTestUrban[,1]))
+    plotGridI = 1:sum(inKenya)
+    overallTestI = simulationData$overallTestI
+    ruralTestI = simulationData$ruralTestI
+    urbanTestI = simulationData$urbanTestI
+    gridTestI = (max(urbanTestI) + 1):(max(urbanTestI) + length(simulationData$xGrid))
+  } else {
+    predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
+  }
+  predPts = rbind(predPts, cbind(simulationData$xGrid, simulationData$yGrid))
+  ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
   
   # generate hyperparameters based on median and quantiles of inverse exponential and inverse gamma
   # priorPar = getPrior(.1, .1, 10)
   # generate hyperparameters for pc priors
-  # median effective range is .4 (a fifth of the spatial domain diameter), median spatial variance is 1
-  priorPar = getPCPrior(.4, .5, 1) 
+  # median effective range is .4 or 200 for Kenya data (a fifth of the spatial domain diameter), median spatial variance is 1
+  # priorPar = getPCPrior(.4, .5, 1) 
+  if(is.null(prior)) {
+    if(!useKenya) {
+      prior = getSPDEPrior(mesh, U=1, alpha=.5, medianRange=.4)
+    } else {
+      prior = getSPDEPrior(mesh, U=1, alpha=.5, medianRange=.4 * 1000 / 2)
+    }
+  }
+  
   X = matrix(rep(1, nrow(coords)), ncol=1)
   # X = matrix(coords[,1], ncol=1)
   XPred = matrix(rep(1, nrow(predPts)), ncol=1)
@@ -2777,34 +4115,37 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   }
   
   # show priors on effective correlation, marginal variance, and error variance:
-  xs1 = seq(.01, 1, l=500)
-  pdf(file="Figures/mixtureSPDEPriorEffRange.pdf", width=5, height=5)
-  plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
-       xlab="Effective Correlation Range", main="Effective Correlation Prior", 
-       ylab="Prior Density")
-  abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
-  dev.off()
+  if(!useKenya)
+    xs1 = seq(.01, 1, l=500)
+  else
+    xs1 = seq(1, 1000, l=500)
+  # pdf(file=paste0("Figures/mixtureSPDEPriorEffRange", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(xs1, dinvexp(xs1, rate=priorPar$corScalePar), type="l", col="blue", 
+  #      xlab="Effective Correlation Range", main="Effective Correlation Prior", 
+  #      ylab="Prior Density")
+  # abline(v=qinvexp(.5, rate=priorPar$corScalePar), col="red")
+  # dev.off()
   
-  if(priorPar$priorType == "orig") {
-    xs2 = seq(.01, 10.5, l=500)
-    pdf(file="Figures/mixtureSPDEPriorMargVar.pdf", width=5, height=5)
-    plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
-         xlab="Marginal Variance", main="Marginal Variance Prior", 
-         ylab="Prior Density")
-    abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
-    abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
-    dev.off()
-  } else if(priorPar$priorType == "pc") {
-    xs2 = seq(.01, 11.5, l=500)
-    pdf(file="Figures/mixtureSPDEPriorMargVar.pdf", width=5, height=5)
-    plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
-         xlab="Marginal Variance", main="Marginal Variance Prior", 
-         ylab="Prior Density")
-    abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
-    abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
-    abline(v=1, col="green")
-    dev.off()
-  }
+  # if(priorPar$priorType == "orig") {
+  #   xs2 = seq(.01, 10.5, l=500)
+  #   pdf(file=paste0("Figures/mixtureSPDEPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(xs2, invgamma::dinvgamma(xs2, shape=priorPar$varPar1, rate=priorPar$varPar2), type="l", col="blue", 
+  #        xlab="Marginal Variance", main="Marginal Variance Prior", 
+  #        ylab="Prior Density")
+  #   abline(v=qinvgamma(.1, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  #   abline(v=qinvgamma(.9, shape=priorPar$varPar1, rate=priorPar$varPar2), col="red")
+  #   dev.off()
+  # } else if(priorPar$priorType == "pc") {
+  #   xs2 = seq(.01, 11.5, l=500)
+  #   pdf(file=paste0("Figures/mixtureSPDEPriorMargVar", plotNameRoot, ".pdf"), width=5, height=5)
+  #   plot(xs2, dpcvar(xs2, alpha=priorPar$alpha, u=priorPar$u), type="l", col="blue", 
+  #        xlab="Marginal Variance", main="Marginal Variance Prior", 
+  #        ylab="Prior Density")
+  #   abline(v=qpcvar(.1, alpha=priorPar$alpha, u=priorPar$u), col="red")
+  #   abline(v=qpcvar(.9, alpha=priorPar$alpha, u=priorPar$u), col="red")
+  #   abline(v=1, col="green")
+  #   dev.off()
+  # }
   
   # xs2 = seq(.001, invgamma::qinvgamma(.905, shape=0.1, rate=0.1), l=500)
   # pdf(file="Figures/mixtureSPDEPriorErrorVar.pdf", width=5, height=5)
@@ -2816,7 +4157,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   # dev.off()
   
   xs2 = seq(.01, 1, l=500)
-  pdf(file="Figures/mixtureSPDEPriorErrorVar.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDEPriorErrorVar", plotNameRoot, ".pdf"), width=5, height=5)
   plot(xs2, dpcvar(xs2, alpha=.05, u=1), type="l", col="blue", 
        xlab="Marginal Variance", main="Marginal Variance Prior", 
        ylab="Prior Density")
@@ -2846,15 +4187,21 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   print(summary(mod))
   
   # function for determining if points are in correct range
-  inRange = function(pts, rangeShrink=0) {
-    inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
-    inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
-    inX & inY
+  if(!useKenya) {
+    inRange = function(pts, rangeShrink=0) {
+      inX = (rangeShrink < pts[,1]) & (pts[,1] < 1-rangeShrink)
+      inY = (rangeShrink < pts[,2]) & (pts[,2] < 1-rangeShrink)
+      inX & inY
+    }
+  } else {
+    inRange = function(pts, rangeShrink=0) {
+      rep(TRUE, nrow(pts))
+    }
   }
   
   # show predictive surface, SD, and data
   
-  pdf(file="Figures/mixtureSPDEPreds.pdf", width=8, height=8)
+  pdf(file=paste0("Figures/mixtureSPDEPreds", plotNameRoot, ".pdf"), width=8, height=8)
   par(mfrow=c(2,2), mar=c(5.1, 4.1, 4.1, 6))
   
   # obsInds = 1:n
@@ -2872,12 +4219,28 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
              xlim=xRangeDat, ylim=yRangeDat, zlim=range(predSDs[inRange(predPts, rangeShrink=.03)]))
   dev.off()
   
-  pdf(file="Figures/mixtureSPDELeftOutResiduals.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDELeftOutResiduals", plotNameRoot, ".pdf"), width=5, height=5)
   testIndices = (length(preds) - length(ysTest) + 1):length(preds)
   plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
        ylab="Residuals", xlab="Fitted")
   abline(h=0, lty=2)
   dev.off()
+  
+  if(useKenya) {
+    pdf(file=paste0("Figures/mixtureSPDELeftOutResidualsLabeled", plotNameRoot, ".pdf"), width=5, height=5)
+    testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+    gridIndices = 
+      ylim = range(ysTest-preds[testIndices])
+    xlim = range(preds[testIndices])
+    plot(preds[testIndices][overallTestI], ysTest[overallTestI]-preds[testIndices][overallTestI], pch=19, cex=.1, col="black", main="Residuals versus fitted", 
+         ylab="Residuals", xlab="Fitted", xlim=xlim, ylim=ylim)
+    points(preds[testIndices][ruralTestI], ysTest[ruralTestI]-preds[testIndices][ruralTestI], pch=19, cex=.1, col="green")
+    points(preds[testIndices][urbanTestI], ysTest[urbanTestI]-preds[testIndices][urbanTestI], pch=19, cex=.1, col="blue")
+    points(preds[testIndices][gridTestI], ysTest[gridTestI]-preds[testIndices][gridTestI], pch=19, cex=.1, col="red")
+    abline(h=0, lty=2)
+    legend("topright", c("Overall", "Rural", "Urban", "Grid"), col=c("black", "green", "blue", "red"), pch=19)
+    dev.off()
+  }
   
   # calculate true effective range and marginal variance:
   marginalVar = rho
@@ -2897,19 +4260,19 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   }
   
   par(mfrow=c(1,1))
-  pdf(file="Figures/mixtureSPDEEffRange.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDEEffRange", plotNameRoot, ".pdf"), width=5, height=5)
   plot(effRangeMarg, type="l", main="Marginal for effective range")
   abline(v=effectiveRange, col="green")
   abline(v=inla.qmarginal(c(.025, .975), effRangeMarg), col="purple", lty=2)
   dev.off()
   # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
-  pdf(file="Figures/mixtureSPDEVar.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDEVar", plotNameRoot, ".pdf"), width=5, height=5)
   plot(varMarg, type="l", main="Marginal for spatial variance")
   abline(v=marginalVar, col="green")
   abline(v=inla.qmarginal(c(.025, .975), varMarg), col="purple", lty=2)
   dev.off()
   # plot(mod$marginals.hyperpar$`Theta2 for field`, type="l", main="Marginal for log variance")
-  pdf(file="Figures/mixtureSPDESigma2.pdf", width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDESigma2", plotNameRoot, ".pdf"), width=5, height=5)
   plot(sigma2Marg, type="l", main="Marginal for error variance")
   abline(v=sigma2, col="green")
   abline(v=inla.qmarginal(c(.025, .975), sigma2Marg), col="purple", lty=2)
@@ -2918,7 +4281,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   if(!assumeMeanZero) {
     for(i in 1:length(covNames)) {
       XMarginal = XMarginals[[i]]
-      pdf(file=paste0("Figures/mixtureSPDE", covNames[i], ".pdf"), width=5, height=5)
+      pdf(file=paste0("Figures/mixtureSPDE", covNames[i], plotNameRoot, ".pdf"), width=5, height=5)
       plot(XMarginal, type="l", main="Marginal for fixed effect")
       abline(v=0, col="green")
       abline(v=inla.qmarginal(c(.025, .975), XMarginal), col="purple", lty=2)
@@ -2937,13 +4300,14 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   
   ## plot covariance and correlation functions
   # first get the true covariance an correlation functions
-  spatialCovFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
+  spatialCovFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu, distMat=x)}
   mixtureCovFun = function(x) {
     out = spatialCovFun(x)
-    out[x == 0] = 1 + sqrt(.1)
+    out[x == 0] = 1 + sigma2
     out
   }
-  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
   
   # first to transform all the hyperparameter samples to their relevant values
   # 1: error precision
@@ -2955,7 +4319,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   varVals = out[,3]^2
   
   # compute the covariance function for many different hyperparameter samples
-  out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=c(-1,1), yRangeDat=c(-1,1))
+  out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -2970,7 +4334,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   
   # plot the covariance function
   yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
-  pdf(file=paste0("Figures/mixtureSPDECov.pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDECov", plotNameRoot, ".pdf"), width=5, height=5)
   plot(d, covMean, type="l", main="Posterior of covariance function", xlab="Distance", ylab="Covariance", 
        ylim=yRange)
   lines(d, lowerCov[1,], lty=2)
@@ -2981,7 +4345,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   legend("topright", c("Truth", "Estimate", "80% CI", "95% CI"), lty=c(1, 1, 2, 3), col=c("green", "black", "black", "black"))
   dev.off()
   
-  pdf(file=paste0("Figures/mixtureSPDECor.pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/mixtureSPDECor", plotNameRoot, ".pdf"), width=5, height=5)
   yRange = range(c(corMean, lowerCor, upperCor, mixtureCorFun(d)))
   plot(d, corMean, type="l", main="Posterior of correlation function", xlab="Distance", ylab="Covariance", 
        ylim=yRange)
@@ -3000,7 +4364,80 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   lower = fit$lower[testIndices]
   upper = fit$upper[testIndices]
   
-  c(getScores(truth, est, vars, lower, upper), Time=time[3])
+  # compute nearest neighbor distances and scores as a function of them
+  testPts = predPts[testIndices,]
+  distMat = rdist(coords, testPts)
+  nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  print("Binned scores:")
+  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  print(scoringRules$binnedResults)
+  # print("Grid scores:")
+  # print(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                 distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults)
+  # 
+  # # plot scores as a function of distance
+  # distanceScores = getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                            distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults
+  
+  # pdf(file=paste0("Figures/mixtureSPDEScoreBias", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Bias, pch=19, col="blue", main="Bias", ylab="Bias", xlab="Nearest neighbor distance (km)")
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreVar", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Var, pch=19, col="blue", main="Variance", ylab="Variance", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Var)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$MSE, pch=19, col="blue", main="MSE", ylab="MSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$MSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreRMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$RMSE, pch=19, col="blue", main="RMSE", ylab="RMSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$RMSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCRPS", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$CRPS, pch=19, col="blue", main="CRPS", ylab="CRPS", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$CRPS)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCvg", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Coverage, pch=19, col="blue", main="80% Coverage", ylab="80% Coverage", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Coverage)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreWidth", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Width, pch=19, col="blue", main="Width", ylab="Width", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Width)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  
+  if(!useKenya) {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+  } else {
+    print("Pooled scores:")
+    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+    print("Overall scores:")
+    print(data.frame(c(getScores(truth[overallTestI], est[overallTestI], vars[overallTestI], lower[overallTestI], upper[overallTestI]), Time=time[3])))
+    print("Rural scores:")
+    print(data.frame(c(getScores(truth[ruralTestI], est[ruralTestI], vars[ruralTestI], lower[ruralTestI], upper[ruralTestI]), Time=time[3])))
+    print("Urban scores:")
+    print(data.frame(c(getScores(truth[urbanTestI], est[urbanTestI], vars[urbanTestI], lower[urbanTestI], upper[urbanTestI]), Time=time[3])))
+    # print("Grid scores:")
+    # print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
+  }
+  
+  save(scoringRules, file=paste0("savedOutput/simulations/mixtureSPDEscoringRulesSPDE", plotNameRoot, ".RData"))
 }
 
 # test how close we can get to the spatial correlation function:
@@ -3016,8 +4453,8 @@ testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200,
   effectiveRange = thetas * 2.3
   sigma2 = sqrt(.1)
   # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
-  spatialCorFun = function(x) {0.4 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
-      0.6 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
   
   # construct the lattice
   xRangeDat = c(-1, 1)
@@ -3092,8 +4529,8 @@ getCorrelationApproximation = function(thetas=c(.1, .4), nu=0.5) {
   effectiveRange = thetas * 2.3
   sigma2 = sqrt(.1)
   # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
-  spatialCorFun = function(x) {0.4 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
-      0.6 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", distMat=x, smoothness=nu)}
   
   # construct the lattice
   xRangeDat = c(-1, 1)
@@ -3402,6 +4839,29 @@ getSimulationDataSetsGivenCovarianceTest = function(corFun, nTotal=900, nTest=ro
   
   # return the results
   out
+}
+
+# try out several bases, and determine the number of bases elements and their resolution
+testBasisResolution = function() {
+  latticeInfo = makeLatGridsKenya(nLayer=3, NC=28, nBuffer=5)
+  min(sapply(latticeInfo, function(x) {x$latWidth}))
+  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  
+  latticeInfo = makeLatGridsKenya(nLayer=2, NC=54, nBuffer=5)
+  min(sapply(latticeInfo, function(x) {x$latWidth}))
+  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  
+  latticeInfo = makeLatGridsKenya(nLayer=1, NC=107, nBuffer=5)
+  min(sapply(latticeInfo, function(x) {x$latWidth}))
+  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  
+  latticeInfo2 = makeLatGridsKenya(nLayer=1, NC=30, nBuffer=5)
+  min(sapply(latticeInfo2, function(x) {x$latWidth}))
+  sum(sapply(latticeInfo2, function(x) {x$nx * x$ny}))
+  
+  test = c(latticeInfo2, latticeInfo)
+  
+  invisible(NULL)
 }
 
 

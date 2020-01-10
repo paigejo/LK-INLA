@@ -41,6 +41,7 @@ source('modLKinla.R')
 source('modLK.R')
 source('modelResults.R')
 source("scores.R")
+source("test.R")
 source('compareModels.R')
 source("utilityFuns.R")
 source('getCommandArgs.R')
@@ -48,6 +49,10 @@ source('getCommandArgs.R')
 source('utilityFuns.R')
 # source('~/git/M9/exploratoryAnalysisFuns.R')
 source('getSimulationDataSets.R')
+source('generateExampleResults.R')
+source('plotGenerator.R')
+source('validation.R')
+source('pcBeta.R')
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {

@@ -9,8 +9,44 @@
 # estMat: a matrix of joint estimate draws, with number of rows equal to the length of truth, a number of 
 #          columns equal to the number of draws. If not included, a gaussian distribution is assumed.
 # significance: the significance level of the credible interval. By default 80%
+# distances: the distances to the nearest observation if not NULL, scores are broken up 
+#            as a function of nearest neighbor distances
+# breaks: the number of equal spaced bins to break the scores into as a function of distance
 # NOTE: Discrete, count level credible intervals are estimated based on the input estMat along with coverage and CRPS
-getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=NULL, significance=.8) {
+getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=NULL, significance=.8, 
+                     distances=NULL, breaks=30, doRandomReject=FALSE) {
+  
+  # if distances is included, must also break down scoring rules by distance bins
+  if(!is.null(distances)) {
+    # construct the distance bins with which to group the data and compute scores within
+    if(length(breaks) == 1)
+      breaks = seq(0, max(distances), l=breaks)
+    binsI = cut(distances, breaks, labels=1:(length(breaks)-1), include.lowest=TRUE)
+    centers = breaks[1:(length(breaks)-1)] + diff(breaks)/2
+    uniqueBinsI = sort(unique(binsI))
+    
+    # determine the number of observations per bin
+    nPerBin = as.numeric(table(binsI))
+    
+    # helper function to compute the scoring rules for a given bin
+    getSubScores = function(uniqueBinI, truth, est, var, lower, upper, estMat, significance) {
+      thisDatI = binsI == uniqueBinI
+      
+      getScores(truth[thisDatI], est[thisDatI], var[thisDatI], lower[thisDatI], upper[thisDatI], 
+                estMat[thisDatI,], sigfnificance, doRandomReject=doRandomReject)
+    }
+    
+    # calculate scores for each bin individually
+    binnedScores = t(sapply(uniqueBinsI, getSubScores, truth=truth, est=est, var=var, lower=lower, upper=upper, 
+                          estMat=estMat, significance=significance))
+    
+    # make sure each variable in binnedScores is a numeric, not a list...
+    temp = matrix(unlist(binnedScores), nrow=length(uniqueBinsI))
+    theseNames = colnames(binnedScores)
+    binnedScores = data.frame(temp)
+    names(binnedScores) = theseNames
+    binnedScores = as.data.frame(cbind(NNDist=centers[uniqueBinsI], nPerBin=nPerBin[uniqueBinsI], binnedScores))
+  }
   
   # compute central estimates if estMat is not null
   if(!is.null(estMat)) {
@@ -26,19 +62,25 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   
   # calculate coverage and credible interval width with and without binomial variation
   coverage = coverage(truth, est, var, lower, upper, estMat=estMat, 
-                      significance=significance, returnIntervalWidth=TRUE)
+                      significance=significance, returnIntervalWidth=TRUE, doRandomReject=doRandomReject)
   thisCoverage = coverage[1]
   thisWidth = coverage[2]
   
   # calculate CRPS
-  thisCRPS = crpsNormal(truth, est, var, estMat=estMat)
+  thisCRPS = crps(truth, est, var, estMat=estMat)
   
-  # return the results
+  # collect the results in a data frame
   results = matrix(c(thisBias, thisVar, thisMSE, sqrt(thisMSE), thisCRPS, thisCoverage, 
                      thisWidth), nrow=1)
   colnames(results) = c("Bias", "Var", "MSE", "RMSE", "CRPS", "Coverage", "Width")
+  results = as.data.frame(results)
   
-  as.data.frame(results)
+  # include both binned and pooled results in one final table
+  if(!is.null(distances)) {
+    results = list(pooledResults=results, binnedResults=binnedScores)
+  }
+  
+  results
 }
 
 # calculate bias, variance, and MSE
@@ -77,7 +119,7 @@ mse <- function(truth, est, weights=NULL){
 #         columns equal to the number of draws. If not included, a gaussian distribution is assumed.
 # significance: the significance level of the credible interval. By default 80%
 coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
-                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE){
+                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE){
   
   if(any(is.null(lower)) || any(is.null(upper))) {
     # if the user did not supply their own credible intervals, we must get them ourselves given the other information
@@ -85,7 +127,7 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     if(is.null(estMat) && (is.null(est) || is.null(var)))
     stop("either include both lower and upper, est and var, or estMat")
     
-    if(!is.null(est) && !is.null(var)) {
+    if(!is.null(est) && !is.null(var) && is.null(estMat)) {
       # in this case, we must calculate lower and upper assuming gaussianity
       lower = qnorm((1 - significance) / 2, est, sqrt(var))
       upper = qnorm(1 - (1 - significance) / 2, est, sqrt(var))
@@ -101,10 +143,10 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     }
   }
   
-  if(any(lower >= upper)) {
-    warning("lower >= upper, reordering")
+  if(any(lower > upper)) {
+    warning("lower > upper, reordering")
     tmp = lower
-    wrongOrder = lower >= upper
+    wrongOrder = lower > upper
     lower[wrongOrder] = upper[wrongOrder]
     upper[wrongOrder] = tmp[wrongOrder]
   }
@@ -113,6 +155,23 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
   
   if(returnIntervalWidth)
     width = upper - lower
+  
+  if(doRandomReject) {
+    # in this case, we sometimes randomly reject if the truth is at the edge of the coverage interval. First 
+    # determine what values are at the edge of the intervals, then determine the probability of rejection 
+    # for each, then randomly reject
+    atLowerEdge = which(lower == truth)
+    atUpperEdge = which(upper == truth)
+    
+    probRejectLower = sapply(atLowerEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] < lower[i])) / mean(estMat[i,] == lower[i])})
+    probRejectUpper = sapply(atUpperEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] > upper[i])) / mean(estMat[i,] == upper[i])})
+    
+    rejectLower = runif(length(atLowerEdge)) <= probRejectLower
+    rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
+    
+    res[atLowerEdge] = res[atLowerEdge] & (!rejectLower)
+    res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
+  }
   
   allResults = c(coverage=mean(res))
   if(returnIntervalWidth)
@@ -124,9 +183,10 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
 # truth: a vector of observations on the desired scale
 # est: a vector of logit-scale predictions of the same length as truth 
 # my.var: a vector of logit-scale predictive variances of the same length as truth
-# estMat: est and my.var are NULL, use these probability draws in the pmf integration/approximation
-crpsNormal <- function(truth, est=NULL, my.var=NULL, estMat=NULL){
-  if(!is.null(est) && !is.null(my.var)) {
+# estMat: if available, use these probability draws in the integration. Use this argument 
+#         when a gaussian approximation to the (possibly transformed) posterior is unreasonable
+crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL){
+  if(!is.null(est) && !is.null(my.var) && is.null(estMat)) {
     sig = sqrt(my.var)
     x0 <- (truth - est) / sig
     res <- sig * (1 / sqrt(pi) -  2 * dnorm(x0) - x0 * (2 * pnorm(x0) - 1))

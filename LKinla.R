@@ -28,7 +28,7 @@ require(MCMCpack)
 # assume there is a single kappa, rho is adjusted with alpha when there are multiple layers
 # latticeInfo: an object returned by makeLatGrids
 makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, alphas=NULL, nu=NULL, 
-                            normalized=FALSE, fastNormalize=FALSE) {
+                            normalized=FALSE, fastNormalize=FALSE, returnctildes=FALSE, ctildes=NULL) {
   require(Matrix)
   require(spam)
   require(fields)
@@ -58,8 +58,15 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
   # 
   # # compute precision matrix
   # Q = (1/rho) * t(B) %*% B
-  
-  Q = (1/rho) * ( Diagonal(n=nrow(mBxymBxyT), x=kappa^4) + kappa^2 * mBxymBxyT + BxyTBxy)
+  if(length(kappa) == 1)
+    Q = (1/rho) * ( Diagonal(n=nrow(mBxymBxyT), x=kappa^4) + kappa^2 * mBxymBxyT + BxyTBxy)
+  else {
+    # for multiple values of kappa, take advantage of block diagonal structure of Q
+    nbasis = sapply(latticeInfo, function(x) {x$nx * x$ny})
+    Q = (1/rho) * ( Diagonal(n=nrow(mBxymBxyT), x=rep(kappa^4, nbasis)) + 
+                    Diagonal(n=nrow(mBxymBxyT), x=rep(kappa^2, nbasis)) %*% mBxymBxyT + 
+                    BxyTBxy)
+  }
   
   if(normalized) {
     
@@ -84,7 +91,8 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
       # ctilde = as.numeric(Ai %*% inla.qsolve(Q, t(Ai)))/rho
       # Qtilde = ctilde * Q
       # Q = Qtilde # system.time(out <- makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE, newnormalize=TRUE)): 2.72
-      ctildes = as.numeric(diag(A %*% inla.qsolve(Q, At)))/(rho * alphas)
+      if(is.null(ctildes))
+        ctildes = as.numeric(diag(A %*% inla.qsolve(Q, At)))/(rho * alphas)
       Qtilde = Diagonal(n=nrow(Q), x=rep(ctildes, ms)) %*% Q
       Q = Qtilde # system.time(out <- makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE, newnormalize=TRUE)): 2.72
     }
@@ -96,7 +104,8 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
       # Qnorm = sweep(sweep(Q, 1, sds, "*"), 2, sds, "*")
       Qnorm = sdMat %*% Q %*% sdMat
       # QnormInv = sweep(sweep(Qinv, 1, 1/sds), 2, 1/sds)
-      ctildes = as.numeric(diag(A %*% inla.qsolve(Qnorm, t(A))))/(rho * alphas)
+      if(is.null(ctildes))
+        ctildes = as.numeric(diag(A %*% inla.qsolve(Qnorm, t(A))))/(rho * alphas)
       Qtilde = Diagonal(n=nrow(Qnorm), x=rep(ctildes, ms)) %*% Qnorm
       Q = Qtilde
     }
@@ -109,7 +118,10 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
     # image(Qtilde)
   }
   
-  Q
+  if(!returnctildes)
+    Q
+  else
+    ctildes
 }
 
 # computing basis matrix with Wendland covariance

@@ -1,0 +1,4 @@
+validateExample(targetPop="women", startI=0, loadPreviousFit=FALSE)
+testLKINLAModelMixture(NC=14)
+testLKINLAModelMixture(separateRanges = TRUE)
+testSPDEModelMixture()

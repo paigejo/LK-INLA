@@ -139,7 +139,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   # do initial latticeKrig fit
   # set up the lattice, the arguments to LatticeKrig
   LKinfoStart = LKrigSetup(domainCoords, nlevel=nLayer, nu=nu, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
-                           lambda=lambdaStart, a.wght=a.wghtStart, fixedFunctionArgs=fixedFunctionArgs)
+                           lambda=lambdaStart, a.wght=a.wghtStart, fixedFunctionArgs=fixedFunctionArgs, alpha=rep(NA, nLayer))
   
   # make a function to convert from a vector of parameters to a corresponding set of different, named parameters
   getParameters = function(parameters) {
@@ -260,6 +260,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   omegaMLE = parameterList$omega
   a.wghtMLE = parameterList$a.wght
   
+  browser() # check on LKMLE object
+  
   # set up the lattice, the arguments to LatticeKrig
   LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=nuMLE, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
                       lambda=lambdaMLE, a.wght=as.list(a.wghtMLE), alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
@@ -271,7 +273,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     else
       predSimulations = NULL
   } else {
-    mod = LKrig(obsCoords, obsValues, LKinfo=LKMLE$LKinfo, Z=xObs)
+    mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo, Z=xObs)
     preds = predict.LKrig(mod, predCoords, Znew=xPred)
     if(doSEs)
       predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=xPred, M=nsimConditional)

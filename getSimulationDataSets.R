@@ -64,16 +64,17 @@ getSimulationDataSets = function(nTotal=1000, nTest=100, marginalVar=1, errorVar
 
 getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, marginalVar=1, errorVar=sqrt(.1), nDataSets=100, 
                                                 printEvery=10, saveDataSetPlot=TRUE, fileNameRoot="", plotNameRoot="", 
-                                                doPredGrid=FALSE, nTestGrid=70^2) {
+                                                doPredGrid=TRUE, nTestGrid=70^2, useKenyaLocations=FALSE, urbanOverSamplefrac=0) {
   
   # set the spatial domain
   xRange = c(-1, 1)
   yRange = c(-1, 1)
   
   # if generating prediction grid, make that grid here
-  if(doPredGrid) {
+  if(doPredGrid && !useKenyaLocations) {
     nx = round(sqrt(nTestGrid))
     ny = nx
+    gridTotal = nx * ny
     if(nx * ny != nTestGrid)
       stop("nTestGrid must be a square number if we are constructing a prediction grid")
     xValuesGrid = seq(-1, 1, l=nx)
@@ -81,20 +82,47 @@ getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, 
     glist = make.surface.grid(list(x=xValuesGrid, y=yValuesGrid))
     xValuesGrid = glist[,1]
     yValuesGrid = glist[,2]
-  } else {
+  } else if(doPredGrid && useKenyaLocations) {
+    if(urbanOverSamplefrac != 0)
+      oversampleText = as.character(round(urbanOverSamplefrac, 4))
+    else
+      oversampleText = ""
+    out = load(paste0("dataPointsKenya", oversampleText, ".RData"))
+    nx = length(dataPointsKenya$xGrid)
+    ny = length(dataPointsKenya$xGrid)
+    gridTotal = nx
+    xValuesGrid = dataPointsKenya$xGrid
+    yValuesGrid = dataPointsKenya$yGrid
+  } else if(!doPredGrid) {
     nx = 0
     ny = 0
+    gridTotal = 0
     xValuesGrid = c()
     yValuesGrid = c()
   }
   
   # simulate observation spatial locations
-  xValues = matrix(runif(nTotal * nDataSets, xRange[1], xRange[2]), ncol=nDataSets)
-  yValues = matrix(runif(nTotal * nDataSets, yRange[1], yRange[2]), ncol=nDataSets)
+  if(useKenyaLocations) {
+    xValues = rbind(dataPointsKenya$xTrain, dataPointsKenya$xTest, dataPointsKenya$xTestRural, dataPointsKenya$xTestUrban)[,1:nDataSets]
+    yValues = rbind(dataPointsKenya$yTrain, dataPointsKenya$yTest, dataPointsKenya$yTestRural, dataPointsKenya$yTestUrban)[,1:nDataSets]
+    nTotal = nrow(xValues)
+    nTest = nrow(dataPointsKenya$xTest) + nrow(dataPointsKenya$xTestRural) + nrow(dataPointsKenya$xTestUrban)
+    overallTestI = 1:nrow(dataPointsKenya$xTest)
+    ruralTestI = (nrow(dataPointsKenya$xTest) + 1):(nrow(dataPointsKenya$xTest) + nrow(dataPointsKenya$xTestRural))
+    urbanTestI = (nrow(dataPointsKenya$xTest) + nrow(dataPointsKenya$xTestRural) + 1):(nrow(dataPointsKenya$xTest) + nrow(dataPointsKenya$xTestRural) + nrow(dataPointsKenya$xTestUrban))
+    xRange = dataPointsKenya$xRange
+    yRange = dataPointsKenya$yRange
+  } else {
+    xValues = matrix(runif(nTotal * nDataSets, xRange[1], xRange[2]), ncol=nDataSets)
+    yValues = matrix(runif(nTotal * nDataSets, yRange[1], yRange[2]), ncol=nDataSets)
+    overallTestI = NULL
+    ruralTestI = NULL
+    urbanTestI = NULL
+  }
   
   # preallocate observation matrix, and pregenerate standard normal draws
-  observations = matrix(nrow=nTotal+nx*ny, ncol=nDataSets)
-  zsims = matrix(rnorm((nTotal + nx*ny) * nDataSets), ncol=nDataSets)
+  observations = matrix(nrow=nTotal+gridTotal, ncol=nDataSets)
+  zsims = matrix(rnorm((nTotal + gridTotal) * nDataSets), ncol=nDataSets)
   
   # generate spatial component of observation values
   for(i in 1:nDataSets) {
@@ -108,12 +136,12 @@ getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, 
   }
   
   # scale by marginal standard deviation and add in error variance
-  observations = observations * sqrt(marginalVar) + matrix(rnorm((nTotal + nx*ny) * nDataSets, sd=sqrt(errorVar)), ncol=nDataSets)
+  observations = observations * sqrt(marginalVar) + matrix(rnorm((nTotal + gridTotal) * nDataSets, sd=sqrt(errorVar)), ncol=nDataSets)
   
   # separate out test and train results
   trainI = 1:(nTotal - nTest)
   testI = (nTotal - nTest + 1):nTotal
-  gridI = (nTotal + 1):(nTotal + nx * ny)
+  gridI = (nTotal + 1):(nTotal + gridTotal)
   if(nTotal - nTest != 0) {
     xTrain = xValues[trainI,]
     yTrain = yValues[trainI,]
@@ -138,16 +166,42 @@ getSimulationDataSetsGivenCovariance = function(corFun, nTotal=1000, nTest=100, 
     xGrid = xValuesGrid
     yGrid = yValuesGrid
     zGrid = observations[gridI,]
-  } else {
+  } else if(!doPredGrid) {
     xGrid = NULL
     yGrid = NULL
     zGrid = NULL
   }
   
-  # put relevant values into a list
-  out = list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
-             xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
-             corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange)
+  # separate out test locations into overall, urban, and rural if necessary
+  if(useKenyaLocations) {
+    nPerCounty = nrow(dataPointsKenya$xTest) / 47
+    overallI = 1:(47*nPerCounty)
+    ruralI = (47*nPerCounty + 1):((47 + 45)*nPerCounty)
+    urbanI = ((47 + 45)*nPerCounty + 1):((47 + 45 + 47)*nPerCounty)
+    
+    xTestRural = xTest[ruralI,]
+    xTestUrban = xTest[urbanI,]
+    xTest = xTest[overallI,]
+    yTestRural = yTest[ruralI,]
+    yTestUrban = yTest[urbanI,]
+    yTest = yTest[overallI,]
+    zTestRural = zTest[ruralI,]
+    zTestUrban = zTest[urbanI,]
+    zTest = zTest[overallI,]
+    
+    # put relevant values into a list (make sure to include urban and rural testing values separately)
+    out = list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
+               xTestRural=xTestRural, yTestRural=yTestRural, zTestRural=zTestRural, 
+               xTestUrban=xTestUrban, yTestUrban=yTestUrban, zTestUrban=zTestUrban, 
+               xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
+               corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange, 
+               overallTestI=overallTestI, ruralTestI=ruralTestI, urbanTestI=urbanTestI)
+  } else {
+    # put relevant values into a list
+    out = list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
+               xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
+               corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange)
+  }
   
   # plot the results
   plotExampleDataSets(out, saveDataSetPlot=saveDataSetPlot, plotNameRoot=plotNameRoot, fileNameRoot=fileNameRoot)

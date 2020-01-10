@@ -96,6 +96,142 @@ precomputationsQ2 = function(latticeInfo) {
   list(mBxymBxyT=mBxymBxyT, BxyTBxy=BxyTBxy, A=A, At=At, ms=ms)
 }
 
+# precompute normalization constants using natural smoothing spline on log log scale
+precomputeNormalization = function(xRangeDat=c(-1,1), yRangeDat=c(-1,1), effRangeRange=NULL, nLayer=3, NC=13, 
+                                   nBuffer=5, nKnots=NULL, saveResults=FALSE, doFinalTest=!saveResults, 
+                                   latticeInfo=NULL, plotNormalizationSplines=TRUE) {
+  # construct lattice info if necessary, precompute relevant matrices
+  if(is.null(latticeInfo))
+    latticeInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
+  else {
+    xRangeDat = latticeInfo[[1]]$xRangeDat
+    yRangeDat = latticeInfo[[1]]$yRangeDat
+    nLayer = length(latticeInfo)
+    NC = latticeInfo[[1]]$NC
+    nBuffer = latticeInfo[[1]]$nBuffer
+  }
+  precomputationsQ = precomputationsQ2(latticeInfo)
+  
+  # if there are any missing layers, then we know that we are allowing for multiple kappas
+  latticeWidths = sapply(latticeInfo, function(x) {x$latWidth})
+  if(any(latticeWidths[2:length(latticeWidths)] != latticeWidths[1:(length(latticeWidths)-1)] / 2))
+    singleKappa = FALSE
+  else
+    singleKappa = TRUE
+  
+  # set the range of effRange if necessary to be between half of the finest layer's lattice width and the data domain diameter
+  if(is.null(effRangeRange))
+    effRangeRange = c(latticeInfo[[nLayer]]$latWidth / 5, max(c(diff(xRangeDat), diff(yRangeDat))))
+  
+  # set the number of knot points so that the second to largest point is roughly 95% of the maximum knot point if necessary
+  if(is.null(nKnots)) {
+    width = abs(log(.95))
+    nKnots = ceiling(diff(log(effRangeRange))/width) + 1
+  }
+  
+  # set the values of effRange between which we want to interpolate
+  effRangeKnots = exp(seq(log(effRangeRange[1]), log(effRangeRange[2]), l=nKnots))
+  if(singleKappa) {
+    kappaKnots = 2.3/effRangeKnots * latticeInfo[[1]]$latWidth
+  } else {
+    effRangeKnots = matrix(effRangeKnots, nrow=1)
+    kappaKnots = outer(sapply(latticeInfo, function(x) {x$latWidth}), c(2.3/effRangeKnots), "*")
+  }
+  
+  # compute ctilde vector for each value of effective range. The ctilde value for one layer is independent of the 
+  # kappa value in another layer. Hence, only univariate splines are necessary to precompute
+  # NOTE: multiply these by alphas = c(1/nLayer, ..., 1/nLayer) now, then divide by alpha later depending on alpha
+  if(singleKappa) {
+    ctildes = sapply(kappaKnots, makeQPrecomputed, precomputedMatrices=precomputationsQ, latticeInfo=latticeInfo, 
+                     alphas=rep(1/nLayer, nLayer), normalized=TRUE, fastNormalize=TRUE, returnctildes=TRUE) / nLayer
+  } else {
+    ctildes = apply(kappaKnots, 2, makeQPrecomputed, precomputedMatrices=precomputationsQ, latticeInfo=latticeInfo, 
+                    alphas=rep(1/nLayer, nLayer), normalized=TRUE, fastNormalize=TRUE, returnctildes=TRUE) / nLayer
+  }
+  
+  # estimate splines:
+  # a^T %*% Q^(-1) %*% a /(rho * alpha) = ctildes
+  getSplineFun = function(cts) {
+    logFun = splinefun(log(effRangeKnots), log(cts), method = "hyman")
+    function(x, alpha) {exp(logFun(log(x)))/alpha}
+  }
+  funs = apply(ctildes, 1, getSplineFun)
+  fullFun = function(effRange, alphas) {
+    # sapply(alphas, funs, x=effRange)
+    res = numeric(nLayer)
+    for(i in 1:nLayer) {
+      if(length(effRange) == 1)
+        res[i] = funs[[i]](effRange, alphas[i])
+      else
+        res[i] = funs[[i]](effRange[i], alphas[i])
+    }
+    res
+  }
+  
+  # plot functions
+  for(i in 1:nLayer) {
+    effRanges = seq(effRangeRange[1], effRangeRange[2], l=500)
+    thisctildes = funs[[i]](effRanges, alpha=1/nLayer)
+    if(plotNormalizationSplines) {
+      par(mfrow=c(1,1))
+      plot(effRanges, thisctildes, type="l", col="blue", main=paste0("Layer ", i), xlab="Effective Range", ylab="ctilde")
+      points(effRangeKnots, ctildes[i,]*nLayer, pch=19, cex=.3)
+    }
+  }
+  
+  for(i in 1:nLayer) {
+    effRanges = seq(effRangeRange[1], effRangeRange[2], l=500)
+    thisctildes = funs[[i]](effRanges, alpha=1/nLayer)
+    if(plotNormalizationSplines) {
+      par(mfrow=c(1,1))
+      plot(log(effRanges), log(thisctildes), type="l", col="blue", main=paste0("Layer ", i), xlab="Log Effective Range", ylab="Log ctilde")
+      points(log(effRangeKnots), log(ctildes[i,]*nLayer), pch=19, cex=.3)
+    }
+  }
+  
+  if(doFinalTest) {
+    # the true value of alphas doesn't matter as long as it is different than what was used in the precomputation
+    alphas = getAlphas(nLayer)
+    
+    if(singleKappa) {
+      i = round(nKnots/2)
+      thisKappa = kappaKnots[i]
+      thisEffRange = effRangeKnots[i]
+      thisctildes = fullFun(thisEffRange, alphas)
+    } else {
+      i = round(nKnots/2)
+      thisKappa = kappaKnots[,i]
+      thisEffRange = effRangeKnots[i]
+      thisctildes = fullFun(thisEffRange, alphas)
+    }
+    Q = makeQPrecomputed(kappa=thisKappa, precomputedMatrices=precomputationsQ, latticeInfo=latticeInfo, 
+                         alphas=alphas, normalized=TRUE, fastNormalize=TRUE)
+    Q2 = makeQPrecomputed(kappa=thisKappa, precomputedMatrices=precomputationsQ, latticeInfo=latticeInfo, 
+                          alphas=alphas, normalized=TRUE, fastNormalize=TRUE, ctildes=thisctildes)
+    if(plotNormalizationSplines)
+      print(mean(abs(Q - Q2)))
+  }
+  
+  # save functions
+  if(saveResults) {
+    allNCs = sapply(latticeInfo, function(x) {x$NC})
+    if(length(allNCs) == 1)
+      ncText = paste0("_NC", allNCs)
+    else {
+      tempText = do.call("paste0", as.list(c(allNCs[1], paste0("_", allNCs[-1]))))
+      ncText = paste0("_NC", tempText)
+    }
+    
+    save(list(funs=funs, fullFun=fullFun, latInfo=latticeInfo), 
+         file=paste0("ctildeSplines_nLayer", nLayer, ncText, 
+                     "_xmin", round(xRangeDat[1], 1), "_xmax", round(xRangeDat[2], 1), 
+                     "_ymin", round(yRangeDat[1], 1), "_ymax", round(yRangeDat[2], 1), 
+                     ".RData"))
+  }
+  
+  list(funs=funs, fullFun=fullFun)
+}
+
 # get the marginal variance for multi-resolution process
 # tod: theta/delta, or theta/latticeWidth
 # either nu or alphas must be non-null
@@ -487,8 +623,8 @@ meanSegmentLength = function(mesh, filterLargerThan=NULL) {
 }
 
 LKINLA.cov = function(x1, x2, latticeInfo, kappa, alphas, rho=1, normalize=TRUE, 
-                   fastNormalize=TRUE, 
-                   precomputedMatrices=NULL, precomputedA1=NULL, precomputedA2=NULL) {
+                      fastNormalize=TRUE, 
+                      precomputedMatrices=NULL, precomputedA1=NULL, precomputedA2=NULL) {
   if(!is.null(precomputedMatrices)) {
     Q = makeQPrecomputed(precomputedMatrices, kappa, rho, latticeInfo, alphas, normalized=normalize, 
                          fastNormalize=fastNormalize)
@@ -572,17 +708,24 @@ getLKInlaCovarianceFun = function(kappa, rho, nuggetVar, alphas, NP=200, lattice
 }
 
 covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, length(kappaVals)), nuggetVarVals=rep(0, length(kappaVals)), 
-                                    alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL) {
+                                        alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL) {
   NP = 200
   if(!is.null(seed))
     set.seed(seed)
+  nLayer = length(latticeInfo)
   
   # get hyperparameter samples
-  sampleI = sample(1:length(kappaVals), maxSamples)
-  kappaVals = kappaVals[sampleI]
+  sampleI = sample(1:length(rhoVals), min(maxSamples, length(rhoVals)))
+  if(!is.null(dim(kappaVals))) {
+    kappaVals = kappaVals[,sampleI]
+    separateRanges = TRUE
+  } else {
+    kappaVals = kappaVals[sampleI]
+    separateRanges = FALSE
+  }
   rhoVals = rhoVals[sampleI]
   nuggetVarVals = nuggetVarVals[sampleI]
-  alphaMat = alphaMat[,sampleI]
+  alphaMat = matrix(alphaMat[,sampleI], ncol=length(sampleI))
   
   # generate test locations based on code from LKrig.cov.plot
   xlim <- latticeInfo[[1]]$xRangeDat
@@ -600,22 +743,29 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   # make method for calculating individual covariance function
   getOneCovariance = function(parameters) {
     # get relevant parameters
-    kappa = parameters[1]
-    rho = parameters[2]
-    nuggetVar = parameters[3]
-    alphas = parameters[-(1:3)]
+    if(!separateRanges) {
+      kappa = parameters[1]
+      rho = parameters[2]
+      nuggetVar = parameters[3]
+      alphas = parameters[-(1:3)]
+    } else {
+      kappa = parameters[1:nLayer]
+      rho = parameters[1 + nLayer]
+      nuggetVar = parameters[2 + nLayer]
+      alphas = parameters[-(1:(2 + nLayer))]
+    }
     
     # calculate covariances
     x1 <- cbind(ux, rep(center[2], NP))
     x2 <- rbind(center)
     d <- c(rdist(x1, x2))
     y <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
-                   Qprecomputations, Ax, Acenter))
+                               Qprecomputations, Ax, Acenter))
     y[NP/2] = y[NP/2] + nuggetVar
     x1 <- cbind(rep(center[1], NP), uy)
     d2 <- c(rdist(x1, x2))
     y2 <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
-                    Qprecomputations, Ay, Acenter))
+                                Qprecomputations, Ay, Acenter))
     y2[NP/2] = y2[NP/2] + nuggetVar
     
     # average x and y covariances
@@ -631,7 +781,10 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   }
   
   # calculate covariances for each sample from the posterior
-  parameterMat = cbind(kappaVals, rhoVals, nuggetVarVals, t(alphaMat))
+  if(!separateRanges)
+    parameterMat = cbind(kappaVals, rhoVals, nuggetVarVals, t(alphaMat))
+  else
+    parameterMat = cbind(t(kappaVals), rhoVals, nuggetVarVals, t(alphaMat))
   # browser()
   out = apply(parameterMat, 1, getOneCovariance)
   d = out[1:200,1]
@@ -750,7 +903,7 @@ covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVa
 }
 
 covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(effectiveRangeVals)), nuggetVarVals=rep(0, length(rhoVals)), 
-                                        mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL) {
+                                      mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL) {
   NP = 200
   if(!is.null(seed))
     set.seed(seed)
@@ -892,6 +1045,10 @@ getMinimalLattice = function(nMin=5000, locs=cbind(c(-1, 1), c(-1, 1)), nLayer=3
   c(NC=NC, nbasis=N)
 }
 
+rpcvar = function(n, alpha=.01, u=1) {
+  1 / inla.pc.rprec(n, alpha=alpha, u=u)
+}
+
 dpcvar = function(x, alpha=.01, u=1) {
   inla.pc.dprec(1 / x, alpha=alpha, u=u) / x^2
 }
@@ -1014,6 +1171,672 @@ runifsq = function(n, xRange=c(-1, 1), yRange=c(-1, 1)) {
   cbind(xs, ys)
 }
 
+# function for loading Kenya data, specifically the EA and cluster locations
+# by default, use datasets with urban areas oversampled. This generates nTest testing locations 
+# per simulation by sampling non-training EAs with SRS. Testing points are sampled in turn from 
+# all non-training EAs, rural non-training EAs, and urban non-training EAs
+# NOTE: this does not do leave one region out for training data. Instead, they are uniformly 
+#       sampled from EAs not included in the respective datasets
+# NOTE2: observations are generated elsewhere, since existing Kenya datasets simulate probabilities 
+#        from a Matern using a SPDE model
+# urbanOverSamplefrac: either 0 or 0.5
+loadKenyaData = function(getOverSampledData=TRUE, nTestPerCounty=10, saveResults=TRUE, seed=123, urbanOverSamplefrac=0) {
+  set.seed(seed)
+  
+  # load the data (the specific population doesn't matter since observations will be resimulated)
+  fileName = paste0("simDataMultiBeta-1.75margVar0.0225tausq0gamma-1HHoldVar0urbanOverSamplefrac", round(urbanOverSamplefrac, 4), ".RData")
+  out = load(paste0("../U5MR/", fileName))
+  if(getOverSampledData) {
+    thisData = overSampDat
+  } else {
+    thisData = SRSDat
+  }
+  
+  # get relevant data components
+  clustX = sapply(thisData$clustDat, function(x) {x$east})
+  clustY = sapply(thisData$clustDat, function(x) {x$north})
+  clustLon = sapply(thisData$clustDat, function(x) {x$lon})
+  clustLat = sapply(thisData$clustDat, function(x) {x$lat})
+  clustN = sapply(thisData$clustDat, function(x) {x$numChildren})
+  clustEAI = sapply(thisData$clustDat, function(x) {x$eaIs})
+  clustCounties = sapply(thisData$clustDat, function(x) {x$admin1})
+  clustUrban = sapply(thisData$clustDat, function(x) {x$urban})
+  # clustWeight = sapply(thisData$clustDat, function(x) {x$samplingWeight}) # don't need this
+  
+  # get data range
+  xTrain = clustX
+  yTrain = clustY
+  kenyaLatRange=c(-4.6, 5)
+  kenyaLonRange=c(33.5, 42.0)
+  eastNorthRange = projKenya(kenyaLonRange, kenyaLatRange)
+  xRange = eastNorthRange[,1]
+  yRange = eastNorthRange[,2]
+  
+  # create stratified random sampler function, sampling equal number of EAs per county
+  allEAIs = thisData$eaDat$eaIs
+  allCounties = thisData$eaDat$admin1
+  allUrban = thisData$eaDat$urban
+  
+  getSamples = function(i, thisEAIs, thisCounties) {
+    # this function is the same as getSamples, except makes sure to sample different EAs than the overall test samples
+    thisUniqueCounties = unique(thisCounties)
+    alreadyChosenEAIs = match(clustEAI[,i], thisEAIs)
+    alreadyChosenEAIs = alreadyChosenEAIs[!is.na(alreadyChosenEAIs)]
+    thisEAIs = thisEAIs[-alreadyChosenEAIs]
+    thisCounties = thisCounties[-alreadyChosenEAIs]
+    c(sapply(thisUniqueCounties, function(x) {sample(thisEAIs[thisCounties == x], nTestPerCounty, replace=FALSE)}))
+  }
+  
+  # get testing points (sampling over all non-training EAs with stratified random sampling within counties)
+  testEAI = sapply(1:100, getSamples, thisEAIs=allEAIs, thisCounties=allCounties)
+  testX = apply(testEAI, 2, function(x) {thisData$eaDat$east[x]})
+  testY = apply(testEAI, 2, function(x) {thisData$eaDat$north[x]})
+  testLon = apply(testEAI, 2, function(x) {thisData$eaDat$lon[x]})
+  testLat = apply(testEAI, 2, function(x) {thisData$eaDat$lat[x]})
+  testN = apply(testEAI, 2, function(x) {thisData$eaDat$numChildren[x]})
+  testCounties = apply(testEAI, 2, function(x) {thisData$eaDat$admin1[x]})
+  testUrban = apply(testEAI, 2, function(x) {thisData$eaDat$urban[x]})
+  
+  getRestSamples = function(i, thisEAIs, thisCounties) {
+    # this function is the same as getSamples, except makes sure to sample different EAs than the overall test samples
+    thisUniqueCounties = unique(thisCounties)
+    alreadyChosenEAIs = match(c(testEAI[,i], clustEAI[,i]), thisEAIs)
+    alreadyChosenEAIs = alreadyChosenEAIs[!is.na(alreadyChosenEAIs)]
+    thisEAIs = thisEAIs[-alreadyChosenEAIs]
+    thisCounties = thisCounties[-alreadyChosenEAIs]
+    c(sapply(thisUniqueCounties, function(x) {sample(thisEAIs[thisCounties == x], nTestPerCounty, replace=FALSE)}))
+  }
+  
+  # get rural testing points (sampling over all rural non-training EAs with SRS)
+  allEAIsRural = allEAIs[!allUrban]
+  allCountiesRural = allCounties[!allUrban]
+  # testEAIRural = replicate(100, getSamples(allEAIsRural, allCountiesRural))
+  testEAIRural = sapply(1:100, getRestSamples, thisEAIs=allEAIsRural, thisCounties=allCountiesRural)
+  testXRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$east[x]})
+  testYRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$north[x]})
+  testLonRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$lon[x]})
+  testLatRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$lat[x]})
+  testNRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$numChildren[x]})
+  testCountiesRural = apply(testEAIRural, 2, function(x) {thisData$eaDat$admin1[x]})
+  testUrbanRural = apply(testEAIRural, 2, function(x) {allUrban[x]})
+  
+  # get urban testing points (sampling over all urban non-training EAs with SRS)
+  allEAIsUrban = allEAIs[allUrban]
+  allCountiesUrban = allCounties[allUrban]
+  # testEAIUrban = replicate(100, getSamples(allEAIsUrban, allCountiesUrban))
+  testEAIUrban = sapply(1:100, getRestSamples, thisEAIs=allEAIsUrban, thisCounties=allCountiesUrban)
+  testXUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$east[x]})
+  testYUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$north[x]})
+  testLonUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$lon[x]})
+  testLatUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$lat[x]})
+  testNUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$numChildren[x]})
+  testCountiesUrban = apply(testEAIUrban, 2, function(x) {thisData$eaDat$admin1[x]})
+  testUrbanUrban = apply(testEAIUrban, 2, function(x) {allUrban[x]})
+  
+  # get uniform grid of points over kenya
+  out = getKenyaGrid()
+  testXGrid = out$east
+  testYGrid = out$north
+  testLonGrid = projKenya(cbind(testXGrid, testYGrid), inverse=TRUE)[,1]
+  testLatGrid = projKenya(cbind(testXGrid, testYGrid), inverse=TRUE)[,2]
+  testCountiesGrid = out$admin1
+  testGridUrban = out$urban
+  
+  # datasets eventually ideally contain the following:
+  # list(xTrain=xTrain, yTrain=yTrain, zTrain=zTrain, xTest=xTest, yTest=yTest, zTest=zTest, 
+  #      xGrid=xGrid, yGrid=yGrid, zGrid=zGrid, xValuesGrid=xValuesGrid, yValuesGrid=yValuesGrid, nx=nx, ny=ny, 
+  #      corFun=corFun, marginalVar=marginalVar, errorVar=errorVar, xRange=xRange, yRange=yRange)
+  # this dataset has:
+  dataPointsKenya = list(xTrain=xTrain, yTrain=yTrain, xTest=testX, yTest=testY, 
+                         xTestRural=testXRural, yTestRural=testYRural, xTestUrban=testXUrban, yTestUrban=testYUrban, 
+                         xGrid=testXGrid, yGrid=testYGrid, 
+                         urbanTrain=clustUrban, urbanTest=testUrban, urbanTestGrid=testGridUrban, 
+                         xRange=xRange, yRange=yRange)
+  
+  # save results if necessary
+  if(saveResults) {
+    if(urbanOverSamplefrac != 0)
+      oversampleText = as.character(round(urbanOverSamplefrac, 4))
+    else
+      oversampleText = ""
+    save(dataPointsKenya, file=paste0("dataPointsKenya", oversampleText, ".RData"))
+  }
+  
+  # plot first set of sample points for non-stratified test points
+  plot(dataPointsKenya$xTrain[,1], dataPointsKenya$yTrain[,1], xlim=xRange, ylim=yRange, pch=19, cex=.1, 
+       xlab="East (km)", ylab="North (km)", main="Train (Black) and Nonstratified Test (Red) Points")
+  points(dataPointsKenya$xTest[,1], dataPointsKenya$yTest[,1], xlim=xRange, ylim=yRange, pch=19, cex=.2, col="red")
+  
+  # plot first set of sample points for rural test points
+  plot(dataPointsKenya$xTrain[,1], dataPointsKenya$yTrain[,1], xlim=xRange, ylim=yRange, pch=19, cex=.1, 
+       xlab="East (km)", ylab="North (km)", main="Train (Black) and Rural Test (Red) Points")
+  points(dataPointsKenya$xTestRural[,1], dataPointsKenya$yTestRural[,1], xlim=xRange, ylim=yRange, pch=19, cex=.2, col="red")
+  
+  # plot first set of sample points for urban test points
+  plot(dataPointsKenya$xTrain[,1], dataPointsKenya$yTrain[,1], xlim=xRange, ylim=yRange, pch=19, cex=.1, 
+       xlab="East (km)", ylab="North (km)", main="Train (Black) and Urban Test (Red) Points")
+  points(dataPointsKenya$xTestUrban[,1], dataPointsKenya$yTestUrban[,1], xlim=xRange, ylim=yRange, pch=19, cex=.2, col="red")
+  
+  # plot set of sample grid points
+  plot(dataPointsKenya$xTrain[,1], dataPointsKenya$yTrain[,1], xlim=xRange, ylim=yRange, pch=19, cex=.1, 
+       xlab="East (km)", ylab="North (km)", main="Train (Black) and Grid Test (Red) Points")
+  points(dataPointsKenya$xGrid, dataPointsKenya$yGrid, xlim=xRange, ylim=yRange, pch=19, cex=.2, col="red")
+  
+  # return results
+  dataPointsKenya
+}
+
+##### project from lat/lon to UTM northing/easting in kilometers.  Use epsg=21097
+# either pass lon/east and lat/north, or a matrix with 2 columns: first being lon/east, second being lat/north
+# inverse: if FALSE, projects from lon/lat to easting/northing.  Else from easting/northing to lon/lat
+projKenya = function(lon, lat=NULL, inverse=FALSE) {
+  if(is.null(lat)) {
+    lat = lon[,2]
+    lon = lon[,1]
+  }
+  
+  if(!inverse) {
+    # from lon/lat coords to easting/northing
+    lonLatCoords = SpatialPoints(cbind(lon, lat), proj4string=CRS("+proj=longlat"))
+    coordsUTM = spTransform(lonLatCoords, CRS("+init=epsg:21097 +units=km"))
+    out = attr(coordsUTM, "coords")
+  }
+  else {
+    # from easting/northing coords to lon/lat
+    east = lon
+    north = lat
+    coordsUTM = SpatialPoints(cbind(east, north), proj4string=CRS("+init=epsg:21097 +units=km"))
+    lonLatCoords = spTransform(coordsUTM, CRS("+proj=longlat"))
+    out = attr(lonLatCoords, "coords")
+  }
+  
+  out
+}
+
+# generate a grid with a fixed spatial resolution.
+# either set km per cell (res), number of grid cells on longest axis (nc), 
+# or number of grid cells on both axes (nx and ny).
+getKenyaGrid = function(res=25, nc=NULL, nx=NULL, ny=NULL, getUrban=TRUE) {
+  load("../U5MR/adminMapData.RData")
+  
+  kenyaLatRange=c(-4.6, 5)
+  kenyaLonRange=c(33.5, 42.0)
+  eastNorthRange = projKenya(kenyaLonRange, kenyaLatRange)
+  xRange = eastNorthRange[,1]
+  yRange = eastNorthRange[,2]
+  eastLen = diff(xRange)
+  northLen = diff(yRange)
+  
+  # set individual axis grids
+  if(!is.null(nc))
+    res = northLen/nc
+  if(is.null(nx) && is.null(ny)) {
+    # we must go off of res
+    xs = seq(xRange[1], xRange[2], by=res)
+    ys = seq(yRange[1], yRange[2], by=res)
+  }
+  else {
+    xs = seq(xRange[1], xRange[2], l=nx)
+    ys = seq(yRange[1], yRange[2], l=ny)
+  }
+  
+  # get full grid
+  fullGrid = make.surface.grid(list(x=xs, y=ys))
+  
+  # get subset of points inside Kenya polygon
+  polys = adm0@polygons
+  kenyaPoly = polys[[1]]@Polygons[[77]]@coords
+  kenyaPolyProj = projKenya(kenyaPoly)
+  inKenya = in.poly(fullGrid, kenyaPolyProj)
+  out = fullGrid[inKenya,]
+  
+  # calculate whether each point is urban or rural and which county it's in:
+  urban = getUrbanRural(out)
+  out = data.frame(east=out[,1], north=out[,2], urban=urban, admin1=getRegion(out)$regionNames)
+  
+  # plot the coordinates
+  plot(out$east, out$north, pch=19, cex=.1, xlab="Easting (km)", ylab="Northing (km)", type="n")
+  points(out$east[!urban], out$north[!urban], pch=19, cex=.1, col="green")
+  points(out$east[urban], out$north[urban], pch=19, cex=.1, col="blue")
+  
+  out
+}
+
+# for computing what administrative regions the given points are in
+# project: project to longitude/latitude coordinates
+getRegion = function(points, project=FALSE) {
+  load("../U5MR/adminMapData.RData")
+  mapDat = adm1
+  
+  # project points to lon/lat coordinate system if user specifies
+  if(project)
+    points = projKenya(points, inverse=TRUE)
+  
+  regionNames = mapDat@data$NAME_1
+  
+  # make sure county names are consistent for mapDat == adm1
+  regionNames[regionNames == "Elgeyo-Marakwet"] = "Elgeyo Marakwet"
+  regionNames[regionNames == "Trans Nzoia"] = "Trans-Nzoia"
+  
+  # get region map polygons and set helper function for testing if points are in the regions
+  polys = mapDat@polygons
+  inRegion = function(i) {
+    countyPolys = polys[[i]]@Polygons
+    inside = sapply(1:length(countyPolys), function(x) {in.poly(points, countyPolys[[x]]@coords, inflation=0)})
+    insideAny = apply(inside, 1, any)
+    return(insideAny*i)
+  }
+  out = sapply(1:length(polys), inRegion)
+  multipleRegs = apply(out, 1, function(vals) {sum(vals != 0) > 1})
+  regionID = apply(out, 1, function(vals) {match(1, vals != 0)})
+  regionNameVec = regionNames[regionID]
+  list(regionID=regionID, regionNames=regionNameVec, multipleRegs=multipleRegs)
+}
+
+# convert county to region
+countyToRegion = function(countyNames) {
+  ctp = read.csv("../U5MR/mapData/kenya-prov-county-map.csv")
+  regionIs = match(as.character(countyNames), as.character(ctp[,1]))
+  as.character(ctp[regionIs,2])
+}
+
+getUrbanRural = function(utmGrid) {
+  # load population density data
+  require(raster)
+  
+  # pop = raster("Kenya2014Pop/worldpop_total_1y_2014_00_00.tif", values= TRUE)
+  load("../U5MR/Kenya2014Pop/pop.RData")
+  load("../U5MR/adminMapData.RData")
+  load("../U5MR/Kenya2014Pop/pop.RData")
+  
+  # project coordinates into lat/lon
+  lonLatGrid = projKenya(utmGrid, inverse=TRUE)
+  
+  # get population density at those coordinates
+  interpPopVals = extract(pop, SpatialPoints(lonLatGrid),method="bilinear")
+  
+  # compute counties associated with locations
+  counties = getRegion(lonLatGrid, FALSE)$regionNames
+  
+  # determine which points are urban
+  newPop = data.frame(list(lon=lonLatGrid[,1], lat=lonLatGrid[,2], popOrig=interpPopVals, admin1=counties))
+  threshes = setThresholds()
+  popThreshes = sapply(1:nrow(newPop), function(i) {threshes$threshes[threshes$counties == newPop$admin1[i]]})
+  badPoints = which(sapply(popThreshes, length) > 1)
+  if(length(badPoints) >= 1) {
+    for(i in 1:length(badPoints)) {
+      warnings(paste0("Point ", badPoints[i], " not in Kenya"))
+      popThreshes[[badPoints[i]]] = NA
+    }
+  }
+  popThreshes = unlist(popThreshes)
+  urban = newPop$popOrig > popThreshes
+  
+  urban
+}
+
+# set thresholds within each county based on percent population urban
+setThresholds = function() {
+  require(raster)
+  
+  load("../U5MR/kenyaPopProj.RData")
+  load("../U5MR/adminMapData.RData")
+  load("../U5MR/poppc.RData")
+  
+  getCountyThresh = function(countyName) {
+    # if Nairobi or Mombasa, always urban
+    if((countyName == "Nairobi") || (countyName == "Mombasa"))
+      return(-Inf)
+    
+    # do the setup
+    thisCounty = as.character(kenyaPop$admin1) == countyName
+    thisPop = kenyaPop$popOrig[thisCounty]
+    thisTot = sum(thisPop)
+    pctUrb = poppc$pctUrb[poppc$County == countyName]/100
+    pctRural = 1 - pctUrb
+    
+    # objective function to minimize
+    # objFun = function(thresh) {
+    #   curPctUrb = sum(thisPop[thisPop > thresh])/thisTot
+    #   (curPctUrb - pctUrb)^2
+    # }
+    
+    # do optimization
+    # out = optim(10, objFun)
+    # thresh = out$par
+    # out = optimize(objFun, c(.01, 50000))
+    # thresh = out$par
+    
+    # calculate threshold by integrating ecdf via sorted value cumulative sum
+    sortedPop = sort(thisPop)
+    cumsumPop = cumsum(sortedPop)
+    threshI = match(1, cumsumPop >= thisTot*pctRural)
+    thresh = sortedPop[threshI]
+    
+    # print(paste0("pctUrb: ", pctUrb, "; resPctUrb: ", sum(thisPop[thisPop > thresh])/thisTot, "; thresh: ", thresh, "; obj: ", out$objective))
+    thresh
+  }
+  
+  # compute threshold for each county
+  counties = poppc$County
+  threshes = sapply(counties, getCountyThresh)
+  
+  list(counties=counties, threshes=threshes)
+}
+
+# for plotting administration data
+# project: if FALSE, plot with lon/lat coordinates.  Otherwise, plot with projected coords 
+#          using projKenya function.  This can be used when plotting the projected `east' 
+#          and `north' variables in kenyaEAs for instance.
+# ...: arguments to polygon function
+plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, cols=tim.colors(), 
+                      legend.mar=7, new=FALSE, plotArgs=NULL, main=NULL, xlim=NULL, xlab=NULL, scaleFun = function(x) {x}, scaleFunInverse = function(x) {x}, 
+                      ylim=NULL, ylab=NULL, n.ticks=5, min.n=5, ticks=NULL, tickLabels=NULL, asp=1, legend.width=1.2, mapDat = NULL, 
+                      ...) {
+  # load necessary data
+  if(is.null(mapDat)) {
+    if(length(plotVar) == 47) {
+      out = load("../U5MR/adminMapData.RData")
+      mapDat = adm1
+    } else if(length(plotVar) == 8) {
+      # shape file found at: https://jlinden.carto.com/tables/kenya_region_shapefile/public
+      require(maptools)
+      mapDat = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    } else {
+      out = load("../U5MR/adminMapData.RData")
+      mapDat = adm0
+    }
+  }
+  if(is.null(varCounties)) {
+    if(length(mapDat) != 8) {
+      out = load("../U5MR/kenyaData.RData")
+      varCounties=sort(as.character(unique(mort$admin1)))
+    } else {
+      out = load("../U5MR/poppr.RData")
+      varCounties = sort(as.character(poppr$Region))
+    }
+  }
+  
+  # do setup for ploting data by county if necessary
+  if(!is.null(plotVar)) {
+    if(is.null(zlim)) {
+      zlim = range(plotVar)
+    }
+    
+    # get region names from map data
+    if(!is.null(mapDat@data$NAME_1)) {
+      regionNames = mapDat@data$NAME_1
+    } else if(!is.null(mapDat@data$name_1)) {
+      regionNames = as.character(mapDat@data$name_1)
+    } else {
+      stop("mapDat has unrecognized region names")
+    }
+    
+    # make sure county names are consistent for mapDat == adm1
+    regionNames[regionNames == "Elgeyo-Marakwet"] = "Elgeyo Marakwet"
+    regionNames[regionNames == "Trans Nzoia"] = "Trans-Nzoia"
+    
+    # make sure county names are consistent for plotting regions rather than counties
+    regionNames[regionNames == "North-Eastern"] = "North Eastern"
+  }
+  
+  # generate new plot if necessary
+  if(new) {
+    # set graphical parameters so the legend won't overlap with plot
+    currPar = par()
+    newPar = currPar
+    newMar = newPar$mar
+    newMar[4] = max(newMar[4], legend.mar)
+    newPar$mar = newMar
+    if(currPar$mar[4] != newMar[4])
+      suppressWarnings({par(newPar)})
+    
+    if(is.null(plotArgs)) {
+      if(project) {
+        if(is.null(xlab))
+          xlab = "East (km)"
+        if(is.null(xlim))
+          xlim = eastLim
+        if(is.null(ylab))
+          ylab = "North (km)"
+        if(is.null(ylim))
+          ylim = northLim
+      }
+      else {
+        if(is.null(xlab))
+          xlab = "Longitude"
+        if(is.null(xlim))
+          xlim = kenyaLonRange
+        if(is.null(ylab))
+          ylab = "Latitude"
+        if(is.null(ylim))
+          ylim = kenyaLatRange
+      }
+      if(is.null(main))
+        main = ""
+      plotArgs = list(main=main, xlab=xlab, ylab=ylab, xlim=xlim, ylim=ylim, asp=asp)
+    }
+    # par( oma=c( 0,0,0,6)) # leave room for the legend
+    do.call("plot", c(list(1, 2, type="n"), plotArgs))
+  }
+  
+  # add polygons to plot
+  polys = mapDat@polygons
+  plotCounty = function(i) {
+    countyPolys = polys[[i]]@Polygons
+    
+    if(is.null(plotVar)) {
+      if(!project)
+        sapply(1:length(countyPolys), function(x) {do.call("polygon", c(list(countyPolys[[x]]@coords), list(...)))})
+      else
+        sapply(1:length(countyPolys), function(x) {do.call("polygon", c(list(projKenya(countyPolys[[x]]@coords)), list(...)))})
+    }
+    else {
+      # get index of plotVar corresponding to this county
+      thisI = which(varCounties == regionNames[i])
+      
+      # get color to plot
+      vals = c(zlim, scaleFun(plotVar[thisI]))
+      vals = vals-vals[1]
+      vals = vals/(vals[2] - vals[1])
+      col = cols[round(vals[3]*(length(cols)-1))+1]
+      
+      if(!project)
+        sapply(1:length(countyPolys), function(x) {do.call("polygon", c(list(countyPolys[[x]]@coords, col=col), list(...)))})
+      else
+        sapply(1:length(countyPolys), function(x) {do.call("polygon", c(list(projKenya(countyPolys[[x]]@coords), col=col), list(...)))})
+    }
+    
+  }
+  sapply(1:length(polys), plotCounty)
+  
+  if(!is.null(plotVar)) {
+    # add legend
+    # par( oma=c(0,0,0,2))
+    if(is.null(ticks))
+      ticks = scaleFun(pretty(scaleFunInverse(zlim), n=n.ticks, min.n=min.n))
+    else
+      ticks = scaleFun(ticks)
+    if(is.null(tickLabels))
+      tickLabels = scaleFunInverse(ticks)
+    # par( oma=c( 0,0,0,3))
+    image.plot(zlim=zlim, nlevel=length(cols), legend.only=TRUE, horizontal=FALSE,
+               col=cols, add = TRUE, axis.args=list(at=ticks, labels=tickLabels), 
+               legend.mar=legend.mar, legend.width=legend.width)
+    
+    # image.plot(zlim=zlim, nlevel=length(cols), legend.only=TRUE, horizontal=FALSE, 
+    #            col=cols, add = TRUE)
+  }
+  invisible(NULL)
+}
+
+# generate the population density surface along with urbanicity estimates
+makeInterpPopGrid = function(kmRes=5, adjustPopSurface=FALSE, targetPop=c("children", "women")) {
+  # load population density data
+  require(raster)
+  
+  # pop = raster("Kenya2014Pop/worldpop_total_1y_2014_00_00.tif", values= TRUE)
+  load("../U5MR/Kenya2014Pop/pop.RData")
+  
+  # get a rectangular grid
+  eastGrid = seq(eastLim[1], eastLim[2], by=kmRes)
+  northGrid = seq(northLim[1], northLim[2], by=kmRes)
+  utmGrid = make.surface.grid(list(east=eastGrid, north=northGrid))
+  
+  # project coordinates into lat/lon
+  lonLatGrid = projKenya(utmGrid, inverse=TRUE)
+  
+  # subset grid so it's in Kenya
+  polys = adm0@polygons
+  kenyaPoly = polys[[1]]@Polygons[[77]]@coords
+  inKenya = in.poly(lonLatGrid, kenyaPoly)
+  utmGrid = utmGrid[inKenya,]
+  lonLatGrid = lonLatGrid[inKenya,]
+  
+  # get population density at those coordinates
+  interpPopVals = extract(pop, SpatialPoints(lonLatGrid),method="bilinear")
+  
+  # compute counties associated with locations
+  counties = getRegion(lonLatGrid, adm1)$regionNames
+  
+  # determine which points are urban
+  newPop = data.frame(list(lon=lonLatGrid[,1], lat=lonLatGrid[,2], popOrig=interpPopVals, admin1=counties))
+  threshes = setThresholds2()
+  popThreshes = sapply(1:nrow(newPop), function(i) {threshes$threshes[threshes$counties == newPop$admin1[i]]})
+  urban = newPop$popOrig > popThreshes
+  newPop$urban = urban
+  
+  newPop$east = utmGrid[,1]
+  newPop$north = utmGrid[,2]
+  
+  # if necessary, adjust the population surface so that it better represents the the child population density 
+  # rather than the total population density
+  if(adjustPopSurface) {
+    targetPop = match.arg(targetPop)
+    
+    # sort easpc by county name alphabetically
+    counties=sort(unique(poppc$County))
+    sortI = sort(easpc$County, index.return=TRUE)$ix
+    temp = easpc[sortI,]
+    
+    # calculate the number of children per stratum using true total eas and empirical children per ea from census data
+    load("../U5MR/empiricalDistributions.RData")
+    if(targetPop == "children") {
+      targetPopPerStratumUrban = temp$EAUrb * ecdfExpectation(empiricalDistributions$householdsUrban) * ecdfExpectation(empiricalDistributions$mothersUrban) * 
+        ecdfExpectation(empiricalDistributions$childrenUrban)
+      targetPopPerStratumRural = temp$EARur * ecdfExpectation(empiricalDistributions$householdsRural) * ecdfExpectation(empiricalDistributions$mothersRural) * 
+        ecdfExpectation(empiricalDistributions$childrenRural)
+    }
+    else {
+      targetPopPerStratumUrban = temp$EAUrb * ecdfExpectation(empiricalDistributions$householdsUrban) * ecdfExpectation(empiricalDistributions$womenUrban)
+      targetPopPerStratumRural = temp$EARur * ecdfExpectation(empiricalDistributions$householdsRural) * ecdfExpectation(empiricalDistributions$womenRural)
+    }
+    
+    # generate 2 47 x nPixels matrices for urban and rural strata integrating pixels with respect to population density to get county estimates
+    getCountyStratumIntegrationMatrix = function(getUrban=TRUE) {
+      counties = as.character(counties)
+      
+      mat = t(sapply(counties, function(countyName) {newPop$admin1 == countyName}))
+      mat = sweep(mat, 2, newPop$popOrig, "*")
+      sweep(mat, 2, newPop$urban == getUrban, "*")
+    }
+    urbanIntegrationMat = getCountyStratumIntegrationMatrix()
+    ruralIntegrationMat = getCountyStratumIntegrationMatrix(FALSE)
+    
+    # calculate number of people per stratum by integrating the population density surface
+    urbanPopulations = rowSums(urbanIntegrationMat)
+    ruralPopulations = rowSums(ruralIntegrationMat)
+    
+    # adjust each row of the integration matrices to get the correct expected number of children per stratum
+    urbanIntegrationMat = sweep(urbanIntegrationMat, 1, targetPopPerStratumUrban / urbanPopulations, "*")
+    ruralIntegrationMat = sweep(ruralIntegrationMat, 1, targetPopPerStratumRural / ruralPopulations, "*")
+    ruralIntegrationMat[ruralPopulations == 0,] = 0
+    
+    # the column sums of the matrices give the correct modified population densities
+    newPop$popOrig = colSums(urbanIntegrationMat) + colSums(ruralIntegrationMat)
+  }
+  
+  newPop
+}
+
+# add in binomial variation to the probability sampling matrix
+addBinomialVar = function(probMatrix, ns) {
+  simulatedObservations = matrix(rbinom(n=length(probMatrix), size=rep(ns, ncol(probMatrix)), prob=c(as.matrix(probMatrix))), nrow=nrow(probMatrix))
+  sweep(simulatedObservations, 1, 1/ns, "*")
+}
+
+# create list of inclusion logicals, partitioning the given data set into 8 (by default) pieces. These 
+# pieces are of roughly equal size, and are chosen by a stratified sampling without replacement
+getValidationI = function(dat=NULL, dataType=c("mort", "ed"), allCountyNames=NULL, urban=NULL, nFold=8, seed=123) {
+  set.seed(seed)
+  dataType = match.arg(dataType)
+  
+  if(is.null(allCountyNames) || is.null(urban)) {
+    if(is.null(dat)) {
+      if(dataType == "mort") {
+        out = load("../U5MR/kenyaData.RData")
+        dat = mort
+      }
+      else {
+        out = load("../U5MR/kenyaDataEd.RData")
+        dat = ed
+      }
+    }
+    
+    allCountyNames = dat$admin1
+    urban = dat$urban
+  }
+  
+  strata = sapply(1:length(urban), function(i) {paste0(allCountyNames[i], ifelse(urban[i], "U", "R"))})
+  uniqueStrata = unique(strata)
+  nPerStrata = table(strata)
+  nPerStrata = nPerStrata[sort(match(names(nPerStrata), uniqueStrata), index.return=TRUE)$ix]
+  nPerStrataFoldLow = floor(nPerStrata / nFold)
+  nPerStrataFoldHigh = nPerStrataFoldLow + 1
+  nHiFoldsPerStrata = nPerStrata %% nFold
+  nLowFoldsPerStrata = nFold - nHiFoldsPerStrata
+  
+  # for each stratum, and each fold, determine the number of samples
+  nSamplesTable = matrix(nPerStrataFoldLow, nrow=length(uniqueStrata), ncol=nFold)
+  for(i in 1:nrow(nSamplesTable)) {
+    if(nLowFoldsPerStrata[i] < nFold)
+      nSamplesTable[i,(nLowFoldsPerStrata[i]+1):ncol(nSamplesTable)] = nSamplesTable[i,(nLowFoldsPerStrata[i]+1):ncol(nSamplesTable)] + 1
+  }
+  
+  # construct a list of vectors, one for each fold, each vector containing the indices of the observations in the fold
+  foldIndices = as.list(1:nFold)
+  for(i in 1:length(uniqueStrata)) {
+    # for each unique stratum, get the list of observation indices, and partition them into the folds
+    stratumIndices = which(strata == uniqueStrata[i])
+    
+    for(j in 1:nFold) {
+      
+      # sample the fold observations from the remaining on sampled observations in the stratum
+      if(length(stratumIndices) != 1)
+        theseIndices = sample(stratumIndices, nSamplesTable[i,j], replace=FALSE)
+      else
+        theseIndices = stratumIndices # in this case, sample function does something different
+      
+      if(i == 1) {
+        foldIndices[[j]] = theseIndices
+      } else {
+        foldIndices[[j]] = c(foldIndices[[j]], theseIndices)
+      }
+      
+      # remove the sampled observations from the vector of observation indices in the stratum
+      stratumIndices = stratumIndices[-match(theseIndices, stratumIndices)]
+    }
+  }
+  
+  # convert foldIndices to a matrix of logical
+  sampleMatrix = matrix(FALSE, nrow=length(urban), ncol=nFold)
+  for(i in 1:nFold) {
+    sampleMatrix[foldIndices[[i]],i] = TRUE
+  }
+  
+  # return results
+  sampleMatrix
+}
 
 
 
