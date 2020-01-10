@@ -59,7 +59,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
       results = do.call("validateSPDEKenyaDat", c(args, otherArguments))
       
       results = list(fit=results)
-      save(results, file=paste0(fileName, ".RData"))
+      # save(results, file=paste0(fileName, ".RData")) # too much space
       
       results$fit$fullModelFit = NULL
       save(results, file=paste0(fileName, "compact.RData"))
@@ -111,7 +111,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
       results = do.call("validateLKINLAKenyaDat", c(args, otherArguments))
       
       results = list(fit=results)
-      save(results, file=paste0(fileName, ".RData"))
+      # save(results, file=paste0(fileName, ".RData")) # too much space
       
       results$fit$fullModelFit = NULL
       save(results, file=paste0(fileName, "compact.RData"))

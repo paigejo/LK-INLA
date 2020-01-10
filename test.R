@@ -1421,7 +1421,7 @@ testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, s
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=3, nx=20, ny=nx, n=50, sigma2 = .1^2, 
+testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1, seed=1, nLayer=3, nx=20, ny=nx, n=50, sigma2 = .1^2, 
                        nBuffer=5, NC=5, testCovs=TRUE, alphas=NULL, lambdaStart=.1, a.wghtStart=5, maxit=15, 
                        printVerboseTimings=FALSE) {
   set.seed(seed)
@@ -2890,7 +2890,7 @@ aggregateModelPreds = function(modelResults, B, addClusterError=TRUE) {
 # first.time: is first time evaluating function.  User should always set to FALSE
 # thetas: originally was c(.1, 3), but 3 is too large
 testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, nu=1, 
-                                  nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, testCovs=FALSE, 
+                                  nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=14, testCovs=FALSE, 
                                   printVerboseTimings=FALSE, latInfo=NULL, n=900, thetas=NULL, 
                                   testfrac=.1, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
@@ -3602,6 +3602,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   upperCor=out$upperCor[sortI]
   lowerCor=out$lowerCor[sortI]
   corMat=out$corMat[sortI]
+  covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+                 corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   
   # plot the covariance function
   pdf(file=paste0("Figures/mixtureLKINLACov", plotNameRoot, ".pdf"), width=5, height=5)
@@ -3718,7 +3720,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
   }
   
-  save(scoringRules, file=paste0("savedOutput/simulations/mixtureLKINLAscoringRules", plotNameRoot, ".RData"))
+  fit$mod = NULL
+  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
@@ -3731,11 +3734,11 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, 
+testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, 
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
-                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.04, .8) / 2.3, 
-                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0) {
+                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
+                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2) {
   set.seed(seed)
   
   # set true parameter values
@@ -3743,7 +3746,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx,
   effectiveRange = thetas * 2.3
   
   # load data set if necessary
-  spatialCorFun = function(x) {0.5 * Exp.cov(x, theta=thetas[1]) + 0.5 * Exp.cov(x, theta=thetas[2])}
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
   if(is.null(n)) {
     out = load("mixtureDataSet.RData")
   } else {
@@ -3922,6 +3926,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx,
   lowerCor=out$lowerCor[sortI]
   corMat=out$corMat[sortI,]
   corMatNoNugget=out$corMatNoNugget[sortI,]
+  covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+                 corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   
   getEffectiveRange = function(ds, cors) {
     firstI = match(TRUE, cors<.1)
@@ -3960,6 +3966,9 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx,
   legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
   dev.off()
   
+  fit$mod = NULL
+  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
+  
   invisible(NULL)
 }
 
@@ -3979,7 +3988,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 int.strategy="auto", strategy="gaussian", 
                                 nPostSamples=1000, mesh=NULL, 
                                 prior=NULL, testfrac=.1, nu=1, 
-                                plotNameRoot="", sigma2 = 0, useKenya=FALSE, 
+                                plotNameRoot="", sigma2 = 0.1^2, useKenya=FALSE, 
                                 urbanOverSamplefrac=0, leaveOutRegion=TRUE) {
   set.seed(seed)
   
@@ -4320,6 +4329,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   
   # compute the covariance function for many different hyperparameter samples
   out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
+  browser()
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -4331,6 +4341,8 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   upperCor=out$upperCor[,sortI]
   lowerCor=out$lowerCor[,sortI]
   corMat=out$corMat[sortI]
+  covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+                 corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   
   # plot the covariance function
   yRange = range(c(covMean, lowerCov, upperCov, mixtureCovFun(d)))
@@ -4437,7 +4449,8 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
     # print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
   }
   
-  save(scoringRules, file=paste0("savedOutput/simulations/mixtureSPDEscoringRulesSPDE", plotNameRoot, ".RData"))
+  fit$mod = NULL
+  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
 }
 
 # test how close we can get to the spatial correlation function:
@@ -4556,11 +4569,11 @@ getCorrelationApproximation = function(thetas=c(.1, .4), nu=0.5) {
   theta # 0.1256181
 }
 
-maternMixture = function(x, thetas=c(.1, .4), nu=0.5, alphas=c(0.4, 0.6)) {
+maternMixture = function(x, thetas=c(.1, .4), nu=0.5, alphas=c(0.5, 0.5)) {
   alphas[1] * Matern(x, range=thetas[1], smoothness=nu) + 
     alphas[2] * Matern(x, range=thetas[2], smoothness=nu)
 }
-maternMixtureCor = function(x1, x2=NULL, thetas=c(.1, .4), nu=0.5, alphas=c(0.4, 0.6), distMat=NA) {
+maternMixtureCor = function(x1, x2=NULL, thetas=c(.1, .4), nu=0.5, alphas=c(0.5, 0.5), distMat=NA) {
   tempFun = function(d) {maternMixture(d, thetas, nu, alphas)}
   stationary.cov(x1, x2, Covariance=tempFun, distMat=distMat)
 }
@@ -4585,7 +4598,7 @@ testCorrelationApproximation = function(trueCorrelation = maternMixtureCor,
   # generate data set
   nTest = 100
   simulationData = getSimulationDataSetsGivenCovarianceTest(trueCorrelation, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=0, 
-                                                        nDataSets=2, plotNameRoot=paste0("(0.4*Exp(.1) + 0.6*Exp(.4))"), fileNameRoot="mix", 
+                                                        nDataSets=2, plotNameRoot=paste0("(0.5*Exp(.1) + 0.5*Exp(.4))"), fileNameRoot="mix", 
                                                         saveDataSetPlot=FALSE, doPredGrid=TRUE)
   coords = cbind(simulationData$xTrain[,1], simulationData$yTrain[,1])
   testCoords = cbind(simulationData$xTest[,1], simulationData$yTest[,1])
