@@ -3597,11 +3597,11 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   covMean = out$cov[sortI]
   upperCov=out$upperCov[sortI]
   lowerCov=out$lowerCov[sortI]
-  covMat=out$covMat[sortI]
+  covMat=out$covMat[sortI,]
   corMean = out$cor[sortI]
   upperCor=out$upperCor[sortI]
   lowerCor=out$lowerCor[sortI]
-  corMat=out$corMat[sortI]
+  corMat=out$corMat[sortI,]
   covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
                  corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   
@@ -4336,11 +4336,11 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   covMean = out$cov[sortI]
   upperCov=out$upperCov[,sortI]
   lowerCov=out$lowerCov[,sortI]
-  covMat=out$covMat[sortI]
+  covMat=out$covMat[sortI,]
   corMean = out$cor[sortI]
   upperCor=out$upperCor[,sortI]
   lowerCor=out$lowerCor[,sortI]
-  corMat=out$corMat[sortI]
+  corMat=out$corMat[sortI,]
   covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
                  corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   
