@@ -801,8 +801,8 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     fullUrbanScores = data.frame(c(getScores(truth[obsUrban], est[obsUrban], vars[obsUrban], lower[obsUrban], upper[obsUrban], estMat[obsUrban,]), WAIC=NA, DIC=NA, CPO=mean(cpo[obsUrban], na.rm=TRUE), Time=time[3]))
     
     if(saveResults)
-      save(time=time, fit=fit, fullPooledScoresBinomial=fullPooledScoresBinomial, fullRuralScoresBinomial=fullRuralScoresBinomial, fullUrbanScoresBinomial=fullUrbanScoresBinomial, 
-           fullPooledScores=fullPooledScores, fullRuralScores=fullRuralScores, fullUrbanScores=fullUrbanScores, file=fileName)
+      save(time, fit, fullPooledScoresBinomial, fullRuralScoresBinomial, fullUrbanScoresBinomial, 
+           fullPooledScores, fullRuralScores, fullUrbanScores, file=fileName)
   }
   else {
     print("Loading previous full model fit")

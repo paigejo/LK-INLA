@@ -221,9 +221,6 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
   scoresLeaveOneOutBinomial = scoresInSampleBinomial[,c(1, leaveOneOutI)]
   scoresInSampleBinomial = scoresInSampleBinomial[,-leaveOneOutI]
   
-  ##### 
-  browser()
-  
   ##### Save all scoring rule tables
   fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, ".RData")
   allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
