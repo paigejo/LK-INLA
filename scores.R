@@ -14,7 +14,7 @@
 # breaks: the number of equal spaced bins to break the scores into as a function of distance
 # NOTE: Discrete, count level credible intervals are estimated based on the input estMat along with coverage and CRPS
 getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=NULL, significance=.8, 
-                     distances=NULL, breaks=30, doRandomReject=FALSE) {
+                     distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=TRUE) {
   
   # if distances is included, must also break down scoring rules by distance bins
   if(!is.null(distances)) {
@@ -33,7 +33,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
       thisDatI = binsI == uniqueBinI
       
       getScores(truth[thisDatI], est[thisDatI], var[thisDatI], lower[thisDatI], upper[thisDatI], 
-                estMat[thisDatI,], sigfnificance, doRandomReject=doRandomReject)
+                estMat[thisDatI,], sigfnificance, doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
     }
     
     # calculate scores for each bin individually
@@ -62,7 +62,8 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   
   # calculate coverage and credible interval width with and without binomial variation
   coverage = coverage(truth, est, var, lower, upper, estMat=estMat, 
-                      significance=significance, returnIntervalWidth=TRUE, doRandomReject=doRandomReject)
+                      significance=significance, returnIntervalWidth=TRUE, 
+                      doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
   thisCoverage = coverage[1]
   thisWidth = coverage[2]
   
@@ -118,8 +119,9 @@ mse <- function(truth, est, weights=NULL){
 # estMat: a matrix of joint draws of estimates, with number of rows equal to the length of truth, a number of 
 #         columns equal to the number of draws. If not included, a gaussian distribution is assumed.
 # significance: the significance level of the credible interval. By default 80%
+# doRandomReject, doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
 coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
-                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE){
+                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE, doFuzzyReject=TRUE){
   
   if(any(is.null(lower)) || any(is.null(upper))) {
     # if the user did not supply their own credible intervals, we must get them ourselves given the other information
@@ -166,11 +168,18 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     probRejectLower = sapply(atLowerEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] < lower[i])) / mean(estMat[i,] == lower[i])})
     probRejectUpper = sapply(atUpperEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] > upper[i])) / mean(estMat[i,] == upper[i])})
     
-    rejectLower = runif(length(atLowerEdge)) <= probRejectLower
-    rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
+    if(doFuzzyReject) {
+      rejectLower = probRejectLower
+      rejectUpper = probRejectUpper
+    } else {
+      rejectLower = runif(length(atLowerEdge)) <= probRejectLower
+      rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
+    }
     
-    res[atLowerEdge] = res[atLowerEdge] & (!rejectLower)
-    res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
+    res[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(res[atLowerEdge][i], (1-rejectLower[i]))})
+    res[atUpperEdge] = sapply(1:length(atUpperEdge), function(i) {min(res[atUpperEdge][i], (1-rejectUpper[i]))})
+    # res[atLowerEdge] = res[atLowerEdge] & (!rejectLower)
+    # res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
   }
   
   allResults = c(coverage=mean(res))
