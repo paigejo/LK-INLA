@@ -3782,6 +3782,11 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
                               testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2) {
   set.seed(seed)
   
+  # if(useKenya)
+  #   distanceBreaks = seq(0, 300, l=20)
+  # else
+  distanceBreaks = seq(0, 0.5, l=20)
+  
   # set true parameter values
   rho = 1
   effectiveRange = thetas * 2.3
@@ -4010,6 +4015,22 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   lines(d, mixtureCorFun(d), col="green")
   legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
   dev.off()
+  
+  # get scoring rules
+  truth = ysTest
+  est = preds[testIndices]
+  vars = predSDs[testIndices]^2
+  lower = out$lower[testIndices]
+  upper = out$upper[testIndices]
+  
+  # compute nearest neighbor distances and scores as a function of them
+  testPts = predPts[testIndices,]
+  distMat = rdist(coords, testPts)
+  nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  print("Binned scores:")
+  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  print(scoringRules$binnedResults)
   
   # get aggregated predictions
   # A = t(sapply(1:(mx*my), getARow))

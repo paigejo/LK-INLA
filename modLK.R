@@ -272,8 +272,6 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   omegaMLE = parameterList$omega
   a.wghtMLE = parameterList$a.wght
   
-  browser() # check on LKMLE object
-  
   # set up the lattice, the arguments to LatticeKrig
   LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=nuMLE, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
                       lambda=lambdaMLE, a.wght=as.list(a.wghtMLE), alpha=alphasMLE, 
