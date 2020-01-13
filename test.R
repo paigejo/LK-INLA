@@ -3727,10 +3727,42 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # mx = 100
   # my = 100
   # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
-  A = makeNumericalIntegralMat(gridCoords, mx=mx, my=my)
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  
+  A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
+  aggregatedPreds = A %*% est[gridIndicesEst]
+  
+  truth = A %*% ysTest[gridIndicesEst]
+  est = A %*% preds[gridIndices]
+  aggregatedPredMat = A %*% fit$predMat[gridIndices,]
+  vars = apply(aggregatedPredMat, 1, var)
+  sds = apply(aggregatedPredMat, 1, sd)
+  lower = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.1)})
+  upper = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.9)})
+  predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  print("Aggregated prediction summary statistics:")
+  print(predictionMatrix)
+  
+  print("Pooled aggregated scores:")
+  pooledAggregatedScores = getScores(truth, est, vars, lower, upper)
+  print(pooledAggregatedScores)
+  print("Left out region aggregated scores:")
+  leftOutAggregatedScores = getScores(truth[5], est[5], vars[5], lower[5], upper[5])
+  leftOutAggregatedScores$Var = sds[5]
+  names(leftOutAggregatedScores)[2] = "Predictive.SD"
+  print(leftOutAggregatedScores)
+  print("Included regions aggregated scores:")
+  includedAggregatedScores = getScores(truth[-5], est[-5], vars[-5], lower[-5], upper[-5])
+  print(includedAggregatedScores)
+  
+  aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+                                includedAggregatedScores=includedAggregatedScores)
   
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
@@ -3975,8 +4007,48 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1,
   legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
   dev.off()
   
+  # get aggregated predictions
+  # A = t(sapply(1:(mx*my), getARow))
+  # A = sweep(A, 1, rowSums(A), "/")
+  # mx = 100
+  # my = 100
+  # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  
+  A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
+  aggregatedPreds = A %*% est[gridIndicesEst]
+  
+  truth = A %*% ysTest[gridIndicesEst]
+  est = A %*% preds[gridIndices]
+  aggregatedPredMat = A %*% fit$predMat[gridIndices,]
+  vars = apply(aggregatedPredMat, 1, var)
+  sds = apply(aggregatedPredMat, 1, sd)
+  lower = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.1)})
+  upper = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.9)})
+  predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  print("Aggregated prediction summary statistics:")
+  print(predictionMatrix)
+  
+  print("Pooled aggregated scores:")
+  pooledAggregatedScores = getScores(truth, est, vars, lower, upper)
+  print(pooledAggregatedScores)
+  print("Left out region aggregated scores:")
+  leftOutAggregatedScores = getScores(truth[5], est[5], vars[5], lower[5], upper[5])
+  leftOutAggregatedScores$Var = sds[5]
+  names(leftOutAggregatedScores)[2] = "Predictive.SD"
+  print(leftOutAggregatedScores)
+  print("Included regions aggregated scores:")
+  includedAggregatedScores = getScores(truth[-5], est[-5], vars[-5], lower[-5], upper[-5])
+  print(includedAggregatedScores)
+  
+  aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+                                includedAggregatedScores=includedAggregatedScores)
+  
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
+  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
   
   invisible(NULL)
 }
@@ -4338,7 +4410,6 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   
   # compute the covariance function for many different hyperparameter samples
   out = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
-  browser()
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -4459,16 +4530,47 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   }
   
   # get aggregated predictions
-  browser()
   # A = t(sapply(1:(mx*my), getARow))
   # A = sweep(A, 1, rowSums(A), "/")
   # mx = 100
   # my = 100
   # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
-  A = makeNumericalIntegralMat(gridCoords, mx=mx, my=my)
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  
+  A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
+  aggregatedPreds = A %*% est[gridIndicesEst]
+  
+  truth = A %*% ysTest[gridIndicesEst]
+  est = A %*% preds[gridIndices]
+  aggregatedPredMat = A %*% fit$predMat[gridIndices,]
+  vars = apply(aggregatedPredMat, 1, var)
+  sds = apply(aggregatedPredMat, 1, sd)
+  lower = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.1)})
+  upper = apply(aggregatedPredMat, 1, function(x) {quantile(x, probs=.9)})
+  predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  print("Aggregated prediction summary statistics:")
+  print(predictionMatrix)
+  
+  print("Pooled aggregated scores:")
+  pooledAggregatedScores = getScores(truth, est, vars, lower, upper)
+  print(pooledAggregatedScores)
+  print("Left out region aggregated scores:")
+  leftOutAggregatedScores = getScores(truth[5], est[5], vars[5], lower[5], upper[5])
+  leftOutAggregatedScores$Var = sds[5]
+  names(leftOutAggregatedScores)[2] = "Predictive.SD"
+  print(leftOutAggregatedScores)
+  print("Included regions aggregated scores:")
+  includedAggregatedScores = getScores(truth[-5], est[-5], vars[-5], lower[-5], upper[-5])
+  print(includedAggregatedScores)
+  
+  aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+                                includedAggregatedScores=includedAggregatedScores)
   
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
+  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
 }
 
 # test how close we can get to the spatial correlation function:

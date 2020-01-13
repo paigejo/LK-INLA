@@ -1104,7 +1104,7 @@ MaternLR = function (d, range = 1, beta=range, alpha = 1/beta, smoothness = 0.5,
 # diving xRange and yRange into mx x my grid of regions
 # predPts: Ideally, predPoints should be a regular grid of locations, since they are 
 # all weighed equally when being aggregated in each region
-makeNumericalIntegralMat = function(predPts, xRange=c(-1, 1), yRange=c(-1, 1), mx=2, my=2) {
+makeNumericalIntegralMat = function(predPts, xRange=c(-1, 1), yRange=c(-1, 1), mx=3, my=3) {
   # construct aggregation matrix for predictions by testing which prediction locations 
   # are in which aggregation regions
   xRegionGrid = seq(xRange[1], xRange[2], l=mx + 1)[-1]
