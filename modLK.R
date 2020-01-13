@@ -188,8 +188,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   }
   
   # make a wrapper function around LKrig in order to optimize overall parameters including alpha
-  outerFun = function(parameters, thisVerbose=verbose) {
-    parameterList = getParameters(parameters)
+  outerFun = function(thesePar, thisVerbose=verbose) {
+    parameterList = getParameters(thisPar)
     thisnu = parameterList$nu
     alphas = parameterList$alphas
     log.lambda = parameterList$log.lambda

@@ -4458,6 +4458,15 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
     # print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
   }
   
+  # get aggregated predictions
+  browser()
+  # A = t(sapply(1:(mx*my), getARow))
+  # A = sweep(A, 1, rowSums(A), "/")
+  # mx = 100
+  # my = 100
+  # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
+  A = makeNumericalIntegralMat(gridCoords, mx=mx, my=my)
+  
   fit$mod = NULL
   save(scoringRules, fit, covInfo, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
 }
