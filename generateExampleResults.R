@@ -18,10 +18,8 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   resultNameRootLower = tolower(resultNameRoot)
   
   ##### run SPDE 
-  argList = list(list(dat = dat, clusterEffect = FALSE, urbanEffect = FALSE), 
-                 list(dat = dat, clusterEffect = FALSE, urbanEffect = TRUE), 
-                 list(dat = dat, clusterEffect = TRUE, urbanEffect = FALSE), 
-                 list(dat = dat, clusterEffect = TRUE, urbanEffect = TRUE))
+  argList = list(list(dat = dat, urbanEffect = FALSE), 
+                 list(dat = dat, urbanEffect = TRUE))
   otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType)
   
   for(i in 1:length(argList)) {
@@ -29,14 +27,14 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       args = argList[[i]]
       clusterEffect = args$clusterEffect
       urbanEffect = args$urbanEffect
-      fileName = paste0("savedOutput/resultsSPDE", resultNameRootLower, "_clusterEffect", clusterEffect, 
+      fileName = paste0("savedOutput/resultsSPDE", resultNameRootLower, 
                         "_urbanEffect", urbanEffect, ".RData")
       
       
-      print(paste0("Fitting SPDE model with clusterEffect=", clusterEffect, " and urbanEffect=", urbanEffect, "..."))
+      print(paste0("Fitting SPDE model with urbanEffect=", urbanEffect, "..."))
       spdeResults = do.call("fitSPDEKenyaDat", c(args, otherArguments))
       
-      print(paste0("Aggregating SPDE model with clusterEffect=", clusterEffect, " and urbanEffect=", urbanEffect, "..."))
+      print(paste0("Aggregating SPDE model with urbanEffect=", urbanEffect, "..."))
       aggregatedSPDEresults = aggregateModelResultsKenya(spdeResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
       results = list(fit=spdeResults, aggregatedResults=aggregatedSPDEresults)
@@ -45,24 +43,24 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   }
   
   ##### run LK-INLA
-  argList = list(list(dat = dat, clusterEffect = FALSE, urbanEffect = FALSE), 
-                 list(dat = dat, clusterEffect = FALSE, urbanEffect = TRUE), 
-                 list(dat = dat, clusterEffect = TRUE, urbanEffect = FALSE), 
-                 list(dat = dat, clusterEffect = TRUE, urbanEffect = TRUE))
+  argList = list(list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE), 
+                 list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
   otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType)
   
   for(i in 1:length(argList)) {
-    if(startI <= i + 4) {
+    if(startI <= i + 2) {
       args = argList[[i]]
-      clusterEffect = args$clusterEffect
+      separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
-      fileName = paste0("savedOutput/resultsLKINLA", resultNameRootLower, "_clusterEffect", clusterEffect, 
+      fileName = paste0("savedOutput/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
                         "_urbanEffect", urbanEffect, ".RData")
       
-      print(paste0("Fitting LK-INLA model with clusterEffect=", clusterEffect, " and urbanEffect=", urbanEffect, "..."))
+      print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       lkinlaResults = do.call("fitLKINLAKenyaDat", c(args, otherArguments))
       
-      print(paste0("Aggregating LK-INLA model with clusterEffect=", clusterEffect, " and urbanEffect=", urbanEffect, "..."))
+      print(paste0("Aggregating LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       aggregatedLKINLAresults = aggregateModelResultsKenya(lkinlaResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
       results = list(fit=spdeResults, aggregatedResults=aggregatedLKINLAresults)

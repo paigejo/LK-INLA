@@ -33,8 +33,6 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
   
   ##### run SPDE
   argList = list(list(dat = dat, urbanEffect = FALSE), 
-                 list(dat = dat, urbanEffect = TRUE), 
-                 list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
   otherArguments = list(dataType=dataType, verbose=verbose, loadPreviousFit=loadPreviousFit, family="betabinomial", 
                         loadPreviousResults=loadPreviousResults)
@@ -103,10 +101,10 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
       urbanText = "u"
     modelNames = c(modelNames, paste0("lkinla", urbanText, separateText))
     
-    if(i+4 > endI)
+    if(i+2 > endI)
       return(invisible(NULL))
     
-    if(startI <= i + 4) {
+    if(startI <= i + 2) {
       print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       results = do.call("validateLKINLAKenyaDat", c(args, otherArguments))
       
@@ -142,15 +140,15 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
                          t(sapply(resultsListLKINLA, function(x) {colMeans(x$fit$inSampleRuralScores, na.rm=TRUE)})))
   
   # reorder them in order to group them by model rather than by urbanicity
-  tempModelISPDE = seq(1, 1+4*2, by=4)
-  tempModelILKINLA = seq(13, 13+4*2, by=4)
-  scoresInSample = scoresInSample[c(tempModelISPDE, tempModelISPDE+1, tempModelISPDE+2, tempModelISPDE+3, 
+  tempModelISPDE = seq(1, 1+4, by=2)
+  tempModelILKINLA = seq(7, 7+4*2, by=4)
+  scoresInSample = scoresInSample[c(tempModelISPDE, tempModelISPDE+1, 
                                     tempModelILKINLA, tempModelILKINLA+1, tempModelILKINLA+2, tempModelILKINLA+3),]
   scoresInSample = data.frame(scoresInSample)
   
   # add in column saying how the scores were aggregated (across all clusters, urban clusters, or rural clusters). 
   # Also add in the model name as the name of the row
-  scoresInSample = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 8), scoresInSample)
+  scoresInSample = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 6), scoresInSample)
   # rownames(scoresInSample) = rep(allModelNames, each=3)
   
   ## concatenate all in sample results (accounting for binomial variation)
@@ -162,15 +160,15 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
                                  t(sapply(resultsListLKINLA, function(x) {colMeans(x$fit$inSampleRuralScoresBinomial, na.rm=TRUE)})))
   
   # reorder them in order to group them by model rather than by urbanicity
-  tempModelISPDE = seq(1, 1+4*2, by=4)
-  tempModelILKINLA = seq(13, 13+4*2, by=4)
-  scoresInSampleBinomial = scoresInSampleBinomial[c(tempModelISPDE, tempModelISPDE+1, tempModelISPDE+2, tempModelISPDE+3, 
+  tempModelISPDE = seq(1, 1+4, by=2)
+  tempModelILKINLA = seq(7, 7+4*2, by=4)
+  scoresInSampleBinomial = scoresInSampleBinomial[c(tempModelISPDE, tempModelISPDE+1, 
                                                     tempModelILKINLA, tempModelILKINLA+1, tempModelILKINLA+2, tempModelILKINLA+3),]
   scoresInSampleBinomial = data.frame(scoresInSampleBinomial)
   
   # add in column saying how the scores were aggregated (across all clusters, urban clusters, or rural clusters). 
   # Also add in the model name as the name of the row
-  scoresInSampleBinomial = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 8), scoresInSampleBinomial)
+  scoresInSampleBinomial = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 6), scoresInSampleBinomial)
   # rownames(scoresInSample) = rep(allModelNames, each=3)
   
   ## concatenate all leave out region results
