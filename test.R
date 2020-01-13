@@ -3775,7 +3775,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, 
+testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
                               extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
@@ -3829,8 +3829,12 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1,
   ysTest = simulationData$zTest[,1]
   
   # fit the model
+  if(assumeMeanZero)
+    m=0
+  else
+    m=1
   time = system.time(out <- fitLKStandard(coords, ys, predCoords=predPts, nLayer=nLayer, NC=NC,
-                                          nBuffer=nBuffer, normalize=normalize, fixedFunctionArgs=list(m=0), 
+                                          nBuffer=nBuffer, normalize=normalize, fixedFunctionArgs=list(m=m), 
                                           xRangeDat=xRange, yRangeDat=yRange, separatea.wght=separatea.wght, 
                                           doMatern=doMatern, fixNu=fixNu))
   mod = out$mod

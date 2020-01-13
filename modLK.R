@@ -110,6 +110,17 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     upperBoundOmega = rep(upperBoundOmega, nLayer)
   }
   
+  if(fixedFunctionArgs$m == 0) {
+    # fixedFunction = function(x, Z=NULL, m=0, distance.type = "Euclidean") {
+    #   # matrix(0, nrow=nrow(x), ncol=1)
+    #   NULL
+    # }
+    fixedFunction = NULL
+  } else {
+    fixedFunction = "LKrigDefaultFixedFunction"
+  }
+  assign("fixedFunction", fixedFunction, envir=.GlobalEnv)
+  
   # set spatial domain if not already set
   if(is.null(xRangeDat))
     xRangeDat = range(c(obsCoords[,1], predCoords[,1]))
@@ -199,7 +210,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     
     # set up the lattice, the arguments to LatticeKrig
     LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=thisnu, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
-                        lambda=lambda, a.wght=a.wght, alpha=alphas, fixedFunctionArgs=fixedFunctionArgs)
+                        lambda=lambda, a.wght=a.wght, alpha=alphas, 
+                        fixedFunction=fixedFunction, fixedFunctionArgs=fixedFunctionArgs)
     
     # if(is.null(xObs) || is.null(xPred))
     #   LKMLE = LKrig(obsCoords, obsValues, LKinfo=LKinfo, verbose=verbose, maxit=maxit)
@@ -264,7 +276,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # set up the lattice, the arguments to LatticeKrig
   LKinfo = LKrigSetup(domainCoords, nlevel=nLayer, nu=nuMLE, NC=NC, normalize=normalize, NC.buffer=nBuffer, 
-                      lambda=lambdaMLE, a.wght=as.list(a.wghtMLE), alpha=alphasMLE, fixedFunctionArgs=fixedFunctionArgs)
+                      lambda=lambdaMLE, a.wght=as.list(a.wghtMLE), alpha=alphasMLE, 
+                      fixedFunction=fixedFunction, fixedFunctionArgs=fixedFunctionArgs)
   if(is.null(xObs) || is.null(xPred)) {
     mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo)
     preds = predict.LKrig(mod, predCoords)
@@ -494,6 +507,32 @@ resultsLK = function(randomSeeds=NULL, covType=c("exponential", "matern", "mixtu
   
   resultsLK
 }
+
+# modified version of LKrigMakewU from LatticeKrig to prevent bad indexing of fixedFunctionArgs for fixedFunction
+LKrigMakewU = function(object, verbose = FALSE) 
+{
+  LKinfo <- object$LKinfo
+  if (!is.null(object$U)) {
+    wU <- sqrt(object$weights) * object$U
+  }
+  else {
+    if (!is.null(LKinfo[["fixedFunction"]])) {
+      wU <- sqrt(object$weights) * do.call(LKinfo$fixedFunction, 
+                                           c(list(x = object$x, Z = object$Z, distance.type = LKinfo$distance.type), 
+                                             LKinfo$fixedFunctionArgs))
+    }
+    else {
+      wU <- NULL
+    }
+  }
+  if (verbose) {
+    cat("dim wU:", dim(wU), fill = TRUE)
+  }
+  return(wU)
+}
+assign("LKrigMakewU", LKrigMakewU, .GlobalEnv)
+assignInNamespace("LKrigMakewU", LKrigMakewU, "LatticeKrig")
+
 
 
 
