@@ -272,6 +272,57 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   else
     nFold = 8
   
+  # calculate bins for nearest neighbor distances
+  distanceMax = 0
+  for(i in startFrom:nFold) {
+    if(!stratifiedValidation) {
+      thisRegion = regions[i]
+      thisSampleI = allRegions == thisRegion
+      leaveOutI = NULL
+    } else {
+      thisRegion = NULL
+      leaveOutI = sampleTable[,i]
+      thisSampleI = leaveOutI
+    }
+    
+    ##### Break scores down by distance
+    predPts = cbind(dat$east, dat$north)[thisSampleI]
+    obsCoords = cbind(dat$east, dat$north)[-thisSampleI]
+    predUrban = dat$urban[thisSampleI]
+    obsUrban = dat$urban[-thisSampleI]
+    
+    # first calculate all distances, broken down by urban, rural, and all aggregated observations
+    distMatuu = rdist(obsCoords[!obsUrban], predPts[!predUrban])
+    distMatuU = rdist(obsCoords[!obsUrban], predPts[predUrban])
+    distMatUu = rdist(obsCoords[obsUrban], predPts[!predUrban])
+    distMatUU = rdist(obsCoords[obsUrban], predPts[predUrban])
+    distMatAu = rdist(obsCoords, predPts[!predUrban])
+    distMatAU = rdist(obsCoords, predPts[predUrban])
+    distMatuA = rdist(obsCoords[!obsUrban], predPts)
+    distMatuA = rdist(obsCoords[!obsUrban], predPts)
+    distMatUA = rdist(obsCoords[obsUrban], predPts)
+    distMatUA = rdist(obsCoords[obsUrban], predPts)
+    distMatAA = rdist(obsCoords, predPts)
+    distMatAA = rdist(obsCoords, predPts)
+    
+    # now calculate nearest distances
+    nndistsuu = apply(distMatuu, 2, function(x) {min(x[x != 0])})
+    nndistsuU = apply(distMatuU, 2, function(x) {min(x[x != 0])})
+    nndistsUu = apply(distMatUu, 2, function(x) {min(x[x != 0])})
+    nndistsUU = apply(distMatUU, 2, function(x) {min(x[x != 0])})
+    nndistsAu = apply(distMatAu, 2, function(x) {min(x[x != 0])})
+    nndistsAU = apply(distMatAU, 2, function(x) {min(x[x != 0])})
+    nndistsuA = apply(distMatuA, 2, function(x) {min(x[x != 0])})
+    nndistsuA = apply(distMatuA, 2, function(x) {min(x[x != 0])})
+    nndistsUA = apply(distMatUA, 2, function(x) {min(x[x != 0])})
+    nndistsUA = apply(distMatUA, 2, function(x) {min(x[x != 0])})
+    nndistsAA = apply(distMatAA, 2, function(x) {min(x[x != 0])})
+    nndistsAA = apply(distMatAA, 2, function(x) {min(x[x != 0])})
+    tempMax = c(nndistsuu, nndistsuU, nndistsUu, nndistsUU, nndistsAu, nndistsAU, nndistsuA, nndistsuA, nndistsUA, nndistsUA, nndistsAA, nndistsAA)
+    distanceMax = max(distanceMax, tempMax)
+  }
+  distanceBreaks = seq(0, distanceMax+1, l=20)
+  
   # set up sample table of indices if using stratified validation
   if(stratifiedValidation && is.null(sampleTable))
     sampleTable = getValidationI(dat=dat, dataType=dataType)
@@ -284,6 +335,24 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   pooledScoreTable = c()
   urbanScoreTable = c()
   ruralScoreTable = c()
+  binnedScoringRulesuuAll = list()
+  binnedScoringRulesuUAll = list()
+  binnedScoringRulesUuAll = list()
+  binnedScoringRulesUUAll = list()
+  binnedScoringRulesAuAll = list()
+  binnedScoringRulesAUAll = list()
+  binnedScoringRulesuAAll = list()
+  binnedScoringRulesUAAll = list()
+  binnedScoringRulesAAAll = list()
+  binnedScoringRulesuuBinomialAll = list()
+  binnedScoringRulesuUBinomialAll = list()
+  binnedScoringRulesUuBinomialAll = list()
+  binnedScoringRulesUUBinomialAll = list()
+  binnedScoringRulesAuBinomialAll = list()
+  binnedScoringRulesAUBinomialAll = list()
+  binnedScoringRulesuABinomialAll = list()
+  binnedScoringRulesUABinomialAll = list()
+  binnedScoringRulesAABinomialAll = list()
   startFrom = 1
   
   # load previous results if necessary
@@ -385,9 +454,85 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     ruralScoreTableBinomial = rbind(ruralScoreTableBinomial, thisRuralScoresBinomial)
     urbanScoreTableBinomial = rbind(urbanScoreTableBinomial, thisUrbanScoresBinomial)
     
+    ##### Break scores down by distance
+    predPts = fit$predPts
+    obsCoords = fit$obsCoords
+    predUrban = dat$urban[thisSampleI]
+    obsUrban = dat$urban[-thisSampleI]
+    
+    # first calculate all distances, broken down by urban, rural, and all aggregated observations
+    distMatuu = rdist(obsCoords[!obsUrban], predPts[!predUrban])
+    distMatuU = rdist(obsCoords[!obsUrban], predPts[predUrban])
+    distMatUu = rdist(obsCoords[obsUrban], predPts[!predUrban])
+    distMatUU = rdist(obsCoords[obsUrban], predPts[predUrban])
+    distMatAu = rdist(obsCoords, predPts[!predUrban])
+    distMatAU = rdist(obsCoords, predPts[predUrban])
+    distMatuA = rdist(obsCoords[!obsUrban], predPts)
+    distMatUA = rdist(obsCoords[obsUrban], predPts)
+    distMatAA = rdist(obsCoords, predPts)
+    
+    # now calculate nearest distances
+    nndistsuu = apply(distMatuu, 2, function(x) {min(x[x != 0])})
+    nndistsuU = apply(distMatuU, 2, function(x) {min(x[x != 0])})
+    nndistsUu = apply(distMatUu, 2, function(x) {min(x[x != 0])})
+    nndistsUU = apply(distMatUU, 2, function(x) {min(x[x != 0])})
+    nndistsAu = apply(distMatAu, 2, function(x) {min(x[x != 0])})
+    nndistsAU = apply(distMatAU, 2, function(x) {min(x[x != 0])})
+    nndistsuA = apply(distMatuA, 2, function(x) {min(x[x != 0])})
+    nndistsUA = apply(distMatUA, 2, function(x) {min(x[x != 0])})
+    nndistsAA = apply(distMatAA, 2, function(x) {min(x[x != 0])})
+    
+    # calculate scores without accounting for binomial variation
+    binnedScoringRulesuu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsuu, breaks=distanceBreaks)
+    binnedScoringRulesuU = getScores(truth[!predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsuU, breaks=distanceBreaks)
+    binnedScoringRulesUu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsUu, breaks=distanceBreaks)
+    binnedScoringRulesUU = getScores(truth[predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsUU, breaks=distanceBreaks)
+    binnedScoringRulesAu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsAu, breaks=distanceBreaks)
+    binnedScoringRulesAU = getScores(truth[predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsAU, breaks=distanceBreaks)
+    binnedScoringRulesuA = getScores(truth, est, vars, lower, upper, distances=nndistsuA, breaks=distanceBreaks)
+    binnedScoringRulesUA = getScores(truth, est, vars, lower, upper, distances=nndistsUA, breaks=distanceBreaks)
+    binnedScoringRulesAA = getScores(truth, est, vars, lower, upper, distances=nndistsAA, breaks=distanceBreaks)
+    
+    # calculate scores accounting for binomial variation
+    binnedScoringRulesuuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsuu, breaks=distanceBreaks)
+    binnedScoringRulesuUBinomial = getScores(truth[!predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsuU, breaks=distanceBreaks)
+    binnedScoringRulesUuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsUu, breaks=distanceBreaks)
+    binnedScoringRulesUUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsUU, breaks=distanceBreaks)
+    binnedScoringRulesAuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsAu, breaks=distanceBreaks)
+    binnedScoringRulesAUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsAU, breaks=distanceBreaks)
+    binnedScoringRulesuABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsuA, breaks=distanceBreaks)
+    binnedScoringRulesUABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsUA, breaks=distanceBreaks)
+    binnedScoringRulesAABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsAA, breaks=distanceBreaks)
+    
+    # concatenate binned scoring rule results
+    binnedScoringRulesuuAll = c(binnedScoringRulesuuAll, list(binnedScoringRulesuu))
+    binnedScoringRulesuUAll = c(binnedScoringRulesuUAll, list(binnedScoringRulesuU))
+    binnedScoringRulesUuAll = c(binnedScoringRulesUuAll, list(binnedScoringRulesUu))
+    binnedScoringRulesUUAll = c(binnedScoringRulesUUAll, list(binnedScoringRulesUU))
+    binnedScoringRulesAuAll = c(binnedScoringRulesAuAll, list(binnedScoringRulesAu))
+    binnedScoringRulesAUAll = c(binnedScoringRulesAUAll, list(binnedScoringRulesAU))
+    binnedScoringRulesuAAll = c(binnedScoringRulesuAAll, list(binnedScoringRulesuA))
+    binnedScoringRulesUAAll = c(binnedScoringRulesUAAll, list(binnedScoringRulesUA))
+    binnedScoringRulesAAAll = c(binnedScoringRulesAAAll, list(binnedScoringRulesAA))
+    binnedScoringRulesuuBinomialAll = c(binnedScoringRulesuuBinomialAll, list(binnedScoringRulesuuBinomial))
+    binnedScoringRulesuUBinomialAll = c(binnedScoringRulesuUBinomialAll, list(binnedScoringRulesuUBinomial))
+    binnedScoringRulesUuBinomialAll = c(binnedScoringRulesUuBinomialAll, list(binnedScoringRulesUuBinomial))
+    binnedScoringRulesUUBinomialAll = c(binnedScoringRulesUUBinomialAll, list(binnedScoringRulesUUBinomial))
+    binnedScoringRulesAuBinomialAll = c(binnedScoringRulesAuBinomialAll, list(binnedScoringRulesAuBinomial))
+    binnedScoringRulesAUBinomialAll = c(binnedScoringRulesAUBinomialAll, list(binnedScoringRulesAUBinomial))
+    binnedScoringRulesuABinomialAll = c(binnedScoringRulesuABinomialAll, list(binnedScoringRulesuABinomial))
+    binnedScoringRulesUABinomialAll = c(binnedScoringRulesUABinomialAll, list(binnedScoringRulesUABinomial))
+    binnedScoringRulesAABinomialAll = c(binnedScoringRulesAABinomialAll, list(binnedScoringRulesAABinomial))
+    
     # save results so far
     save(completeScoreTable, pooledScoreTable, ruralScoreTable, urbanScoreTable, 
          completeScoreTableBinomial, pooledScoreTableBinomial, ruralScoreTableBinomial, urbanScoreTableBinomial, 
+         binnedScoringRulesuuAll, binnedScoringRulesuUAll, binnedScoringRulesUuAll, binnedScoringRulesUUAll, 
+         binnedScoringRulesAuAll, binnedScoringRulesAUAll, binnedScoringRulesuAAll, binnedScoringRulesUAAll, 
+         binnedScoringRulesAAAll, 
+         binnedScoringRulesuuBinomialAll, binnedScoringRulesuUBinomialAll, binnedScoringRulesUuBinomialAll, binnedScoringRulesUUBinomialAll, 
+         binnedScoringRulesAuBinomialAll, binnedScoringRulesAUBinomialAll, binnedScoringRulesuABinomialAll, binnedScoringRulesUABinomialAll, 
+         binnedScoringRulesAABinomialAll, 
          i, file=fileName)
   }
   
@@ -406,6 +551,17 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
        inSamplePooledScoresBinomial=fullPooledScoresBinomial, 
        inSampleUrbanScoresBinomial=fullUrbanScoresBinomial, 
        inSampleRuralScoresBinomial=fullRuralScoresBinomial, 
+       
+       binnedScoringRulesuuAll=averageBinnedScores(binnedScoringRulesuuAll), binnedScoringRulesuUAll=averageBinnedScores(binnedScoringRulesuUAll), 
+       binnedScoringRulesUuAll=averageBinnedScores(binnedScoringRulesUuAll), binnedScoringRulesUUAll=averageBinnedScores(binnedScoringRulesUUAll), 
+       binnedScoringRulesAuAll=averageBinnedScores(binnedScoringRulesAuAll), binnedScoringRulesAUAll=averageBinnedScores(binnedScoringRulesAUAll), 
+       binnedScoringRulesuAAll=averageBinnedScores(binnedScoringRulesuAAll), binnedScoringRulesUAAll=averageBinnedScores(binnedScoringRulesUAAll), 
+       binnedScoringRulesAAAll=averageBinnedScores(binnedScoringRulesAAAll), 
+       binnedScoringRulesuuBinomialAll=averageBinnedScores(binnedScoringRulesuuBinomialAll), binnedScoringRulesuUBinomialAll=averageBinnedScores(binnedScoringRulesuUBinomialAll), 
+       binnedScoringRulesUuBinomialAll=averageBinnedScores(binnedScoringRulesUuBinomialAll), binnedScoringRulesUUBinomialAll=averageBinnedScores(binnedScoringRulesUUBinomialAll), 
+       binnedScoringRulesAuBinomialAll=averageBinnedScores(binnedScoringRulesAuBinomialAll), binnedScoringRulesAUBinomialAll=averageBinnedScores(binnedScoringRulesAUBinomialAll), 
+       binnedScoringRulesuABinomialAll=averageBinnedScores(binnedScoringRulesuABinomialAll), binnedScoringRulesUABinomialAll=averageBinnedScores(binnedScoringRulesUABinomialAll), 
+       binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
        
        fullModelFit=previousFit)
 }

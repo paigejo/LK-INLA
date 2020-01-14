@@ -1798,4 +1798,349 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
   list(tab=tab, parTab=parTab, unroundedTab=unroundedTab)
 }
 
+compareMixtureModeling = function(sigma2=.1^2, n=900) {
+  nu = 1
+  thetas = c(0.08, 0.8) / 2.3
+  nTest = n * 0.1
+  rho = 1
+  
+  # load and the generator dataset and grid used for predictions
+  mixtureCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu)}
+  simulationData = getSimulationDataSetsGivenCovarianceTest(mixtureCorFun, nTotal=n, nTest=nTest, marginalVar=rho, errorVar=sigma2, 
+                                                            nDataSets=2, plotNameRoot=paste0("(0.5*Matern(", thetas[1], ") + 0.5*Matern(", thetas[2], "))"), fileNameRoot="mix", 
+                                                            saveDataSetPlot=FALSE, doPredGrid=TRUE)
+  ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
+  
+  plotNamePrefix = "Figures/finalMixture/finalMixture"
+  plotNameSuffix = paste0("_nugV", round(sigma2, 2), "_n", n, ".pdf")
+  
+  # get the file names of the results from the simulations
+  SPDEname = paste0("mixtureSPDE_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
+                                   "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  LKname = paste0("mixtureLK.RData")
+  LKINLA3name = paste0("mixtureLKINLA_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
+                        round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  LKINLA2name = paste0("mixtureLKINLA_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
+                       round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  
+  # load the simulation results
+  out = load(paste0("savedOutput/simulations/", SPDEname))
+  scoringRulesSPDE = scoringRules
+  fitSPDE = fit
+  covInfoSPDE = covInfo
+  predictionMatrixSPDE = predictionMatrix
+  aggregatedScoringRulesSPDE = aggregatedScoringRules
+  
+  out = load(paste0("savedOutput/simulations/", LKname))
+  scoringRulesLK = scoringRules
+  fitLK = fit
+  covInfoLK = covInfo
+  predictionMatrixLK = predictionMatrix
+  aggregatedScoringRulesLK = aggregatedScoringRules
+  
+  out = load(paste0("savedOutput/simulations/", LKINLA3name))
+  scoringRulesLKINLA3 = scoringRules
+  fitLKINLA3 = fit
+  covInfoLKINLA3 = covInfo
+  predictionMatrixLKINLA3 = predictionMatrix
+  aggregatedScoringRulesLKINLA3 = aggregatedScoringRules
+  
+  out = load(paste0("savedOutput/simulations/", LKINLA2name))
+  scoringRulesLKINLA2 = scoringRules
+  fitLKINLA2 = fit
+  covInfoLKINLA2 = covInfo
+  predictionMatrixLKINLA2 = predictionMatrix
+  aggregatedScoringRulesLKINLA2 = aggregatedScoringRules
+  
+  # modelNames = c("SPDE", "LK", "LKINLA (3 Layer)", "LKINLA (2 Layer)")
+  modelNames = c("SPDE", "LKINLA (3 Layer)", "LKINLA (2 Layer)")
+  
+  # plot correlation functions together
+  spatialCovFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu, distMat=x)}
+  mixtureCovFun = function(x) {
+    out = spatialCovFun(x)
+    out[x == 0] = 1 + sigma2
+    out
+  }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
+  
+  pdf(paste0(plotNamePrefix, "Correlation", plotNameSuffix), width=5, height=5)
+  plot(covInfoSPDE$d, covInfoSPDE$corMean, col="blue", 
+       main="Correlation functions (and 80% CIs)", ylab="Correlation", xlab="Distance", type="l")
+  lines(covInfoSPDE$d, covInfoSPDE$upperCor[1,], col="blue", lty=2)
+  lines(covInfoSPDE$d, covInfoSPDE$lowerCor[1,], col="blue", lty=2)
+  
+  # lines(covInfoLK$d, covInfoLK$corMean, col="black")
+  # # lines(covInfoLK$d, covInfoLK$upperCor, col="black", lty=2)
+  # # lines(covInfoLK$d, covInfoLK$lowerCor, col="black", lty=2)
+  
+  lines(covInfoLKINLA3$d, covInfoLKINLA3$corMean, col="purple")
+  lines(covInfoLKINLA3$d, covInfoLKINLA3$upperCor, col="purple", lty=2)
+  lines(covInfoLKINLA3$d, covInfoLKINLA3$lowerCor, col="purple", lty=2)
+  
+  lines(covInfoLKINLA2$d, covInfoLKINLA2$corMean, col="red")
+  lines(covInfoLKINLA2$d, covInfoLKINLA2$upperCor, col="red", lty=2)
+  lines(covInfoLKINLA2$d, covInfoLKINLA2$lowerCor, col="red", lty=2)
+  
+  lines(covInfoLKINLA2$d, mixtureCorFun(covInfoLKINLA2$d), col="green")
+  
+  # legend("topright", c("SPDE", "LK", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
+  legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
+  dev.off()
+  
+  pdf(paste0(plotNamePrefix, "CorrelationNoCIs", plotNameSuffix), width=5, height=5)
+  plot(covInfoSPDE$d, covInfoSPDE$corMean, col="blue", 
+       main="Correlation functions", ylab="Correlation", xlab="Distance", type="l")
+  
+  # lines(covInfoLK$d, covInfoLK$corMean, col="black")
+  # # lines(covInfoLK$d, covInfoLK$upperCor, col="black", lty=2)
+  # # lines(covInfoLK$d, covInfoLK$lowerCor, col="black", lty=2)
+  
+  lines(covInfoLKINLA3$d, covInfoLKINLA3$corMean, col="purple")
+  
+  lines(covInfoLKINLA2$d, covInfoLKINLA2$corMean, col="red")
+  
+  lines(covInfoLKINLA2$d, mixtureCorFun(covInfoLKINLA2$d), col="green")
+  
+  # legend("topright", c("SPDE", "LK", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
+  legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
+  dev.off()
+  
+  # contract information for separating out prediction types
+  testIndices = (length(fitSPDE$preds) - length(ysTest) + 1):length(fitSPDE$preds)
+  leftOutIndices = (length(fitSPDE$preds) - length(ysTest) + 1):(length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  gridIndices = (length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(fitSPDE$preds)
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
+  
+  # plot prediction standard deviations
+  my_line <- function(x,y,...){
+    # if(diff(range(x)) >= .04)
+      xlim = zlim
+    # else
+    #   xlim = zlim2
+    # if(diff(range(y)) >= .04)
+      ylim = zlim
+    # else
+    #   ylim = zlim2
+    # if(diff(range(c(x, y))) > 0.04)
+    #   par(usr = c(zlim, zlim))
+    # else
+    #   par(usr = c(zlim2, zlim2))
+    # par(usr = c(xlim, ylim))
+    # points(x,y,..., col="blue")
+    abline(a = 0,b = 1,...)
+    points(x[gridIndices],y[gridIndices],..., col="black", cex=.1, pch=".")
+    points(x[leftOutIndices],y[leftOutIndices],..., col="blue", cex=.5, pch=19)
+  }
+  
+  values = data.frame(fitSPDE$sigmas, fitLKINLA3$sigmas, fitLKINLA2$sigmas)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Predictive SDs"), 
+          lims=lims, oma=c(3,3,6,7))
+  
+  my_line <- function(x,y,...){
+    # if(diff(range(x)) >= .04)
+    xlim = zlim
+    # else
+    #   xlim = zlim2
+    # if(diff(range(y)) >= .04)
+    ylim = zlim
+    # else
+    #   ylim = zlim2
+    # if(diff(range(c(x, y))) > 0.04)
+    #   par(usr = c(zlim, zlim))
+    # else
+    #   par(usr = c(zlim2, zlim2))
+    # par(usr = c(xlim, ylim))
+    # points(x,y,..., col="blue")
+    abline(a = 0,b = 1,...)
+    points(x[gridIndicesTest],y[gridIndicesTest],..., col="black", cex=.1, pch=".")
+    points(x[leftOutIndicesTest],y[leftOutIndicesTest],..., col="blue", cex=.5, pch=19)
+  }
+  
+  values = data.frame((fitSPDE$preds[testIndices]-ysTest)^2, (fitLKINLA3$preds[testIndices]-ysTest)^2, (fitLKINLA2$preds[testIndices]-ysTest)^2)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Square Error"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  values = data.frame(abs(fitSPDE$preds[testIndices]-ysTest), abs(fitLKINLA3$preds[testIndices]-ysTest), abs(fitLKINLA2$preds[testIndices]-ysTest))
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Absolute Error"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  values = data.frame((fitSPDE$preds[testIndices]-ysTest)/fitSPDE$sigmas[testIndices], 
+                      (fitLKINLA3$preds[testIndices]-ysTest)/fitLKINLA3$sigmas[testIndices], 
+                      (fitLKINLA2$preds[testIndices]-ysTest)/fitLKINLA2$sigmas[testIndices])
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Studentized Errors"), 
+          lims=lims, oma=c(3,3,6,7))
+  
+  values = data.frame(abs(fitSPDE$preds[testIndices]-ysTest)/fitSPDE$sigmas[testIndices], 
+                      abs(fitLKINLA3$preds[testIndices]-ysTest)/fitLKINLA3$sigmas[testIndices], 
+                      abs(fitLKINLA2$preds[testIndices]-ysTest)/fitLKINLA2$sigmas[testIndices])
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Absolute Studentized Errors"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  # calculate CRPS
+  values = data.frame(crps(ysTest, fitSPDE$preds[testIndices], fitSPDE$sigmas[testIndices]^2, getAverage=FALSE), 
+                      crps(ysTest, fitLKINLA3$preds[testIndices], fitLKINLA3$sigmas[testIndices]^2, getAverage=FALSE), 
+                      crps(ysTest, fitLKINLA2$preds[testIndices], fitLKINLA2$sigmas[testIndices]^2, getAverage=FALSE))
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("CRPS"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  ##### Aggregated results
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  inSampleIndices = (1:9)[-5]
+  leftOutIndices = 5
+  
+  A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
+  aggregatedTruth = A %*% ysTest[gridIndicesTest]
+  
+  sdsSPDE = apply(A %*% fitSPDE$predMat[gridIndices,], 1, sd)
+  # sdsLK = apply(A %*% fitLK$predMat[gridIndices,], 1, sd)
+  sdsLKINLA3 = apply(A %*% fitLKINLA3$predMat[gridIndices,], 1, sd)
+  sdsLKINLA2 = apply(A %*% fitLKINLA2$predMat[gridIndices,], 1, sd)
+  
+  # est = A %*% preds[gridIndices]
+  # aggregatedPredMatSPDlat = A %*% predictionMatrixSPDE[gridIndices,]
+  # vars = apply(aggregatedPredMat, 1, var)
+  # sds = apply(aggregatedPredMat, 1, sd)
+  
+  my_line <- function(x,y,...){
+    # if(diff(range(x)) >= .04)
+    xlim = zlim
+    # else
+    #   xlim = zlim2
+    # if(diff(range(y)) >= .04)
+    ylim = zlim
+    # else
+    #   ylim = zlim2
+    # if(diff(range(c(x, y))) > 0.04)
+    #   par(usr = c(zlim, zlim))
+    # else
+    #   par(usr = c(zlim2, zlim2))
+    # par(usr = c(xlim, ylim))
+    # points(x,y,..., col="blue")
+    abline(a = 0,b = 1,...)
+    points(x[inSampleIndices],y[inSampleIndices],..., col="black", cex=1, pch=19)
+    points(x[leftOutIndices],y[leftOutIndices],..., col="blue", cex=1, pch=19)
+  }
+  
+  values = data.frame((A %*% fitSPDE$preds[gridIndices]-aggregatedTruth)^2, (A %*% fitLKINLA3$preds[gridIndices]-aggregatedTruth)^2, (A %*% fitLKINLA2$preds[gridIndices]-aggregatedTruth)^2)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Square Error"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  values = data.frame((A %*% fitSPDE$preds[gridIndices]-aggregatedTruth)/sdsSPDE, 
+                      (A %*% fitLKINLA3$preds[gridIndices]-aggregatedTruth)/sdsLKINLA3, 
+                      (A %*% fitLKINLA2$preds[gridIndices]-aggregatedTruth)/sdsLKINLA2)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Studentized Error"), 
+          lims=lims, oma=c(3,3,6,7))
+  
+  values = data.frame(sdsSPDE, sdsLKINLA3, sdsLKINLA2)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Predictive SDs"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  # calculate CRPS
+  values = data.frame(crps(aggregatedTruth, A %*% fitSPDE$preds[gridIndices], sdsSPDE^2, getAverage=FALSE), 
+                      crps(aggregatedTruth, A %*% fitLKINLA3$preds[gridIndices], sdsLKINLA3^2, getAverage=FALSE), 
+                      crps(aggregatedTruth, A %*% fitLKINLA2$preds[gridIndices], sdsLKINLA2^2, getAverage=FALSE))
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("CRPS"), 
+          lims=lims, oma=c(3,3,6,7), log="xy")
+  
+  ##### binned results versus distance
+  values = data.frame(scoringRulesSPDE$binnedResults$MSE, scoringRulesLKINLA3$binnedResults$MSE, scoringRulesLKINLA2$binnedResults$MSE)
+  zlim = range(c(as.matrix(values)))
+  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+       main="MSE vs Distance to Observation", xlab="Distance to Observation", ylab="MSE")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  
+  values = data.frame(scoringRulesSPDE$binnedResults$CRPS, scoringRulesLKINLA3$binnedResults$CRPS, scoringRulesLKINLA2$binnedResults$CRPS)
+  zlim = range(c(as.matrix(values)))
+  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+       main="CRPS vs Distance to Observation", xlab="Distance to Observation", ylab="CRPS")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  
+  values = data.frame(scoringRulesSPDE$binnedResults$Width, scoringRulesLKINLA3$binnedResults$Width, scoringRulesLKINLA2$binnedResults$Width)
+  zlim = range(c(as.matrix(values)))
+  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+       main="80% CI Width vs Distance to Observation", xlab="Distance to Observation", ylab="80% CI Width")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  
+  values = data.frame(scoringRulesSPDE$binnedResults$Coverage, scoringRulesLKINLA3$binnedResults$Coverage, scoringRulesLKINLA2$binnedResults$Coverage)
+  zlim = range(c(as.matrix(values)))
+  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+       main="80% Coverage vs Distance to Observation", xlab="Distance to Observation", ylab="80% Coverage")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
+  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
+  abline(h=0.8, lty=2)
+  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+}
+
 

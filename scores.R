@@ -194,7 +194,7 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
 # my.var: a vector of logit-scale predictive variances of the same length as truth
 # estMat: if available, use these probability draws in the integration. Use this argument 
 #         when a gaussian approximation to the (possibly transformed) posterior is unreasonable
-crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL){
+crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL, getAverage=TRUE){
   if(!is.null(est) && !is.null(my.var) && is.null(estMat)) {
     sig = sqrt(my.var)
     x0 <- (truth - est) / sig
@@ -323,5 +323,69 @@ crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL){
     res = sapply(1:length(truth), crpsRow)
   }
   
-  mean(res)
+  if(getAverage)
+    mean(res)
+  else
+    res
 }
+
+# averages a list of many tables, each returned from the getScores function with distanceBreaks set by user
+averageBinnedScores = function(tableList) {
+  
+  if(length(tableList) == 1) {
+    # base case
+    
+    return(as.data.frame(tableList[[1]]))
+  } else {
+    # recursive case
+    
+    firstTable = tableList[[1]]
+    secondTable = tableList[[2]]
+    
+    # make sure all tables are matrices
+    firstTable = as.matrix(firstTable)
+    secondTable = as.matrix(secondTable)
+    
+    # make sure tables have the correct bin distances
+    if(nrow(firstTable) != nrow(secondTable))
+      stop("table dimensions don't match up")
+    if(any(firstTable[,1] != secondTable[,1]))
+      stop("table distances don't match up")
+    
+    # calculate weights for averaging
+    # ns1 = firstTable$nPerBin
+    # ns2 = secondTable$nPerBin
+    ns1 = firstTable[,2]
+    ns2 = secondTable[,2]
+    nsTotal = ns1 + ns2
+    ws1 = ns1 / nsTotal
+    ws2 = ns2 / nsTotal
+    
+    # perform weighted averaging
+    newTable = firstTable
+    newTable[,2] = ns1 + ns2
+    newTable[,3:ncol(firstTable)] = sweep(firstTable[,3:ncol(firstTable)], 1, ws1, "*") + sweep(secondTable[,3:ncol(secondTable)], 1, ws2, "*")
+    
+    # return results recursively
+    return(averageBinnedScores(c(list(newTable), tableList[-(1:2)])))
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
