@@ -492,12 +492,12 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     binnedScoringRulesAA = getScores(truth, est, vars, lower, upper, distances=nndistsAA, breaks=distanceBreaks)
     
     # calculate scores accounting for binomial variation
-    binnedScoringRulesuuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsuu, breaks=distanceBreaks)
-    binnedScoringRulesuUBinomial = getScores(truth[!predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsuU, breaks=distanceBreaks)
-    binnedScoringRulesUuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsUu, breaks=distanceBreaks)
-    binnedScoringRulesUUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsUU, breaks=distanceBreaks)
-    binnedScoringRulesAuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban], doRandomReject=TRUE, distances=nndistsAu, breaks=distanceBreaks)
-    binnedScoringRulesAUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban], doRandomReject=TRUE, distances=nndistsAU, breaks=distanceBreaks)
+    binnedScoringRulesuuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsuu, breaks=distanceBreaks)
+    binnedScoringRulesuUBinomial = getScores(truth[!predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsuU, breaks=distanceBreaks)
+    binnedScoringRulesUuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsUu, breaks=distanceBreaks)
+    binnedScoringRulesUUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsUU, breaks=distanceBreaks)
+    binnedScoringRulesAuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsAu, breaks=distanceBreaks)
+    binnedScoringRulesAUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsAU, breaks=distanceBreaks)
     binnedScoringRulesuABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsuA, breaks=distanceBreaks)
     binnedScoringRulesUABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsUA, breaks=distanceBreaks)
     binnedScoringRulesAABinomial = getScores(truth, est, vars, estMat=estMat, doRandomReject=TRUE, distances=nndistsAA, breaks=distanceBreaks)
