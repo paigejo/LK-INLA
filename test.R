@@ -3642,20 +3642,59 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   dev.off()
   
   # get scoring rules
-  truth = ysTest
-  est = preds[testIndices]
-  vars = predSDs[testIndices]^2
-  lower = fit$lower[testIndices]
-  upper = fit$upper[testIndices]
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  leftOutIndices = (length(preds) - length(ysTest) + 1):(length(preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  gridIndices = (length(preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(preds)
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
+  
+  # first calculate scoring rules at grid points
+  truth = ysTest[gridIndicesTest]
+  est = preds[gridIndices]
+  vars = predSDs[gridIndices]^2
+  lower = fit$lower[gridIndices]
+  upper = fit$upper[gridIndices]
   
   # compute nearest neighbor distances and scores as a function of them
-  testPts = predPts[testIndices,]
-  distMat = rdist(coords, testPts)
+  gridPts = predPts[gridIndices,]
+  distMat = rdist(coords, gridPts)
   nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
-  print("Binned scores:")
-  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
-  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
-  print(scoringRules$binnedResults)
+  print("Binned grid scores:")
+  gridScoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  print(gridScoringRules$pooledResults)
+  print(gridScoringRules$binnedResults)
+  
+  # now calculate square rules at left out points
+  truth = ysTest[leftOutIndicesTest]
+  est = preds[leftOutIndices]
+  vars = predSDs[leftOutIndices]^2
+  lower = fit$lower[leftOutIndices]
+  upper = fit$upper[leftOutIndices]
+  leftOutScoringRules = getScores(truth, est, vars, lower, upper)
+  leftOutScoringRules = data.frame(c(leftOutScoringRules, Time=time[3]))
+  print("Binned left out scores:")
+  print(leftOutScoringRules)
+  
+  scoringRules = list(gridScoringRules=gridScoringRules, leftOutScoringRules=leftOutScoringRules)
+  # 
+  # # get scoring rules
+  # truth = ysTest
+  # est = preds[testIndices]
+  # vars = predSDs[testIndices]^2
+  # lower = fit$lower[testIndices]
+  # upper = fit$upper[testIndices]
+  # 
+  # # compute nearest neighbor distances and scores as a function of them
+  # testPts = predPts[testIndices,]
+  # distMat = rdist(coords, testPts)
+  # nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  # print("Binned scores:")
+  # scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  # scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  # print(scoringRules$binnedResults)
+  
+  
+  
   # print("Grid scores:")
   # print(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
   #                 distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults)
@@ -3663,7 +3702,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # # plot scores as a function of distance
   # distanceScores = getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
   #                            distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults
-  # 
+  
   # pdf(file=paste0("Figures/mixtureSPDEScoreBias", plotNameRoot, ".pdf"), width=5, height=5)
   # plot(distanceScores$NNDist, distanceScores$Bias, pch=19, col="blue", main="Bias", ylab="Bias", xlab="Nearest neighbor distance (km)")
   # abline(h=0, lty=2)
@@ -3706,8 +3745,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # dev.off()
   
   if(!useKenya) {
-    print("Pooled scores:")
-    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+    # print("Pooled scores:")
+    # print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
   } else {
     print("Pooled scores:")
     print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
@@ -3717,8 +3756,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     print(data.frame(c(getScores(truth[ruralTestI], est[ruralTestI], vars[ruralTestI], lower[ruralTestI], upper[ruralTestI]), Time=time[3])))
     print("Urban scores:")
     print(data.frame(c(getScores(truth[urbanTestI], est[urbanTestI], vars[urbanTestI], lower[urbanTestI], upper[urbanTestI]), Time=time[3])))
-    print("Grid scores:")
-    print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
+    # print("Grid scores:")
+    # print(data.frame(c(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI]), Time=time[3])))
   }
   
   # get aggregated predictions
@@ -3728,14 +3767,14 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # my = 100
   # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
   gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
-  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
-  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
-  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  # testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  # gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  # gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
   
   A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
-  aggregatedPreds = A %*% est[gridIndicesEst]
+  aggregatedPreds = A %*% preds[gridIndices]
   
-  truth = A %*% ysTest[gridIndicesEst]
+  truth = A %*% ysTest[gridIndicesTest]
   est = A %*% preds[gridIndices]
   aggregatedPredMat = A %*% fit$predMat[gridIndices,]
   vars = apply(aggregatedPredMat, 1, var)
@@ -3825,13 +3864,16 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   dev.off()
   
   # make prediction coordinates on a grid, and add testing points
+  # urban and rural points are NULL, but they are left in the code in case kenya data used later
   xRange=c(-1,1)
   yRange=c(-1,1)
   mx = 100
   my = 100
   predPts = make.surface.grid(list(x=seq(xRange[1], xRange[2], l=mx), y=seq(yRange[1], yRange[2], l=my)))
   predPts = rbind(predPts, cbind(simulationData$xTest[,1], simulationData$yTest[,1]))
-  ysTest = simulationData$zTest[,1]
+  # ysTest = simulationData$zTest[,1]
+  predPts = rbind(predPts, cbind(simulationData$xGrid, simulationData$yGrid))
+  ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
   
   # fit the model
   if(assumeMeanZero)
@@ -3881,9 +3923,18 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
              xlim=xRangeDat, ylim=yRangeDat)
   dev.off()
   
-  pdf(file=paste0("Figures/mixtureLKLeftOutResiduals", extraPlotName, ".pdf"), width=5, height=5)
   testIndices = (length(preds) - length(ysTest) + 1):length(preds)
-  plot(preds[testIndices], ysTest-preds[testIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted", 
+  leftOutIndices = (length(preds) - length(ysTest) + 1):(length(preds) - length(ysTest) + length(ys))
+  gridIndices = (length(preds) - length(ysTest) + length(ys)):length(preds)
+  
+  pdf(file=paste0("Figures/mixtureLKLeftOutResidualsGrid", extraPlotName, ".pdf"), width=5, height=5)
+  plot(preds[gridIndices], ysTest-preds[gridIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Grid)", 
+       ylab="Residuals", xlab="Fitted")
+  abline(h=0, lty=2)
+  dev.off()
+  
+  pdf(file=paste0("Figures/mixtureLKLeftOutResidualsLeftOut", extraPlotName, ".pdf"), width=5, height=5)
+  plot(preds[preds], ysTest-preds[preds], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Left out)", 
        ylab="Residuals", xlab="Fitted")
   abline(h=0, lty=2)
   dev.off()
@@ -4017,20 +4068,107 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   dev.off()
   
   # get scoring rules
-  truth = ysTest
-  est = preds[testIndices]
-  vars = predSDs[testIndices]^2
-  lower = out$lower[testIndices]
-  upper = out$upper[testIndices]
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  leftOutIndices = (length(preds) - length(ysTest) + 1):(length(preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  gridIndices = (length(preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(preds)
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
+  
+  # first calculate scoring rules at grid points
+  truth = ysTest[gridIndicesTest]
+  est = preds[gridIndices]
+  vars = predSDs[gridIndices]^2
+  lower = fit$lower[gridIndices]
+  upper = fit$upper[gridIndices]
   
   # compute nearest neighbor distances and scores as a function of them
-  testPts = predPts[testIndices,]
-  distMat = rdist(coords, testPts)
+  gridPts = predPts[gridIndices,]
+  distMat = rdist(coords, gridPts)
   nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
-  print("Binned scores:")
-  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
-  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
-  print(scoringRules$binnedResults)
+  print("Binned grid scores:")
+  gridScoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  print(gridScoringRules$pooledResults)
+  print(gridScoringRules$binnedResults)
+  
+  # now calculate square rules at left out points
+  truth = ysTest[leftOutIndicesTest]
+  est = preds[leftOutIndices]
+  vars = predSDs[leftOutIndices]^2
+  lower = fit$lower[leftOutIndices]
+  upper = fit$upper[leftOutIndices]
+  leftOutScoringRules = getScores(truth, est, vars, lower, upper)
+  leftOutScoringRules = data.frame(c(leftOutScoringRules, Time=time[3]))
+  print("Binned left out scores:")
+  print(leftOutScoringRules)
+  
+  scoringRules = list(gridScoringRules=gridScoringRules, leftOutScoringRules=leftOutScoringRules)
+  # 
+  # # get scoring rules
+  # truth = ysTest
+  # est = preds[testIndices]
+  # vars = predSDs[testIndices]^2
+  # lower = fit$lower[testIndices]
+  # upper = fit$upper[testIndices]
+  # 
+  # # compute nearest neighbor distances and scores as a function of them
+  # testPts = predPts[testIndices,]
+  # distMat = rdist(coords, testPts)
+  # nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  # print("Binned scores:")
+  # scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  # scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  # print(scoringRules$binnedResults)
+  
+  
+  
+  # print("Grid scores:")
+  # print(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                 distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults)
+  # 
+  # # plot scores as a function of distance
+  # distanceScores = getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
+  #                            distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults
+  
+  # pdf(file=paste0("Figures/mixtureSPDEScoreBias", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Bias, pch=19, col="blue", main="Bias", ylab="Bias", xlab="Nearest neighbor distance (km)")
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreVar", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Var, pch=19, col="blue", main="Variance", ylab="Variance", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Var)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$MSE, pch=19, col="blue", main="MSE", ylab="MSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$MSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreRMSE", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$RMSE, pch=19, col="blue", main="RMSE", ylab="RMSE", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$RMSE)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCRPS", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$CRPS, pch=19, col="blue", main="CRPS", ylab="CRPS", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$CRPS)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreCvg", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Coverage, pch=19, col="blue", main="80% Coverage", ylab="80% Coverage", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Coverage)))
+  # abline(h=0, lty=2)
+  # dev.off()
+  # 
+  # pdf(file=paste0("Figures/mixtureSPDEScoreWidth", plotNameRoot, ".pdf"), width=5, height=5)
+  # plot(distanceScores$NNDist, distanceScores$Width, pch=19, col="blue", main="Width", ylab="Width", xlab="Nearest neighbor distance (km)", 
+  #      ylim=c(0, max(distanceScores$Width)))
+  # abline(h=0, lty=2)
+  # dev.off()
   
   # get aggregated predictions
   # A = t(sapply(1:(mx*my), getARow))
@@ -4039,14 +4177,14 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   # my = 100
   # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
   gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
-  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
-  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
-  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  # testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  # gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  # gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
   
   A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
-  aggregatedPreds = A %*% est[gridIndicesEst]
+  aggregatedPreds = A %*% preds[gridIndices]
   
-  truth = A %*% ysTest[gridIndicesEst]
+  truth = A %*% ysTest[gridIndicesTest]
   est = A %*% preds[gridIndices]
   aggregatedPredMat = A %*% fit$predMat[gridIndices,]
   vars = apply(aggregatedPredMat, 1, var)
@@ -4475,20 +4613,59 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   dev.off()
   
   # get scoring rules
-  truth = ysTest
-  est = preds[testIndices]
-  vars = predSDs[testIndices]^2
-  lower = fit$lower[testIndices]
-  upper = fit$upper[testIndices]
+  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  leftOutIndices = (length(preds) - length(ysTest) + 1):(length(preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  gridIndices = (length(preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(preds)
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
+  
+  # first calculate scoring rules at grid points
+  truth = ysTest[gridIndicesTest]
+  est = preds[gridIndices]
+  vars = predSDs[gridIndices]^2
+  lower = fit$lower[gridIndices]
+  upper = fit$upper[gridIndices]
   
   # compute nearest neighbor distances and scores as a function of them
-  testPts = predPts[testIndices,]
-  distMat = rdist(coords, testPts)
+  gridPts = predPts[gridIndices,]
+  distMat = rdist(coords, gridPts)
   nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
-  print("Binned scores:")
-  scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
-  scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
-  print(scoringRules$binnedResults)
+  print("Binned grid scores:")
+  gridScoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  print(gridScoringRules$pooledResults)
+  print(gridScoringRules$binnedResults)
+  
+  # now calculate square rules at left out points
+  truth = ysTest[leftOutIndicesTest]
+  est = preds[leftOutIndices]
+  vars = predSDs[leftOutIndices]^2
+  lower = fit$lower[leftOutIndices]
+  upper = fit$upper[leftOutIndices]
+  leftOutScoringRules = getScores(truth, est, vars, lower, upper)
+  leftOutScoringRules = data.frame(c(leftOutScoringRules, Time=time[3]))
+  print("Binned left out scores:")
+  print(leftOutScoringRules)
+  
+  scoringRules = list(gridScoringRules=gridScoringRules, leftOutScoringRules=leftOutScoringRules)
+  # 
+  # # get scoring rules
+  # truth = ysTest
+  # est = preds[testIndices]
+  # vars = predSDs[testIndices]^2
+  # lower = fit$lower[testIndices]
+  # upper = fit$upper[testIndices]
+  # 
+  # # compute nearest neighbor distances and scores as a function of them
+  # testPts = predPts[testIndices,]
+  # distMat = rdist(coords, testPts)
+  # nndists = apply(distMat, 2, function(x) {min(x[x != 0])})
+  # print("Binned scores:")
+  # scoringRules = getScores(truth, est, vars, lower, upper, distances=nndists, breaks=distanceBreaks)
+  # scoringRules$pooledResults = data.frame(c(scoringRules$pooledResults, Time=time[3]))
+  # print(scoringRules$binnedResults)
+  
+  
+  
   # print("Grid scores:")
   # print(getScores(truth[gridTestI], est[gridTestI], vars[gridTestI], lower[gridTestI], upper[gridTestI], 
   #                 distances=nndists[gridTestI], breaks=distanceBreaks)$binnedResults)
@@ -4539,8 +4716,8 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   # dev.off()
   
   if(!useKenya) {
-    print("Pooled scores:")
-    print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
+    # print("Pooled scores:")
+    # print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
   } else {
     print("Pooled scores:")
     print(data.frame(c(getScores(truth, est, vars, lower, upper), Time=time[3])))
@@ -4561,14 +4738,14 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   # my = 100
   # predPts = make.surface.grid(list(x=seq(xRangeDat[1], xRangeDat[2], l=mx), y=seq(yRangeDat[1], yRangeDat[2], l=my)))
   gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
-  testIndices = (length(preds) - length(ysTest) + 1):length(preds)
-  gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
-  gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
+  # testIndices = (length(preds) - length(ysTest) + 1):length(preds)
+  # gridIndices = (length(preds) - length(simulationData$xGrid) + 1):length(preds)
+  # gridIndicesEst = (length(est) - length(simulationData$xGrid) + 1):length(est)
   
   A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
-  aggregatedPreds = A %*% est[gridIndicesEst]
+  aggregatedPreds = A %*% preds[gridIndices]
   
-  truth = A %*% ysTest[gridIndicesEst]
+  truth = A %*% ysTest[gridIndicesTest]
   est = A %*% preds[gridIndices]
   aggregatedPredMat = A %*% fit$predMat[gridIndices,]
   vars = apply(aggregatedPredMat, 1, var)

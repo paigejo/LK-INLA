@@ -126,7 +126,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
     
     resultsListLKINLA = c(resultsListLKINLA, list(results))
   }
-  names(resultsListLKINLA) = modelNames[5:8]
+  names(resultsListLKINLA) = modelNames[3:6]
   
   ##### concatenate all scoring rules into a single table (one for in sample, and one for out of sample)
   allModelNames = c(names(resultsListSPDE), names(resultsListLKINLA))
@@ -180,15 +180,15 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
                                t(sapply(resultsListLKINLA, function(x) {colMeans(x$fit$ruralScoreTable[,-1], na.rm=TRUE)})))
   
   # reorder them in order to group them by model rather than by urbanicity
-  tempModelISPDE = seq(1, 1+4*2, by=4)
-  tempModelILKINLA = seq(13, 13+4*2, by=4)
-  scoresLeaveOutRegion = scoresLeaveOutRegion[c(tempModelISPDE, tempModelISPDE+1, tempModelISPDE+2, tempModelISPDE+3, 
+  tempModelISPDE = seq(1, 1+4, by=2)
+  tempModelILKINLA = seq(7, 7+4*2, by=4)
+  scoresLeaveOutRegion = scoresLeaveOutRegion[c(tempModelISPDE, tempModelISPDE+1, 
                                                 tempModelILKINLA, tempModelILKINLA+1, tempModelILKINLA+2, tempModelILKINLA+3),]
   scoresLeaveOutRegion = data.frame(scoresLeaveOutRegion)
   
   # add in column saying how the scores were aggregated (across all clusters, urban clusters, or rural clusters). 
   # Also add in the model name as the name of the row
-  scoresLeaveOutRegion = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 8), scoresLeaveOutRegion)
+  scoresLeaveOutRegion = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 6), scoresLeaveOutRegion)
   # rownames(scoresInSample) = rep(allModelNames, each=3)
   
   ## concatenate all leave out region results (accounting for binomial variation)
@@ -200,15 +200,15 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
                                t(sapply(resultsListLKINLA, function(x) {colMeans(x$fit$ruralScoreTableBinomial[,-1], na.rm=TRUE)})))
   
   # reorder them in order to group them by model rather than by urbanicity
-  tempModelISPDE = seq(1, 1+4*2, by=4)
-  tempModelILKINLA = seq(13, 13+4*2, by=4)
-  scoresLeaveOutRegionBinomial = scoresLeaveOutRegionBinomial[c(tempModelISPDE, tempModelISPDE+1, tempModelISPDE+2, tempModelISPDE+3, 
+  tempModelISPDE = seq(1, 1+4, by=2)
+  tempModelILKINLA = seq(7, 7+4*2, by=4)
+  scoresLeaveOutRegionBinomial = scoresLeaveOutRegionBinomial[c(tempModelISPDE, tempModelISPDE+1, 
                                                 tempModelILKINLA, tempModelILKINLA+1, tempModelILKINLA+2, tempModelILKINLA+3),]
   scoresLeaveOutRegionBinomial = data.frame(scoresLeaveOutRegionBinomial)
   
   # add in column saying how the scores were aggregated (across all clusters, urban clusters, or rural clusters). 
   # Also add in the model name as the name of the row
-  scoresLeaveOutRegionBinomial = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 8), scoresLeaveOutRegionBinomial)
+  scoresLeaveOutRegionBinomial = cbind("Subset"=rep(c("Avg", "Urban", "Rural"), 6), scoresLeaveOutRegionBinomial)
   # rownames(scoresInSample) = rep(allModelNames, each=3)
   
   ## get all leave one out results, remove them from the end sample results
