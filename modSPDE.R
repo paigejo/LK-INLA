@@ -296,17 +296,14 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     obsUrban = dat$urban[-thisSampleI]
     
     # first calculate all distances, broken down by urban, rural, and all aggregated observations
-    distMatuu = rdist(obsCoords[!obsUrban], predPts[!predUrban])
-    distMatuU = rdist(obsCoords[!obsUrban], predPts[predUrban])
-    distMatUu = rdist(obsCoords[obsUrban], predPts[!predUrban])
-    distMatUU = rdist(obsCoords[obsUrban], predPts[predUrban])
-    distMatAu = rdist(obsCoords, predPts[!predUrban])
-    distMatAU = rdist(obsCoords, predPts[predUrban])
-    distMatuA = rdist(obsCoords[!obsUrban], predPts)
-    distMatuA = rdist(obsCoords[!obsUrban], predPts)
-    distMatUA = rdist(obsCoords[obsUrban], predPts)
-    distMatUA = rdist(obsCoords[obsUrban], predPts)
-    distMatAA = rdist(obsCoords, predPts)
+    distMatuu = rdist(obsCoords[!obsUrban,], predPts[!predUrban,])
+    distMatuU = rdist(obsCoords[!obsUrban,], predPts[predUrban,])
+    distMatUu = rdist(obsCoords[obsUrban,], predPts[!predUrban,])
+    distMatUU = rdist(obsCoords[obsUrban,], predPts[predUrban,])
+    distMatAu = rdist(obsCoords, predPts[!predUrban,])
+    distMatAU = rdist(obsCoords, predPts[predUrban,])
+    distMatuA = rdist(obsCoords[!obsUrban,], predPts)
+    distMatUA = rdist(obsCoords[obsUrban,], predPts)
     distMatAA = rdist(obsCoords, predPts)
     
     # now calculate nearest distances
@@ -317,10 +314,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     nndistsAu = apply(distMatAu, 2, function(x) {min(x[x != 0])})
     nndistsAU = apply(distMatAU, 2, function(x) {min(x[x != 0])})
     nndistsuA = apply(distMatuA, 2, function(x) {min(x[x != 0])})
-    nndistsuA = apply(distMatuA, 2, function(x) {min(x[x != 0])})
     nndistsUA = apply(distMatUA, 2, function(x) {min(x[x != 0])})
-    nndistsUA = apply(distMatUA, 2, function(x) {min(x[x != 0])})
-    nndistsAA = apply(distMatAA, 2, function(x) {min(x[x != 0])})
     nndistsAA = apply(distMatAA, 2, function(x) {min(x[x != 0])})
     tempMax = c(nndistsuu, nndistsuU, nndistsUu, nndistsUU, nndistsAu, nndistsAU, nndistsuA, nndistsuA, nndistsUA, nndistsUA, nndistsAA, nndistsAA)
     distanceMax = max(distanceMax, tempMax)
@@ -462,17 +456,17 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     predPts = fit$predPts
     obsCoords = fit$obsCoords
     predUrban = dat$urban[thisSampleI]
-    obsUrban = dat$urban[-thisSampleI]
+    obsUrban = dat$urban[!thisSampleI]
     
     # first calculate all distances, broken down by urban, rural, and all aggregated observations
-    distMatuu = rdist(obsCoords[!obsUrban], predPts[!predUrban])
-    distMatuU = rdist(obsCoords[!obsUrban], predPts[predUrban])
-    distMatUu = rdist(obsCoords[obsUrban], predPts[!predUrban])
-    distMatUU = rdist(obsCoords[obsUrban], predPts[predUrban])
-    distMatAu = rdist(obsCoords, predPts[!predUrban])
-    distMatAU = rdist(obsCoords, predPts[predUrban])
-    distMatuA = rdist(obsCoords[!obsUrban], predPts)
-    distMatUA = rdist(obsCoords[obsUrban], predPts)
+    distMatuu = rdist(obsCoords[!obsUrban,], predPts[!predUrban,])
+    distMatuU = rdist(obsCoords[!obsUrban,], predPts[predUrban,])
+    distMatUu = rdist(obsCoords[obsUrban,], predPts[!predUrban,])
+    distMatUU = rdist(obsCoords[obsUrban,], predPts[predUrban,])
+    distMatAu = rdist(obsCoords, predPts[!predUrban,])
+    distMatAU = rdist(obsCoords, predPts[predUrban,])
+    distMatuA = rdist(obsCoords[!obsUrban,], predPts)
+    distMatUA = rdist(obsCoords[obsUrban,], predPts)
     distMatAA = rdist(obsCoords, predPts)
     
     # now calculate nearest distances
@@ -488,7 +482,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     
     # calculate scores without accounting for binomial variation
     binnedScoringRulesuu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsuu, breaks=distanceBreaks)
-    binnedScoringRulesuU = getScores(truth[!predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsuU, breaks=distanceBreaks)
+    binnedScoringRulesuU = getScores(truth[predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsuU, breaks=distanceBreaks)
     binnedScoringRulesUu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsUu, breaks=distanceBreaks)
     binnedScoringRulesUU = getScores(truth[predUrban], est[predUrban], vars[predUrban], lower[predUrban], upper[predUrban], distances=nndistsUU, breaks=distanceBreaks)
     binnedScoringRulesAu = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], lower[!predUrban], upper[!predUrban], distances=nndistsAu, breaks=distanceBreaks)
