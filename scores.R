@@ -176,8 +176,10 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
       rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
     }
     
-    res[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(res[atLowerEdge][i], (1-rejectLower[i]))})
-    res[atUpperEdge] = sapply(1:length(atUpperEdge), function(i) {min(res[atUpperEdge][i], (1-rejectUpper[i]))})
+    if(length(atLowerEdge) != 0)
+      res[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(res[atLowerEdge][i], (1-rejectLower[i]))})
+    if(length(atUpperEdge) != 0)
+      res[atUpperEdge] = sapply(1:length(atUpperEdge), function(i) {min(res[atUpperEdge][i], (1-rejectUpper[i]))})
     # res[atLowerEdge] = res[atLowerEdge] & (!rejectLower)
     # res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
   }
