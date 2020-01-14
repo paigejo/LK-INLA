@@ -290,10 +290,10 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     }
     
     ##### Break scores down by distance
-    predPts = cbind(dat$east, dat$north)[thisSampleI]
-    obsCoords = cbind(dat$east, dat$north)[-thisSampleI]
+    predPts = cbind(dat$east, dat$north)[thisSampleI,]
+    obsCoords = cbind(dat$east, dat$north)[!thisSampleI,]
     predUrban = dat$urban[thisSampleI]
-    obsUrban = dat$urban[-thisSampleI]
+    obsUrban = dat$urban[!thisSampleI]
     
     # first calculate all distances, broken down by urban, rural, and all aggregated observations
     distMatuu = rdist(obsCoords[!obsUrban,], predPts[!predUrban,])
