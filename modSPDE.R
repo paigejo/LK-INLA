@@ -274,7 +274,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   
   # calculate bins for nearest neighbor distances
   distanceMax = 0
-  for(i in startFrom:nFold) {
+  for(i in 1:nFold) {
     if(!stratifiedValidation) {
       thisRegion = regions[i]
       thisSampleI = allRegions == thisRegion
