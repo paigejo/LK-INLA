@@ -32,8 +32,11 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
     getSubScores = function(uniqueBinI, truth, est, var, lower, upper, estMat, significance) {
       thisDatI = binsI == uniqueBinI
       
+      newEstMat = NULL
+      if(!is.null(estMat))
+        newEstMat = matrix(estMat[thisDatI,], ncol=ncol(estMat))
       getScores(truth[thisDatI], est[thisDatI], var[thisDatI], lower[thisDatI], upper[thisDatI], 
-                matrix(estMat[thisDatI,], ncol=ncol(estMat)), significance, doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
+                newEstMat, significance, doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
     }
     
     # calculate scores for each bin individually
