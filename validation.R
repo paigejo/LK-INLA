@@ -1,7 +1,7 @@
 library(kableExtra)
 
 # validate the smoothing models by leaving out data from one county at a time
-validateExample = function(dat=NULL, targetPop=c("women", "children"), 
+validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
                            startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE) {
   targetPop = match.arg(targetPop)
   
@@ -35,14 +35,14 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
   argList = list(list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
   otherArguments = list(dataType=dataType, verbose=verbose, loadPreviousFit=loadPreviousFit, family="betabinomial", 
-                        loadPreviousResults=loadPreviousResults)
+                        loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
   
   modelNames = c()
   for(i in 1:length(argList)) {
     args = argList[[i]]
     separateRanges = args$separateRanges
     urbanEffect = args$urbanEffect
-    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect)
+    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, "_LORegion", leaveOutRegion)
     if(urbanEffect)
       urbanText = "U"
     else
@@ -83,14 +83,14 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
   otherArguments = list(dataType=dataType, loadPreviousFit=loadPreviousFit, family="betabinomial", 
-                        loadPreviousResults=loadPreviousResults)
+                        loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
   
   for(i in 1:length(argList)) {
     args = argList[[i]]
     separateRanges = args$separateRanges
     urbanEffect = args$urbanEffect
     fileName = paste0("savedOutput/validation/resultsLKINLA", resultNameRootLower, "_urbanEffect", urbanEffect, 
-                      "_separateRanges", separateRanges)
+                      "_separateRanges", separateRanges, "_LORegion", leaveOutRegion)
     if(separateRanges)
       separateText = "S"
     else
@@ -212,7 +212,6 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
   # rownames(scoresInSample) = rep(allModelNames, each=3)
   
   ## get all leave one out results, remove them from the end sample results
-  browser() # remove CPO, WAIC, DIC columns from in sample scores, add to LOO cluster scores
   leaveOneOutI = sapply(c("CPO", "WAIC", "DIC"), function(x) {which(grepl(x, names(scoresInSample)))})
   scoresLeaveOneOut = scoresInSample[,c(1, leaveOneOutI)]
   scoresInSample = scoresInSample[,-leaveOneOutI]
@@ -220,7 +219,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"),
   scoresInSampleBinomial = scoresInSampleBinomial[,-leaveOneOutI]
   
   ##### Save all scoring rule tables
-  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, ".RData")
+  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, "_LORegion", leaveOutRegion, ".RData")
   allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
                    scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial)
   save(allScores, file=fileName)
