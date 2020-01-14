@@ -493,7 +493,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     
     # calculate scores accounting for binomial variation
     binnedScoringRulesuuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsuu, breaks=distanceBreaks)
-    binnedScoringRulesuUBinomial = getScores(truth[!predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsuU, breaks=distanceBreaks)
+    binnedScoringRulesuUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsuU, breaks=distanceBreaks)
     binnedScoringRulesUuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsUu, breaks=distanceBreaks)
     binnedScoringRulesUUBinomial = getScores(truth[predUrban], est[predUrban], vars[predUrban], estMat=estMat[predUrban,], doRandomReject=TRUE, distances=nndistsUU, breaks=distanceBreaks)
     binnedScoringRulesAuBinomial = getScores(truth[!predUrban], est[!predUrban], vars[!predUrban], estMat=estMat[!predUrban,], doRandomReject=TRUE, distances=nndistsAu, breaks=distanceBreaks)
