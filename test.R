@@ -3804,6 +3804,104 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
 }
 
+# tests the fitLKINLAStandard function using data simulated from the LK model
+# buffer: buffer distance between domain edge of basis lattice and domain edge of data.
+# n: number of observations
+# xRange: range of x coordinates
+# yRange: range of y coordinates
+# nx: number of basis function lattice points in x directions
+# NOTE: ny is determined automatically to match scale of x lattice points
+# Xmat: design matrix
+# ys: observations
+# first.time: is first time evaluating function.  User should always set to FALSE
+# thetas: originally was c(.1, 3), but 3 is too large
+# testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, nu=1, 
+#                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=14, testCovs=FALSE, 
+#                                   printVerboseTimings=FALSE, latInfo=NULL, n=900, thetas=NULL, 
+#                                   testfrac=.1, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
+#                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
+#                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
+#                                   leaveOutRegion=TRUE) {
+testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
+                                          useKenya=FULL, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
+  # set random seeds for each simulation
+  set.seed(seed)
+  allSeeds = sample(1:1000000, nSamples, replace = FALSE)
+  
+  # call testLKINLAModelMixture for each simulation requested
+  temp = function(i) {
+    print(paste0("Beginning simulation ", i, "/", nSamples))
+    thisPlotNameRoot = paste0("sim", i)
+    do.call("testLKINLAModelMixture", c(list(seed = allSeeds[i], NC=NC, nLayer=nLayer, separateRanges=separateRanges, n=n, nu=nu, sigma2=sigma2, 
+                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, plotNameRoot=thisPlotNameRoot), list(...)))
+  }
+  sapply(1:nSamples, temp)
+  
+  # load in the results
+  print("Loading in simulation results")
+  # set plotNameRoot
+  if(length(NC) == 1) {
+    if(separateRanges)
+      NC = c(14, 126) # by default, use two layers with the finest layer having resolution equal to 10km
+  }
+  if(separateRanges)
+    nLayer = length(NC)
+  
+  # set plotNameRoot
+  # > 2/.08 * 5
+  # [1] 125
+  # > 2/.8 * 5
+  # [1] 12.5
+  ncText = ""
+  if(length(NC) == 1) {
+    if(separateRanges)
+      ncText = "_NC14_126"
+    else {
+      ncText = paste0("_NC", NC)
+    }
+  } else {
+    tempText = do.call("paste0", as.list(c(NC[1], paste0("_", NC[-1]))))
+    ncText = paste0("_NC", tempText)
+  }
+  plotNameRoot = paste0("_L", nLayer, ncText, "_sepRange", separateRanges, "_n", n, "_nu", nu, "_nugV", 
+                        round(sigma2, 2), "_Kenya", useKenya, "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
+  
+  # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+  allScoringRules = list()
+  allFits = list()
+  allCovInfo = list()
+  allPredictionMatrices = list()
+  allAggregatedScoringRules = list()
+  for(i in 1:nSamples) {
+    out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
+    allScoringRules = c(allScoringRules, scoringRules)
+    allFits = c(allFits, fit)
+    allCovInfo = c(allCovInfo, covInfo)
+    allPredictionMatrices = c(allPredictionMatrices, predictionMatrix)
+    allAggregatedScoringRules = c(allAggregatedScoringRules, aggregatedScoringRules)
+  }
+  
+  ##### average results from each simulation
+  # pointwise scoring rules
+  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
+  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
+  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
+  ns = binnedScoringRules[,2]
+  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  
+  # covInfo
+  # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+  #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
+  d = covInfo[[1]]$d
+  covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
+  upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
+  lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
+  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
+  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
+  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+}
+
 # tests the fitLKStandard function using data simulated from the LK model
 # buffer: buffer distance between domain edge of basis lattice and domain edge of data.
 # n: number of observations

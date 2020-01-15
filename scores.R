@@ -14,7 +14,7 @@
 # breaks: the number of equal spaced bins to break the scores into as a function of distance
 # NOTE: Discrete, count level credible intervals are estimated based on the input estMat along with coverage and CRPS
 getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=NULL, significance=.8, 
-                     distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=TRUE) {
+                     distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE) {
   
   # if distances is included, must also break down scoring rules by distance bins
   if(!is.null(distances)) {
@@ -58,7 +58,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   }
   
   # first calculate bias, variance, and MSE
-  out = mse(truth, est)
+  out = mse(truth, est, getAverage=getAverage)
   thisMSE = out$MSE
   thisBias = out$bias
   thisVar = out$var
@@ -66,16 +66,21 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   # calculate coverage and credible interval width with and without binomial variation
   coverage = coverage(truth, est, var, lower, upper, estMat=estMat, 
                       significance=significance, returnIntervalWidth=TRUE, 
-                      doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
-  thisCoverage = coverage[1]
-  thisWidth = coverage[2]
+                      doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject, getAverage=getAverage)
+  if(getAverage) {
+    thisCoverage = coverage[1]
+    thisWidth = coverage[2]
+  } else {
+    thisCoverage = coverage[,1]
+    thisWidth = coverage[,2]
+  }
   
   # calculate CRPS
-  thisCRPS = crps(truth, est, var, estMat=estMat)
+  thisCRPS = crps(truth, est, var, estMat=estMat, getAverage=getAverage)
   
   # collect the results in a data frame
   results = matrix(c(thisBias, thisVar, thisMSE, sqrt(thisMSE), thisCRPS, thisCoverage, 
-                     thisWidth), nrow=1)
+                     thisWidth), ncol=7)
   colnames(results) = c("Bias", "Var", "MSE", "RMSE", "CRPS", "Coverage", "Width")
   results = as.data.frame(results)
   
@@ -88,25 +93,36 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
 }
 
 # calculate bias, variance, and MSE
-mse <- function(truth, est, weights=NULL){
+mse <- function(truth, est, weights=NULL, getAverage=TRUE){
   if(!is.null(weights))
     weights = weights / sum(weights)
   
   res = est - truth
-  thisBias = est - truth
   
   if(!is.null(weights)) {
-    MSE = sum(res^2 * weights)
-    bias=sum(res * weights)
     thisVar = (res - sum(res*weights))^2
-    thisVar = sum(thisVar * weights)
+    if(getAverage) {
+      MSE = sum(res^2 * weights)
+      bias=sum(res * weights)
+      thisVar = sum(thisVar * weights)
+    } else {
+      MSE = res^2
+      bias = res
+    }
+    
     out = list(MSE=MSE, bias=bias, var=thisVar)
   }
   else {
-    MSE = mean(res^2)
-    bias=mean(res)
     thisVar = (res - mean(res))^2
-    thisVar = mean(thisVar)
+    if(getAverage) {
+      MSE = mean(res^2)
+      bias=mean(res)
+      thisVar = mean(thisVar)
+    } else {
+      MSE = res^2
+      bias=res
+    }
+    
     out = list(MSE=MSE, bias=bias, var=thisVar)
   }
   
@@ -124,7 +140,7 @@ mse <- function(truth, est, weights=NULL){
 # significance: the significance level of the credible interval. By default 80%
 # doRandomReject, doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
 coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
-                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE, doFuzzyReject=TRUE){
+                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE){
   
   if(any(is.null(lower)) || any(is.null(upper))) {
     # if the user did not supply their own credible intervals, we must get them ourselves given the other information
@@ -187,9 +203,17 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     # res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
   }
   
-  allResults = c(coverage=mean(res))
-  if(returnIntervalWidth)
-    allResults = c(allResults, width=mean(width))
+  if(getAverage)
+    allResults = c(coverage=mean(res))
+  else
+    allResults = c(coverage=res)
+  
+  if(returnIntervalWidth) {
+    if(getAverage)
+      allResults = c(allResults, width=mean(width))
+    else
+      allResults = cbind(allResults, width=width)
+  }
   
   allResults
 }
