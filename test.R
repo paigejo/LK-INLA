@@ -4890,6 +4890,77 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
 }
 
+# runs the testSPDEModelMixture function for multiple realizations, saves results
+testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
+                                          useKenya=FULL, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
+  # set random seeds for each simulation
+  set.seed(seed)
+  allSeeds = sample(1:1000000, nSamples, replace = FALSE)
+  
+  # call testSPDEModelMixture for each simulation requested
+  temp = function(i) {
+    print(paste0("Beginning simulation ", i, "/", nSamples))
+    thisPlotNameRoot = paste0("sim", i)
+    do.call("testSPDEModelMixture", c(list(seed = allSeeds[i], n=n, nu=nu, sigma2=sigma2, 
+                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, plotNameRoot=thisPlotNameRoot), list(...)))
+  }
+  sapply(1:nSamples, temp)
+  
+  # set plotNameRoot
+  plotNameRoot = paste0("_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", useKenya, 
+                        "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
+  
+  # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
+  allScoringRules = list()
+  allFits = list()
+  allCovInfo = list()
+  allPredictionMatrices = list()
+  allAggregatedScoringRules = list()
+  for(i in 1:nSamples) {
+    out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
+    allScoringRules = c(allScoringRules, scoringRules)
+    allFits = c(allFits, fit)
+    allCovInfo = c(allCovInfo, covInfo)
+    allPredictionMatrices = c(allPredictionMatrices, predictionMatrix)
+    allAggregatedScoringRules = c(allAggregatedScoringRules, aggregatedScoringRules)
+  }
+  
+  ##### average results from each simulation
+  # pointwise scoring rules
+  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
+  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
+  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
+  ns = binnedScoringRules[,2]
+  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  
+  # covInfo
+  # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+  #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
+  d = covInfo[[1]]$d
+  covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
+  upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
+  lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
+  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
+  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
+  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  
+  # aggregated scoring rules
+  # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+  #                               includedAggregatedScores=includedAggregatedScores)
+  # predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  fullPredictionMatrix = do.call("rbind", allPredictionMatrices)
+  leftOutIndices = seq(5, nrow(fullPredictionMatrix), by=9)
+  leftOutPredictionMatrix = fullPredictionMatrix[leftOutIndices, ]
+  leftInPredictionMatrix = fullPredictionMatrix[-leftOutIndices, ]
+  leftOutScores = getScores(leftOutPredictionMatrix[,1], leftOutPredictionMatrix[,2], leftOutPredictionMatrix[,3]^2)
+  leftInScores = getScores(leftInPredictionMatrix[,1], leftInPredictionMatrix[,2], leftInPredictionMatrix[,3]^2)
+  aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
+  
+  ##### Save results
+  save(file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+}
+
 # test how close we can get to the spatial correlation function:
 testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200, 
                                         nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=13, 
