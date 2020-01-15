@@ -341,6 +341,10 @@ averageBinnedScores = function(tableList) {
     # base case
     
     return(as.data.frame(tableList[[1]]))
+  } else if(is.null(tableList[[2]])) {
+    # minor case (some of the tables might be NULL)
+    
+    return(averageBinnedScores(tableList[-2]))
   } else {
     # recursive case
     
