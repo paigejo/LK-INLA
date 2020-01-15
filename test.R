@@ -3978,15 +3978,15 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
     m=0
   else
     m=1
-  time = system.time(out <- fitLKStandard(coords, ys, predCoords=predPts, nLayer=nLayer, NC=NC,
+  time = system.time(fit <- fitLKStandard(coords, ys, predCoords=predPts, nLayer=nLayer, NC=NC,
                                           nBuffer=nBuffer, normalize=normalize, fixedFunctionArgs=list(m=m), 
                                           xRangeDat=xRange, yRangeDat=yRange, separatea.wght=separatea.wght, 
                                           doMatern=doMatern, fixNu=fixNu))
-  mod = out$mod
-  preds = out$preds
-  predSDs = out$sigmas
-  parameterSummaryTable = out$parameterSummaryTable
-  parSim = out$parSim
+  mod = fit$mod
+  preds = fit$preds
+  predSDs = fit$sigmas
+  parameterSummaryTable = fit$parameterSummaryTable
+  parSim = fit$parSim
   
   # print out the total time
   print(paste0("Total time: ", time[3]))
@@ -4047,13 +4047,13 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   # plot estimates on interpretable scale (effective range, marginal variance)
   
   # transform all the hyperparameter samples to their relevant values
-  totalVariance = out$totalVariance
-  lambdaVals = out$lambdaVals
-  rhoVals = out$rhoVals
-  nuggetVarVals = out$nuggetVarVals
-  a.wghtVals = out$a.wghtVals
-  alphaVals = out$alphaVals
-  nuVals = out$nuVals
+  totalVariance = fit$totalVariance
+  lambdaVals = fit$lambdaVals
+  rhoVals = fit$rhoVals
+  nuggetVarVals = fit$nuggetVarVals
+  a.wghtVals = fit$a.wghtVals
+  alphaVals = fit$alphaVals
+  nuVals = fit$nuVals
   
   par(mfrow=c(1,1))
   # plot(mod$marginals.hyperpar$`Theta1 for field`, type="l", main="Marginal for log range")
@@ -4178,8 +4178,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   truth = ysTest[gridIndicesTest]
   est = preds[gridIndices]
   vars = predSDs[gridIndices]^2
-  lower = fit$lower[gridIndices]
-  upper = fit$upper[gridIndices]
+  lower = mod$lower[gridIndices]
+  upper = mod$upper[gridIndices]
   
   # compute nearest neighbor distances and scores as a function of them
   gridPts = predPts[gridIndices,]
@@ -4194,8 +4194,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   truth = ysTest[leftOutIndicesTest]
   est = preds[leftOutIndices]
   vars = predSDs[leftOutIndices]^2
-  lower = fit$lower[leftOutIndices]
-  upper = fit$upper[leftOutIndices]
+  lower = mod$lower[leftOutIndices]
+  upper = mod$upper[leftOutIndices]
   leftOutScoringRules = getScores(truth, est, vars, lower, upper)
   leftOutScoringRules = data.frame(c(leftOutScoringRules, Time=time[3]))
   print("Binned left out scores:")
@@ -4207,8 +4207,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   # truth = ysTest
   # est = preds[testIndices]
   # vars = predSDs[testIndices]^2
-  # lower = fit$lower[testIndices]
-  # upper = fit$upper[testIndices]
+  # lower = mod$lower[testIndices]
+  # upper = mod$upper[testIndices]
   # 
   # # compute nearest neighbor distances and scores as a function of them
   # testPts = predPts[testIndices,]
