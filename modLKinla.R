@@ -598,7 +598,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
                              effRangeRange=NULL, leaveOutRegionName=NULL, kmres=5, 
                              separateRanges=FALSE, doValidation=FALSE, previousFit=NULL, 
                              precomputedNormalizationFun=NULL, family=c("binomial", "betabinomial"), 
-                             leaveOutI=NULL) {
+                             leaveOutI=NULL, verbose=TRUE) {
   # load observations
   dataType = match.arg(dataType)
   predictionType = match.arg(predictionType)
@@ -701,7 +701,8 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
                        nPostSamples, family, obsNs, clusterEffect, latInfo, 
                        initialEffectiveRange, initialAlphas, effRangeRange, predClusterI, 
                        separateRanges=separateRanges, doValidation=doValidation, 
-                       previousFit=previousFit, precomputedNormalizationFun=precomputedNormalizationFun), 
+                       previousFit=previousFit, precomputedNormalizationFun=precomputedNormalizationFun, 
+                       verbose=verbose), 
     list(obsCoords=obsCoords, obsValues=obsValues, xObs=xObs, xPred=xPred, obsNs=obsNs, obsUrban=obsUrban, 
          predPts=predPts, predClusterI=predClusterI, predsUrban=predsUrban, kmres=kmres)
   )
