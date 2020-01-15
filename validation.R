@@ -64,7 +64,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
     } else {
       print(paste0("Loading SPDE model results with urbanEffect=", urbanEffect, "..."))
       if(file.exists(paste0(fileName, "compact.RData")))
-        load(paste0(fileName, ".RData"))
+        load(paste0(fileName, "compact.RData"))
       else {
         load(paste0(fileName, ".RData"))
         results$fit$fullModelFit = NULL
@@ -116,7 +116,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
     } else {
       print(paste0("Loading LK-INLA model results with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       if(file.exists(paste0(fileName, "compact.RData")))
-        load(paste0(fileName, ".RData"))
+        load(paste0(fileName, "compact.RData"))
       else {
         load(paste0(fileName, ".RData"))
         results$fit$fullModelFit = NULL
