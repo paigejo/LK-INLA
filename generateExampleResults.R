@@ -20,7 +20,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   ##### run SPDE 
   argList = list(list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType, family="betabinomial")
+  otherArguments = list(dataType=dataType, verbose=verbose, family="betabinomial")
   
   for(i in 1:length(argList)) {
     if(startI <= i) {
@@ -47,7 +47,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType, family="betabinomial")
+  otherArguments = list(dataType=dataType, verbose=verbose, family="betabinomial")
   
   for(i in 1:length(argList)) {
     if(startI <= i + 2) {

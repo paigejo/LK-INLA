@@ -3926,15 +3926,17 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   testIndices = (length(preds) - length(ysTest) + 1):length(preds)
   leftOutIndices = (length(preds) - length(ysTest) + 1):(length(preds) - length(ysTest) + length(ys))
   gridIndices = (length(preds) - length(ysTest) + length(ys)):length(preds)
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
   
   pdf(file=paste0("Figures/mixtureLKLeftOutResidualsGrid", extraPlotName, ".pdf"), width=5, height=5)
-  plot(preds[gridIndices], ysTest-preds[gridIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Grid)", 
+  plot(preds[gridIndices], ysTest[gridIndicesTest]-preds[gridIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Grid)", 
        ylab="Residuals", xlab="Fitted")
   abline(h=0, lty=2)
   dev.off()
   
   pdf(file=paste0("Figures/mixtureLKLeftOutResidualsLeftOut", extraPlotName, ".pdf"), width=5, height=5)
-  plot(preds[preds], ysTest-preds[preds], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Left out)", 
+  plot(preds[leftOutIndices], ysTest[leftOutIndicesTest]-preds[leftOutIndices], pch=19, cex=.5, col="blue", main="Residuals versus fitted (Left out)", 
        ylab="Residuals", xlab="Fitted")
   abline(h=0, lty=2)
   dev.off()
@@ -4008,10 +4010,10 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   spatialCovFun = spatialCorFun
   mixtureCovFun = function(x) {
     out = spatialCorFun(x)[1,]
-    out[x == 0] = 1 + sqrt(.1)
+    out[x == 0] = 1 + sigma2
     out
   }
-  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sqrt(.1))) }
+  mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
   
   # compute the covariance function for many different hyperparameter samples
   out = covarianceDistributionLK(mod$LKinfo, alphaVals, lambdaVals, a.wghtVals, rhoVals, nuggetVarVals)
