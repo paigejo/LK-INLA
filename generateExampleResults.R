@@ -20,16 +20,15 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   ##### run SPDE 
   argList = list(list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType)
+  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType, family="betabinomial")
   
   for(i in 1:length(argList)) {
     if(startI <= i) {
       args = argList[[i]]
       clusterEffect = args$clusterEffect
       urbanEffect = args$urbanEffect
-      fileName = paste0("savedOutput/resultsSPDE", resultNameRootLower, 
+      fileName = paste0("savedOutput/", resultNameRoot, "/resultsSPDE", resultNameRootLower, 
                         "_urbanEffect", urbanEffect, ".RData")
-      
       
       print(paste0("Fitting SPDE model with urbanEffect=", urbanEffect, "..."))
       spdeResults = do.call("fitSPDEKenyaDat", c(args, otherArguments))
@@ -37,6 +36,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       print(paste0("Aggregating SPDE model with urbanEffect=", urbanEffect, "..."))
       aggregatedSPDEresults = aggregateModelResultsKenya(spdeResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
+      spdeResults$mod = NULL # make sure saved file isn't too large
       results = list(fit=spdeResults, aggregatedResults=aggregatedSPDEresults)
       save(results, file=fileName)
     }
@@ -47,14 +47,14 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType)
+  otherArguments = list(dataType=dataType, verbose=verbose, dataType=dataType, family="betabinomial")
   
   for(i in 1:length(argList)) {
     if(startI <= i + 2) {
       args = argList[[i]]
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
-      fileName = paste0("savedOutput/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
+      fileName = paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
                         "_urbanEffect", urbanEffect, ".RData")
       
       print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
@@ -63,7 +63,8 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       print(paste0("Aggregating LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       aggregatedLKINLAresults = aggregateModelResultsKenya(lkinlaResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
-      results = list(fit=spdeResults, aggregatedResults=aggregatedLKINLAresults)
+      lkinlaResults$mod = NULL # make sure saved file isn't too large
+      results = list(fit=lkinlaResults, aggregatedResults=aggregatedLKINLAresults)
       save(results, file=fileName)
     }
   }
