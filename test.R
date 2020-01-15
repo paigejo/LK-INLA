@@ -4331,6 +4331,77 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   invisible(NULL)
 }
 
+# seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
+# nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
+# printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
+# plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
+# testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot
+testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
+  # set random seeds for each simulation
+  set.seed(seed)
+  allSeeds = sample(1:1000000, nSamples, replace = FALSE)
+  
+  # call testLKINLAModelMixture for each simulation requested
+  temp = function(i) {
+    print(paste0("Beginning simulation ", i, "/", nSamples))
+    thisPlotNameRoot = paste0("sim", i)
+    do.call("testLKModelMixture", c(list(seed = allSeeds[i], plotNameRoot=thisPlotNameRoot), list(...)))
+  }
+  sapply(1:nSamples, temp)
+  
+  # load in the results
+  
+  # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+  allScoringRules = list()
+  allFits = list()
+  allCovInfo = list()
+  allPredictionMatrices = list()
+  allAggregatedScoringRules = list()
+  for(i in 1:nSamples) {
+    out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
+    allScoringRules = c(allScoringRules, list(scoringRules))
+    allFits = c(allFits, list(fit))
+    allCovInfo = c(allCovInfo, list(covInfo))
+    allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
+    allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
+  }
+  
+  ##### average results from each simulation
+  # pointwise scoring rules
+  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
+  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
+  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
+  ns = binnedScoringRules[,2]
+  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  
+  # covInfo
+  # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+  #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
+  d = covInfo[[1]]$d
+  covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
+  upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
+  lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
+  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
+  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
+  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  
+  # aggregated scoring rules
+  # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+  #                               includedAggregatedScores=includedAggregatedScores)
+  # predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  fullPredictionMatrix = do.call("rbind", allPredictionMatrices)
+  leftOutIndices = seq(5, nrow(fullPredictionMatrix), by=9)
+  leftOutPredictionMatrix = fullPredictionMatrix[leftOutIndices, ]
+  leftInPredictionMatrix = fullPredictionMatrix[-leftOutIndices, ]
+  leftOutScores = getScores(leftOutPredictionMatrix[,1], leftOutPredictionMatrix[,2], leftOutPredictionMatrix[,3]^2)
+  leftInScores = getScores(leftInPredictionMatrix[,1], leftInPredictionMatrix[,2], leftInPredictionMatrix[,3]^2)
+  aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
+  
+  ##### Save results
+  save(file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+}
+
 # tests the fitSPDE function using data simulated from the LK model
 # buffer: buffer distance between domain edge of basis lattice and domain edge of data.
 # n: number of observations
