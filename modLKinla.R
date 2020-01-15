@@ -896,6 +896,8 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   binnedScoringRulesuABinomialAll = list()
   binnedScoringRulesUABinomialAll = list()
   binnedScoringRulesAABinomialAll = list()
+  singleScores = c()
+  singleScoresBinomial = c()
   startFrom = 1
   
   # load previous results if necessary
@@ -1091,6 +1093,21 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     binnedScoringRulesUABinomialAll = c(binnedScoringRulesUABinomialAll, list(binnedScoringRulesUABinomial))
     binnedScoringRulesAABinomialAll = c(binnedScoringRulesAABinomialAll, list(binnedScoringRulesAABinomial))
     
+    ##### Calculate individual scoring rules
+    # calculate the scoring rules, and add nearest neighbor distances for each stratum
+    if(!stratifiedValidation) {
+      thisSingleScores = data.frame(c(list(Region=thisRegion, dataI=which(thisSampleI), NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA), getScores(truth, est, vars, lower, upper, estMat, getAverage=FALSE), Time=time[3]))
+      thisSingleScoresBinomial = data.frame(c(list(Region=thisRegion, dataI=which(thisSampleI), NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA), getScores(truth, est, vars, lower, upper, estMatBinomial, getAverage=FALSE), Time=time[3]))
+    }
+    else {
+      thisSingleScores = data.frame(c(list(Fold=i, dataI=which(thisSampleI), NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA), getScores(truth, est, vars, lower, upper, estMat, getAverage=FALSE), Time=time[3]))
+      thisSingleScoresBinomial = data.frame(c(list(Fold=i, dataI=which(thisSampleI), NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA), getScores(truth, est, vars, lower, upper, estMatBinomial, getAverage=FALSE), Time=time[3]))
+    }
+    
+    # concatenate the results
+    singleScoresBinomial = rbind(singleScoresBinomial, thisSingleScoresBinomial)
+    singleScores = rbind(singleScores, thisSingleScores)
+    
     # save results so far
     save(completeScoreTable, pooledScoreTable, ruralScoreTable, urbanScoreTable, 
          completeScoreTableBinomial, pooledScoreTableBinomial, ruralScoreTableBinomial, urbanScoreTableBinomial, 
@@ -1100,6 +1117,7 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
          binnedScoringRulesuuBinomialAll, binnedScoringRulesuUBinomialAll, binnedScoringRulesUuBinomialAll, binnedScoringRulesUUBinomialAll, 
          binnedScoringRulesAuBinomialAll, binnedScoringRulesAUBinomialAll, binnedScoringRulesuABinomialAll, binnedScoringRulesUABinomialAll, 
          binnedScoringRulesAABinomialAll, 
+         singleScores, singleScoresBinomial, 
          i, file=fileName)
   }
   
@@ -1129,6 +1147,8 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
        binnedScoringRulesAuBinomialAll=averageBinnedScores(binnedScoringRulesAuBinomialAll), binnedScoringRulesAUBinomialAll=averageBinnedScores(binnedScoringRulesAUBinomialAll), 
        binnedScoringRulesuABinomialAll=averageBinnedScores(binnedScoringRulesuABinomialAll), binnedScoringRulesUABinomialAll=averageBinnedScores(binnedScoringRulesUABinomialAll), 
        binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
+       
+       singleScores, singleScoresBinomial, 
        
        fullModelFit=previousFit)
 }

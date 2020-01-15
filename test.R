@@ -4891,7 +4891,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
 }
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
-testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
+testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2=0.1^2, 
                                           useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
   # set random seeds for each simulation
   set.seed(seed)
