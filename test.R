@@ -3900,6 +3900,21 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
   uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
   lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  
+  # aggregated scoring rules
+  # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
+  #                               includedAggregatedScores=includedAggregatedScores)
+  # predictionMatrix = data.frame(Truth=truth, Est=est, SDs=sds, Lower=lower, Upper=upper)
+  fullPredictionMatrix = do.call("rbind", allPredictionMatrices)
+  leftOutIndices = seq(5, nrow(fullPredictionMatrix), by=9)
+  leftOutPredictionMatrix = fullPredictionMatrix[leftOutIndices, ]
+  leftInPredictionMatrix = fullPredictionMatrix[-leftOutIndices, ]
+  leftOutScores = getScores(leftOutPredictionMatrix[,1], leftOutPredictionMatrix[,2], leftOutPredictionMatrix[,3]^2)
+  leftInScores = getScores(leftInPredictionMatrix[,1], leftInPredictionMatrix[,2], leftInPredictionMatrix[,3]^2)
+  aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
+  
+  ##### Save results
+  save(file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
