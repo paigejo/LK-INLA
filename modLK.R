@@ -470,7 +470,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, medians=medians, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo, 
               interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c(), parSim=finalParSim, fixHyperpar=is.na(parameterSummaryTable[1,5]), 
               rhoVals=rhoVals, nuggetVarVals=nuggetVarVals, lambdaVals=lambdaVals, alphaVals=alphaVals, nuVals=nuVals, a.wghtVals=a.wghtVals, totalVariance=totalVariance, 
-              predSimulations=predSimulations))
+              predMat=predSimulations$g.draw))
 }
 
 # this function generates results for the simulation study for the LK (standard) model

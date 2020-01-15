@@ -3874,11 +3874,11 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
     out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
-    allScoringRules = c(allScoringRules, scoringRules)
-    allFits = c(allFits, fit)
-    allCovInfo = c(allCovInfo, covInfo)
-    allPredictionMatrices = c(allPredictionMatrices, predictionMatrix)
-    allAggregatedScoringRules = c(allAggregatedScoringRules, aggregatedScoringRules)
+    allScoringRules = c(allScoringRules, list(scoringRules))
+    allFits = c(allFits, list(fit))
+    allCovInfo = c(allCovInfo, list(covInfo))
+    allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
+    allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
   }
   
   ##### average results from each simulation
@@ -3930,8 +3930,8 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
 testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
-                              extraPlotName="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
-                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2) {
+                              plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
+                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot) {
   set.seed(seed)
   
   # if(useKenya)
@@ -4892,7 +4892,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
 testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2=0.1^2, 
-                                          useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
+                                        useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -4918,26 +4918,27 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
     out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
-    allScoringRules = c(allScoringRules, scoringRules)
-    allFits = c(allFits, fit)
-    allCovInfo = c(allCovInfo, covInfo)
-    allPredictionMatrices = c(allPredictionMatrices, predictionMatrix)
-    allAggregatedScoringRules = c(allAggregatedScoringRules, aggregatedScoringRules)
+    allScoringRules = c(allScoringRules, list(scoringRules))
+    allFits = c(allFits, list(fit))
+    allCovInfo = c(allCovInfo, list(covInfo))
+    allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
+    allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
   }
   
   ##### average results from each simulation
   # pointwise scoring rules
-  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
+  allPooledScoringRules = do.call("rbind", lapply(allScoringRules, function(x) {x$pooledResults}))
   allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
   binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
   ns = binnedScoringRules[,2]
   pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
-  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  pooledScoringRules = as.data.frame(matrix(pooledScoringRules, nrow=1))
+  names(pooledScoringRules) = names(binnedScoringRules)
   
   # covInfo
   # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
   #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
-  d = covInfo[[1]]$d
+  d = allCovInfo[[1]]$d
   covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
   upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
   lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
