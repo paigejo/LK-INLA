@@ -351,11 +351,21 @@ averageBinnedScores = function(tableList) {
     firstTable = as.matrix(firstTable)
     secondTable = as.matrix(secondTable)
     
-    # make sure tables have the correct bin distances
-    if(nrow(firstTable) != nrow(secondTable))
-      stop("table dimensions don't match up")
-    if(any(firstTable[,1] != secondTable[,1]))
-      stop("table distances don't match up")
+    # make sure tables have matched bins
+    uniqueDists = sort(unique(c(firstTable[,1], secondTable[,1])))
+    firstMatch = match(firstTable[,1], uniqueDists)
+    secondMatch = match(secondTable[,1], uniqueDists)
+    newFirstTable = matrix(0, nrow=length(uniqueDists), ncol=ncol(firstTable))
+    newFirstTable[,1] = uniqueDists
+    newFirstTable[firstMatch,] = firstTable
+    colnames(newFirstTable) = colnames(firstTable)
+    newSecondTable = matrix(0, nrow=length(uniqueDists), ncol=ncol(secondTable))
+    newSecondTable[,1] = uniqueDists
+    newSecondTable[secondMatch,] = secondTable
+    colnames(newSecondTable) = colnames(secondTable)
+    
+    firstTable = newFirstTable
+    secondTable = newSecondTable
     
     # calculate weights for averaging
     # ns1 = firstTable$nPerBin
