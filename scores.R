@@ -195,10 +195,21 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
       rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
     }
     
-    if(length(atLowerEdge) != 0)
+    # determine minimum differences between probabilities
+    deltas = apply(estMat, 1, function(x) {min(diff(sort(unique(x))))})
+    
+    if(length(atLowerEdge) != 0) {
       res[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(res[atLowerEdge][i], (1-rejectLower[i]))})
-    if(length(atUpperEdge) != 0)
+      
+      # if reject, reduce CI width
+      width[atLowerEdge] = width[atLowerEdge] - deltas[atLowerEdge] * as.numeric(rejectLower)
+    }
+    if(length(atUpperEdge) != 0) {
       res[atUpperEdge] = sapply(1:length(atUpperEdge), function(i) {min(res[atUpperEdge][i], (1-rejectUpper[i]))})
+      
+      # if reject, reduce CI width
+      width[atUpperEdge] = width[atUpperEdge] - deltas[atUpperEdge] * as.numeric(rejectUpper)
+    }
     # res[atLowerEdge] = res[atLowerEdge] & (!rejectLower)
     # res[atUpperEdge] = res[atUpperEdge] & (!rejectUpper)
   }

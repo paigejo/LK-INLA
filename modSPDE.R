@@ -549,8 +549,8 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     }
     
     # concatenate the results
-    thisSingleScoresBinomial = rbind(singleScoresBinomial, thisSingleScoresBinomial)
-    thisSingleScores = rbind(singleScores, thisSingleScores)
+    singleScoresBinomial = rbind(singleScoresBinomial, thisSingleScoresBinomial)
+    singleScores = rbind(singleScores, thisSingleScores)
     
     # save results so far
     save(completeScoreTable, pooledScoreTable, ruralScoreTable, urbanScoreTable, 
@@ -561,7 +561,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
          binnedScoringRulesuuBinomialAll, binnedScoringRulesuUBinomialAll, binnedScoringRulesUuBinomialAll, binnedScoringRulesUUBinomialAll, 
          binnedScoringRulesAuBinomialAll, binnedScoringRulesAUBinomialAll, binnedScoringRulesuABinomialAll, binnedScoringRulesUABinomialAll, 
          binnedScoringRulesAABinomialAll, 
-         thisSingleScores, thisSingleScoresBinomial, 
+         singleScores, singleScoresBinomial, 
          i, file=fileName)
   }
   
@@ -591,6 +591,8 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
        binnedScoringRulesAuBinomialAll=averageBinnedScores(binnedScoringRulesAuBinomialAll), binnedScoringRulesAUBinomialAll=averageBinnedScores(binnedScoringRulesAUBinomialAll), 
        binnedScoringRulesuABinomialAll=averageBinnedScores(binnedScoringRulesuABinomialAll), binnedScoringRulesUABinomialAll=averageBinnedScores(binnedScoringRulesUABinomialAll), 
        binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
+       
+       singleScores, singleScoresBinomial, 
        
        fullModelFit=previousFit)
 }
