@@ -813,6 +813,10 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   latInfo = previousFit$latInfo
   precomputedNormalizationFun = previousFit$precomputedNormalizationFun
   
+  # set up sample table of indices if using stratified validation
+  if(stratifiedValidation && is.null(sampleTable))
+    sampleTable = getValidationI(dat=dat, dataType=dataType)
+  
   # get region names
   allRegions = countyToRegion(dat$admin1)
   regions = sort(unique(allRegions))
