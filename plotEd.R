@@ -1,36 +1,33 @@
 # script for plotting predictions for secondary education completion in Kenya
 # source("plotGenerator.R")
-resultNameRootLower = "ed"
+resultName = "Ed"
+resultNameRootLower = tolower(resultName)
 
-modelClasses = c(rep("SPDE", 4), rep("LK-INLA", 4))
-modelVariations = rep(c("uc", "uC", "Uc", "UC"), 2)
+modelClasses = c(rep("SPDE", 2), rep("LK-INLA", 4))
+modelVariations = c("u", "U", "ui", "uI", "Ui", "UI")
 groupPlot = rep(c(FALSE, TRUE), 4)
 
 ##### before we make any plots, get the scale on which to put all of them
 # first get the file names for the results to load in later
 filenames = c()
-argList = list(list(urbanEffect = FALSE, clusterEffect = FALSE), 
-               list(urbanEffect = FALSE, clusterEffect = TRUE), 
-               list(urbanEffect = TRUE, clusterEffect = FALSE), 
-               list(urbanEffect = TRUE, clusterEffect = TRUE))
 
+argList = list(list(urbanEffect = FALSE), 
+               list(urbanEffect = TRUE))
 for(i in 1:length(argList)) {
   args = argList[[i]]
-  clusterEffect = args$clusterEffect
   urbanEffect = args$urbanEffect
-  filenames = c(filenames, paste0("savedOutput/resultsSPDE", resultNameRootLower, "_clusterEffect", clusterEffect, 
-                    "_urbanEffect", urbanEffect, ".RData"))
+  filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, ".RData"))
 }
-argList = list(list(urbanEffect = FALSE, clusterEffect = FALSE), 
-               list(urbanEffect = FALSE, clusterEffect = TRUE), 
-               list(urbanEffect = TRUE, clusterEffect = FALSE), 
-               list(urbanEffect = TRUE, clusterEffect = TRUE))
 
+argList = list(list(urbanEffect = FALSE, separateRanges = FALSE), 
+               list(urbanEffect = FALSE, separateRanges = TRUE), 
+               list(urbanEffect = TRUE, separateRanges = FALSE), 
+               list(urbanEffect = TRUE, separateRanges = TRUE))
 for(i in 1:length(argList)) {
   args = argList[[i]]
-  clusterEffect = args$clusterEffect
+  separateRanges = args$separateRanges
   urbanEffect = args$urbanEffect
-  filenames = c(filenames, paste0("savedOutput/resultsLKINLA", resultNameRootLower, "_clusterEffect", clusterEffect, 
+  filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
                     "_urbanEffect", urbanEffect, ".RData"))
 }
 
@@ -71,12 +68,93 @@ fullWidthRange = range(c(regionWidthRange, countyWidthRange, pixelWidthRange, cl
 meanRange = fullPredRange
 widthRange = fullWidthRange
 
+# get correlograms/covariograms
+if(FALSE) {
+  cgramList = list()
+  for(j in 1:length(filenames)) {
+    modelName = paste(modelClasses[j], modelVariations[j])
+    
+    # load this model and get the covariogram if necessary
+    print(paste0("Loading ", modelName))
+    out = load(filenames[j])
+    if(!("cgram" %in% names(results))) {
+      print("Calculating covariogram...")
+      hyperDraws = results$fit$hyperMat
+      
+      # determine if this model has a cluster effect
+      thisModelClass = modelClasses[j]
+      
+      # hyperparameters will be drawn differently depending on the type of model
+      if(thisModelClass == "SPDE") {
+        # get hyperparameter draws
+        effectiveRangeVals = hyperDraws[1,]
+        varVals = hyperDraws[2,]^2
+        nuggetVarVals = rep(0, ncol(hyperDraws))
+        
+        # get range of the data and the SPDE basis function mesh for which to compute the covariograms
+        out = load(paste0("dataPointsKenya.RData"))
+        xRangeDat = dataPointsKenya$xRange
+        yRangeDat = dataPointsKenya$yRange
+        mesh = results$fit$mesh
+        
+        # compute the covariance function for the different hyperparameter samples
+        cgram = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
+      } else if(thisModelClass == "LK-INLA") {
+        # get lattice information object
+        latInfo = results$fit$latInfo
+        
+        # get hyperparameter draws
+        separateRanges = grepl("separateRangesTRUE", filenames[j])
+        nLayer = length(latInfo)
+        if(separateRanges)
+          alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
+        else
+          alphaI = 4:(3+nLayer-1)
+        zSamples = matrix(hyperDraws[,alphaI], ncol=length(alphaI))
+        xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
+        xSamples = rbind(xSamples, 1-colSums(xSamples))
+        
+        
+        nuggetVarVals = rep(0, ncol(hyperDraws))
+        if(separateRanges) {
+          kappaVals = t(sweep(2.3/exp(hyperDraws[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
+          rhoVals = exp(hyperDraws[,nLayer+2])
+        } else {
+          latticeWidth = latInfo[[1]]$latWidth
+          kappaVals = 2.3/exp(hyperDraws[,2]) * latticeWidth
+          rhoVals = exp(hyperDraws[,3])
+        }
+        alphaMat = xSamples
+        
+        # compute the covariance function for many different hyperparameter samples
+        out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+      } else {
+        stop(paste0("Unrecognized model class: ", thisModelClass))
+      }
+      
+      # save results
+      results$cgram = cgram
+      print("Saving covariogram...")
+      save(results, file=filenames[j])
+    } else {
+      print("Loading covariogram...")
+      cgram = results$cgram
+    }
+    
+    # append to our list of covariograms
+    cgramList = c(cgramList, list(cgram))
+  }
+}
+
 # set plot tick marks to be reasonable on logit and log scales
 meanTicks = pretty(c(.01, meanRange[2]), n=10)
 meanTicks = meanTicks[-c(1, 6, 8, 10, 12)]
 meanTickLabels = as.character(meanTicks)
 widthTicks = pretty(widthRange, n=10)
 widthTickLabels = as.character(widthTicks)
+widthTicks = widthTicks[-1]
+widthTickLabels = widthTickLabels[-1]
+
 # meanTickLabels[c(5, 7, 9, 11, 13)] = ""
 
 # add in a few extra tick marks

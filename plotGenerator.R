@@ -2,7 +2,7 @@ library(colorspace)
 library(mgcv)
 
 # makes plots as well as parameter estimate tables for the example applications in the manuscript
-makeAllPlots = function(dataType=c("mort", "ed"), resultFilenames, modelClasses, modelVariations, 
+makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses, modelVariations, 
                         areaLevels=c("Region", "County", "Pixel", "Cluster"), 
                         meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
                         plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
@@ -110,7 +110,7 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
     
     print("Plotting central estimates and credible interval widths...")
     width = 400 * numberModels
-    png(file=paste0("figures/", resultNameRoot, "/preds", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=1000)
+    png(file=paste0("Figures/", resultNameRoot, "/preds", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=1000)
     
     if(thisArea %in% c("Region", "County"))
       par(mfrow=c(2,numberModels))
@@ -226,11 +226,11 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
     
     if(thisArea %in% c("Region", "County")) {
       width = 200 * numberModels
-      png(file=paste0("figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=width)
+      png(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=width)
     }
     else {
       width = 2 * numberModels
-      pdf(file=paste0("figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=width)
+      pdf(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=width)
     }
     
     # collect predictions and proportion urban per area/point
@@ -434,7 +434,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   cols = rainbow(numberModels)
   browser()
   width = 4 * ceiling(numberModels/2)
-  pdf(file=paste0("figures/", resultNameRoot, "/covariograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
+  pdf(file=paste0("Figures/", resultNameRoot, "/covariograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
   par(mfrow=c(2,ceiling(numberModels/2)))
   
   # plot the covariograms separately
@@ -465,7 +465,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   }
   dev.off()
   
-  pdf(file=paste0("figures/", resultNameRoot, "/covariogramsAll", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/", resultNameRoot, "/covariogramsAll", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
   
   # plot the covariograms together
   allModelNames = paste(modelClasses, modelVariations)
@@ -504,7 +504,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   
   print("Plotting correlograms...")
   width = 4 * ceiling(numberModels/2)
-  pdf(file=paste0("figures/", resultNameRoot, "/correlograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
+  pdf(file=paste0("Figures/", resultNameRoot, "/correlograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
   par(mfrow=c(2,ceiling(numberModels/2)))
   
   # plot the correlograms
@@ -535,7 +535,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   }
   dev.off()
   
-  pdf(file=paste0("figures/", resultNameRoot, "/correlogramsAll", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
+  pdf(file=paste0("Figures/", resultNameRoot, "/correlogramsAll", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
   
   # plot the correlograms together
   allModelNames = paste(modelClasses, modelVariations)
@@ -779,7 +779,7 @@ plotSingleModelPredictions = function(dat=NULL, results, modelName="", targetPop
     print("Plotting central estimates and credible interval widths...")
     numberModels=1
     width = 400 * numberModels
-    png(file=paste0("figures/", resultNameRoot, "/", plotNameRoot, thisArea, ".png"), width=width, height=1000)
+    png(file=paste0("Figures/", resultNameRoot, "/", plotNameRoot, thisArea, ".png"), width=width, height=1000)
     
     if(thisArea %in% c("Region", "County"))
       par(mfrow=c(2,numberModels))

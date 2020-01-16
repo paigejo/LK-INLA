@@ -592,7 +592,7 @@ validateSPDEKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
        binnedScoringRulesuABinomialAll=averageBinnedScores(binnedScoringRulesuABinomialAll), binnedScoringRulesUABinomialAll=averageBinnedScores(binnedScoringRulesUABinomialAll), 
        binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
        
-       singleScores=singleScores, singleScoresBinomial=singleScoresBinomialfile, 
+       singleScores=singleScores, singleScoresBinomial=singleScoresBinomial, 
        
        fullModelFit=previousFit)
 }
