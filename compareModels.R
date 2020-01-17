@@ -1908,7 +1908,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
   legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
   dev.off()
   
-  # contract information for separating out prediction types
+  # construct information for separating out prediction types
   testIndices = (length(fitSPDE$preds) - length(ysTest) + 1):length(fitSPDE$preds)
   leftOutIndices = (length(fitSPDE$preds) - length(ysTest) + 1):(length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]))
   gridIndices = (length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(fitSPDE$preds)

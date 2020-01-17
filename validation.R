@@ -665,6 +665,342 @@ printValidationResults = function(resultNameRoot="Ed") {
   print(add_header_above(fullTab, c(" "=1, "BYM2"=4, "SPDE"=4), italic=TRUE, bold=TRUE, escape=FALSE))
 }
 
+plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
+                                 startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE) {
+  targetPop = match.arg(targetPop)
+  
+  # load in relevant data for the given example
+  if(targetPop == "women") {
+    resultNameRoot="Ed"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaDataEd.RData")
+      dat = ed
+    }
+    load("../U5MR/popGridAdjustedWomen.RData")
+  } else if(targetPop == "children") {
+    resultNameRoot="Mort"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaData.RData")
+      dat = mort
+    }
+    load("../U5MR/popGridAdjusted.RData")
+  }
+  resultNameRootLower = tolower(resultNameRoot)
+  dataType = resultNameRootLower
+  
+  # get region names
+  regions = sort(unique(countyToRegion(as.character(dat$admin1))))
+  
+  # Load all scoring rule tables
+  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, "_LORegion", leaveOutRegion, ".RData")
+  # allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
+  #                  scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial, 
+  #                  
+  #                  binnedScoringRulesuuAll=binnedScoringRulesuuAll, 
+  #                  binnedScoringRulesuUAll=binnedScoringRulesuUAll, 
+  #                  binnedScoringRulesUuAll=binnedScoringRulesUuAll, 
+  #                  binnedScoringRulesUUAll=binnedScoringRulesUUAll, 
+  #                  binnedScoringRulesAuAll=binnedScoringRulesAuAll, 
+  #                  binnedScoringRulesAUAll=binnedScoringRulesAUAll, 
+  #                  binnedScoringRulesuAAll=binnedScoringRulesuAAll, 
+  #                  binnedScoringRulesUAAll=binnedScoringRulesUAAll, 
+  #                  binnedScoringRulesAAAll=binnedScoringRulesAAAll, 
+  #                  binnedScoringRulesuuBinomialAll=binnedScoringRulesuuBinomialAll, 
+  #                  binnedScoringRulesuUBinomialAll=binnedScoringRulesuUBinomialAll, 
+  #                  binnedScoringRulesUuBinomialAll=binnedScoringRulesUuBinomialAll, 
+  #                  binnedScoringRulesUUBinomialAll=binnedScoringRulesUUBinomialAll, 
+  #                  binnedScoringRulesAuBinomialAll=binnedScoringRulesAuBinomialAll, 
+  #                  binnedScoringRulesAUBinomialAll=binnedScoringRulesAUBinomialAll, 
+  #                  binnedScoringRulesuABinomialAll=binnedScoringRulesuABinomialAll, 
+  #                  binnedScoringRulesUABinomialAll=binnedScoringRulesUABinomialAll, 
+  #                  binnedScoringRulesAABinomialAll=binnedScoringRulesAABinomialAll, 
+  #                  
+  #                  singleScoresAll=singleScoresAll, 
+  #                  singleScoresBinomialAll=singleScoresBinomialAll)
+  # save(allScores, file=fileName)
+  out = load(fileName)
+  modelNames = names(allScores$singleScoresBinomialAll)
+  
+  ##### Start with single observation scoring rules
+  # construct information for separating out prediction types
+  sortI = sort(allScores$singleScoresBinomialAll$spdeu$dataI, index.return=TRUE)$ix
+  
+  ## pair plots
+  # plot prediction standard deviations
+  my_line <- function(x,y,...){
+    # if(diff(range(x)) >= .04)
+    xlim = zlim
+    # else
+    #   xlim = zlim2
+    # if(diff(range(y)) >= .04)
+    ylim = zlim
+    # else
+    #   ylim = zlim2
+    # if(diff(range(c(x, y))) > 0.04)
+    #   par(usr = c(zlim, zlim))
+    # else
+    #   par(usr = c(zlim2, zlim2))
+    # par(usr = c(xlim, ylim))
+    # points(x,y,..., col="blue")
+    abline(a = 0,b = 1,...)
+    points(x[!dat$urban],y[!dat$urban],..., col="green", pch=19, cex=.1)
+    points(x[dat$urban],y[dat$urban],..., col="blue", pch=19, cex=.1)
+  }
+  
+  values = data.frame(allScores$singleScoresBinomialAll$spdeu$RMSE[sortI], allScores$singleScoresBinomialAll$lkinlaus$RMSE[sortI], allScores$singleScoresBinomialAll$lkinlauS$RMSE[sortI])
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("RMSE"), log="xy",
+          lims=lims, oma=c(3,3,6,7))
+  
+  ## plot scores versus nearest neighbor distance
+  plot(allScores$singleScoresBinomialAll$spdeu$NNDist[sortI][!dat$urban], 
+       allScores$singleScoresBinomialAll$spdeu$RMSE[sortI][!dat$urban], 
+       pch=19, cex=.1, col="green", 
+       main="RMSE vs. NN Distance", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+  points(allScores$singleScoresBinomialAll$spdeu$NNDist[sortI][dat$urban], 
+         allScores$singleScoresBinomialAll$spdeu$RMSE[sortI][dat$urban], 
+         pch=19, cex=.1, col="blue")
+  
+  plot(allScores$singleScoresBinomialAll$lkinlaus$NNDist[sortI][!dat$urban], 
+         allScores$singleScoresBinomialAll$lkinlaus$RMSE[sortI][!dat$urban], 
+         pch=19, cex=.1, col="green", 
+       main="RMSE vs. NN Distance", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+  points(allScores$singleScoresBinomialAll$lkinlaus$NNDist[sortI][dat$urban], 
+         allScores$singleScoresBinomialAll$lkinlaus$RMSE[sortI][dat$urban], 
+         pch=19, cex=.1, col="blue")
+  
+  ## plot scores spatially
+  out = load("../U5MR/adminMapData.RData")
+  kenyaMap = adm0
+  countyMap = adm1
+  latRange=c(-4.6, 5)
+  lonRange=c(33.5, 42.0)
+  coords = cbind(dat$lon, dat$lat)
+  popCoords = cbind(popGrid$lon, popGrid$lat)
+  popUrban = popGrid$urban
+  
+  values = data.frame(allScores$singleScoresBinomialAll$spdeu$RMSE[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlaus$RMSE[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlauS$RMSE[sortI])
+  zlim = range(c(as.matrix(values)))
+  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  
+  width = 1000
+  png(file=paste0("Figures/", resultNameRoot, "/spatialRMSE.png"), width=width, height=1000)
+  par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
+  for(i in 1:ncol(values)) {
+    quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " RMSE"), 
+               nx=150, ny=150, col=makeRedGrayBlueDivergingColors(n=29, valRange=zlim, center=0), zlim=zlim)
+    plotMapDat(mapDat=countyMap, lwd=.5)
+  }
+  dev.off()
+  
+  values = data.frame(allScores$singleScoresBinomialAll$spdeu$Bias[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlaus$Bias[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlauS$Bias[sortI])
+  zlim = range(c(as.matrix(values)))
+  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  
+  png(file=paste0("Figures/", resultNameRoot, "/spatialBias.png"), width=width, height=1000)
+  par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
+  for(i in 1:ncol(values)) {
+    quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " Bias"), 
+               nx=150, ny=150, col=makeRedGrayBlueDivergingColors(n=29, valRange=zlim, center=0), zlim=zlim)
+    plotMapDat(mapDat=countyMap, lwd=.5)
+  }
+  dev.off()
+  
+  values = data.frame(allScores$singleScoresBinomialAll$spdeu$Width[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlaus$Width[sortI], 
+                      allScores$singleScoresBinomialAll$lkinlauS$Width[sortI])
+  zlim = range(c(as.matrix(values)))
+  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  
+  png(file=paste0("Figures/", resultNameRoot, "/spatialWidthBinomial.png"), width=width, height=1000)
+  par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
+  for(i in 1:ncol(values)) {
+    quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " Width"), 
+               nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), zlim=zlim)
+    plotMapDat(mapDat=countyMap, lwd=.5)
+  }
+  dev.off()
+  
+  values = data.frame(allScores$singleScoresAll$spdeu$Width[sortI], 
+                      allScores$singleScoresAll$lkinlaus$Width[sortI], 
+                      allScores$singleScoresAll$lkinlauS$Width[sortI])
+  zlim = range(c(as.matrix(values)))
+  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  
+  png(file=paste0("Figures/", resultNameRoot, "/spatialWidth.png"), width=width, height=1000)
+  par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
+  quilt.plot(popCoords, popUrban, xlim=lonRange, ylim=latRange, main="Urbanicity", 
+             nx=170, ny=170, col=c(rgb(0,0,0,0), "blue"), add.legend=FALSE)
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  for(i in 1:ncol(values)) {
+    quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " Width"), 
+               nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), zlim=zlim)
+    plotMapDat(mapDat=countyMap, lwd=.5)
+  }
+  dev.off()
+  
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCluster.png"), width=500, height=500)
+  quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Cluster", 
+             nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64))
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  dev.off()
+  
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerClusterLog.png"), width=500, height=500)
+  quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Cluster", 
+             nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN=function(x){mean(log10(x))})
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  dev.off()
+  
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCell.png"), width=500, height=500)
+  quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Grid Cell", 
+             nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {log10(sum(x)+1)})
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  dev.off()
+  
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCellLog.png"), width=500, height=500)
+  quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Grid Cell", 
+             nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {log10(sum(x)+1)})
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  dev.off()
+  
+  png(file=paste0("Figures/", resultNameRoot, "/Variance.png"), width=500, height=500)
+  quilt.plot(coords, dat$y/dat$n, xlim=lonRange, ylim=latRange, main="Variance", 
+             nx=50, ny=50, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {var(x)})
+  plotMapDat(mapDat=countyMap, lwd=.5)
+  dev.off()
+  
+  ##### Binned scoring rules versus distance
+  values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$RMSE, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$RMSE)
+  ns = allScores$binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = allScores$binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Urban", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  
+  values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$RMSE, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$RMSE)
+  ns = allScores$binnedScoringRulesuuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = allScores$binnedScoringRulesuuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  
+  values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$CRPS, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$CRPS, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$CRPS)
+  ns = allScores$binnedScoringRulesuuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = allScores$binnedScoringRulesuuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="CRPS", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  
+  values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$Bias)
+  ns = allScores$binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = allScores$binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Urban", xlab="Distance (km)", ylab="Bias", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty= 2)
+  legend("topleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  
+}
+
+plotValidationSamples = function(dat=NULL, targetPop=c("women", "children")) {
+  targetPop = match.arg(targetPop)
+  
+  # load in relevant data for the given example
+  if(targetPop == "women") {
+    resultNameRoot="Ed"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaDataEd.RData")
+      dat = ed
+    }
+  } else if(targetPop == "children") {
+    resultNameRoot="Mort"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaData.RData")
+      dat = mort
+    }
+  }
+  dataType = tolower(resultNameRoot)
+  
+  sampleTable = getValidationI(dat=dat, dataType=dataType)
+  out = load("../U5MR/adminMapData.RData")
+  kenyaMap = adm0
+  countyMap = adm1
+  latRange=c(-4.6, 5)
+  lonRange=c(33.5, 42.0)
+  coords = cbind(dat$lon, dat$lat)
+  
+  for(i in 1:ncol(sampleTable)) {
+    leftOutI = sampleTable[,i]
+    plot(coords[!leftOutI,], pch=19, cex=.4, main=paste0("Fold ", i), xlim=lonRange, ylim=latRange)
+    points(coords[leftOutI,], pch=19, cex=.4, col="red")
+  }
+}
+
+
+
+
+
+
+
 
 
 

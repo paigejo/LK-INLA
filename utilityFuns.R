@@ -708,8 +708,7 @@ getLKInlaCovarianceFun = function(kappa, rho, nuggetVar, alphas, NP=200, lattice
 }
 
 covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, length(kappaVals)), nuggetVarVals=rep(0, length(kappaVals)), 
-                                        alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL) {
-  NP = 200
+                                        alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL, NP = 200) {
   if(!is.null(seed))
     set.seed(seed)
   nLayer = length(latticeInfo)
@@ -719,18 +718,41 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   if(!is.null(dim(kappaVals))) {
     kappaVals = kappaVals[,sampleI]
     separateRanges = TRUE
+    effectiveRanges = sweep(2.3/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}))
+    minRange = min(apply(effectiveRanges, 1, min))
+    maxRange = max(apply(effectiveRanges, 1, max))
   } else {
     kappaVals = kappaVals[sampleI]
     separateRanges = FALSE
+    effectiveRanges = 2.3 * latticeInfo[[1]]$latWidth / kappaVals
+    minRange = min(effectiveRanges) / 2^(length(latticeInfo) - 1)
+    maxRange = max(effectiveRanges)
   }
   rhoVals = rhoVals[sampleI]
   nuggetVarVals = nuggetVarVals[sampleI]
   alphaMat = matrix(alphaMat[,sampleI], ncol=length(sampleI))
   
-  # generate test locations based on code from LKrig.cov.plot
+  # generate test locations based on code from LKrig.cov.plot (modify sampling points to be the correct resolution)
+  # xlim <- latticeInfo[[1]]$xRangeDat
+  # ux <- seq(xlim[1], xlim[2], , NP)
+  # ylim <- latticeInfo[[1]]$yRangeDat
+  # uy <- seq(ylim[1], ylim[2], , NP)
+  # center <- rbind(c(ux[NP/2], uy[NP/2]))
+  
+  maxRadius = maxRange * 2
+  minStep = minRange / 10
+  ThisNP = 2 * maxRadius / minStep
   xlim <- latticeInfo[[1]]$xRangeDat
+  centerX = mean(xlim)
+  widthX = xlim[2] - centerX
+  deltaX = min(widthX, maxRadius)
+  xlim = c(centerX - deltaX, centerX + deltaX)
   ux <- seq(xlim[1], xlim[2], , NP)
   ylim <- latticeInfo[[1]]$yRangeDat
+  centerY = mean(ylim)
+  widthY = ylim[2] - centerY
+  deltaY = min(widthY, maxRadius)
+  ylim = c(centerY - deltaY, centerY + deltaY)
   uy <- seq(ylim[1], ylim[2], , NP)
   center <- rbind(c(ux[NP/2], uy[NP/2]))
   
@@ -903,8 +925,7 @@ covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVa
 }
 
 covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(effectiveRangeVals)), nuggetVarVals=rep(0, length(rhoVals)), 
-                                      mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL) {
-  NP = 200
+                                      mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL, NP = 200) {
   if(!is.null(seed))
     set.seed(seed)
   
@@ -924,7 +945,24 @@ covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(
     xlim = xRangeDat
     ylim = yRangeDat
   }
+  # ux <- seq(xlim[1], xlim[2], , NP)
+  # uy <- seq(ylim[1], ylim[2], , NP)
+  # center <- rbind(c(ux[NP/2], uy[NP/2]))
+  
+  maxRange = max(effectiveRangeVals)
+  minRange = min(effectiveRangeVals)
+  maxRadius = maxRange * 2
+  minStep = minRange / 10
+  ThisNP = 2 * maxRadius / minStep
+  centerX = mean(xlim)
+  widthX = xlim[2] - centerX
+  deltaX = min(widthX, maxRadius)
+  xlim = c(centerX - deltaX, centerX + deltaX)
   ux <- seq(xlim[1], xlim[2], , NP)
+  centerY = mean(ylim)
+  widthY = ylim[2] - centerY
+  deltaY = min(widthY, maxRadius)
+  ylim = c(centerY - deltaY, centerY + deltaY)
   uy <- seq(ylim[1], ylim[2], , NP)
   center <- rbind(c(ux[NP/2], uy[NP/2]))
   

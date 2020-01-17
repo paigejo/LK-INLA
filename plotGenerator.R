@@ -1169,7 +1169,7 @@ plotExampleGaussianProcess = function(resGP=512, mu=0, marginalVariance=1^2, phi
   GPCoords = GP$coords
   # par(mfrow=c(1,1), family="serif")
   png(paste0("Figures/Illustrations/exampleGP", extraPlotName, ".png"), width=800, height=800)
-  quilt.plot(GPCoords, GP$sims, nx=resGP, ny=resGP, )
+  quilt.plot(GPCoords, GP$sims, nx=resGP, ny=resGP)
   # axis(1, at=seq(-1, 1, l=3))
   # axis(2, at=seq(-1, 1, l=3))
   dev.off()
