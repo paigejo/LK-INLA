@@ -330,8 +330,10 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
         # hyperparameters will be drawn differently depending on the type of model
         if(thisModelClass == "SPDE") {
           # get hyperparameter draws
-          effectiveRangeVals = hyperDraws[1,]
-          varVals = hyperDraws[2,]^2
+          effectiveRangeI = grepl("Range for field", rownames(hyperDraws))
+          sdI = grepl("Stdev for field", rownames(hyperDraws))
+          effectiveRangeVals = hyperDraws[effectiveRangeI,]
+          varVals = hyperDraws[sdI,]^2
           if(clusterEffect)
             nuggetVarVals = 1/hyperDraws[3,]
           else
@@ -346,18 +348,28 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
           # compute the covariance function for the different hyperparameter samples
           cgram = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
         } else if(thisModelClass == "LK-INLA") {
-          # get lattice information object
+          # get lattice information object, determine whether it's a separateRange model
           latInfo = results$fit$latInfo
+          nLayer = length(latInfo)
+          separateRanges = grepl("separateRangesTRUE", resultFilenames[j])
+          if(separateRanges)
+            alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
+          else
+            alphaI = 4:(3+nLayer-1)
+          zSamples = matrix(hyperDraws[alphaI,], ncol=length(alphaI))
+          xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
+          xSamples = rbind(xSamples, 1-colSums(xSamples))
           
           # get hyperparameter draws
-          kappaVals = 2.3/exp(hyperDraws[1,]) * latInfo[[1]]$latWidth
-          rhoVals = exp(hyperDraws[2,])
-          alphaMat = apply(hyperDraws[3:(2+length(latInfo)-1),], 2, multivariateExpit)
-          alphaMat = rbind(alphaMat, 1-colSums(alphaMat))
-          if(clusterEffect)
-            nuggetVarVals = 1/hyperDraws[ncol(hyperDraws),]
-          else
-            nuggetVarVals = rep(0, ncol(hyperDraws))
+          nuggetVarVals = rep(0, nrow(hyperDraws))
+          if(separateRanges) {
+            kappaVals = t(sweep(2.3/exp(hyperDraws[2:(nLayer+1),]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
+            rhoVals = exp(hyperDraws[nLayer+2,])
+          } else {
+            kappaVals = 2.3/exp(hyperDraws[2,]) * latInfo[[1]]$latWidth
+            rhoVals = exp(hyperDraws[3,])
+          }
+          alphaMat = xSamples
           
           # compute the covariance function for many different hyperparameter samples
           out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
