@@ -3867,14 +3867,16 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
                         round(sigma2, 2), "_Kenya", useKenya, "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
   
   # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
-  allScoringRules = list()
+  allScoringRulesGrid = list()
+  allScoringRulesLeftOut = list()
   allFits = list()
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
     out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
-    allScoringRules = c(allScoringRules, list(scoringRules))
+    allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
+    allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
@@ -3883,23 +3885,27 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   
   ##### average results from each simulation
   # pointwise scoring rules
-  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
-  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
-  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
-  ns = binnedScoringRules[,2]
-  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
-  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  allPooledScoringRulesGrid = do.call("rbind", lapply(allScoringRulesGrid, function(x) {x$pooledResults}))
+  allBinnedScoringRulesGrid = lapply(allScoringRulesGrid, function(x) {x$binnedResults})
+  binnedScoringRulesGrid = averageBinnedScores(allBinnedScoringRulesGrid)
+  ns = binnedScoringRulesGrid[,2]
+  pooledScoringRulesGrid = apply(binnedScoringRulesGrid, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRulesGrid = as.data.frame(matrix(pooledScoringRulesGrid, nrow=1))
+  names(pooledScoringRulesGrid) = names(binnedScoringRulesGrid)
+  
+  fullPooledScoringRulesLeftOut = do.call("rbind", allScoringRulesLeftOut)
+  pooledScoringRulesLeftOut = colMeans(fullPooledScoringRulesLeftOut)
   
   # covInfo
   # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
   #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
-  d = covInfo[[1]]$d
+  d = allCovInfo[[1]]$d
   covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
   upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
   lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
-  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
-  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
-  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  corMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$corMean})))
+  upperCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCor})))
+  lowerCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCor})))
   
   # aggregated scoring rules
   # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
@@ -3914,7 +3920,28 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+  save(allScoringRules, 
+       allFits, 
+       allCovInfo, 
+       allPredictionMatrices, 
+       allAggregatedScoringRules, 
+       binnedScoringRulesGrid, 
+       pooledScoringRulesGrid, 
+       fullPooledScoringRulesLeftOut, 
+       pooledScoringRulesLeftOut, 
+       covMean, 
+       upperCov, 
+       lowerCov, 
+       corMean, 
+       upperCor, 
+       lowerCor, 
+       fullPredictionMatrix, 
+       leftOutPredictionMatrix, 
+       leftInPredictionMatrix, 
+       leftOutScores, 
+       leftInScores, 
+       aggregatedScores, 
+       file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
@@ -4350,16 +4377,16 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   sapply(1:nSamples, temp)
   
   # load in the results
-  
-  # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
-  allScoringRules = list()
+  allScoringRulesGrid = list()
+  allScoringRulesLeftOut = list()
   allFits = list()
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
     out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
-    allScoringRules = c(allScoringRules, list(scoringRules))
+    allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
+    allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
@@ -4368,23 +4395,27 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   
   ##### average results from each simulation
   # pointwise scoring rules
-  allPooledScoringRules = do.call("cbind", lapply(allScoringRules, function(x) {x$pooledResults}))
-  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
-  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
-  ns = binnedScoringRules[,2]
-  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
-  pooledScoringRules = data.frame(c(pooledScoringRules, Time = sum(allPooledScoringRules[,ncol(allPooledScoringRules)] * (ns/sum(ns)))))
+  allPooledScoringRulesGrid = do.call("rbind", lapply(allScoringRulesGrid, function(x) {x$pooledResults}))
+  allBinnedScoringRulesGrid = lapply(allScoringRulesGrid, function(x) {x$binnedResults})
+  binnedScoringRulesGrid = averageBinnedScores(allBinnedScoringRulesGrid)
+  ns = binnedScoringRulesGrid[,2]
+  pooledScoringRulesGrid = apply(binnedScoringRulesGrid, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRulesGrid = as.data.frame(matrix(pooledScoringRulesGrid, nrow=1))
+  names(pooledScoringRulesGrid) = names(binnedScoringRulesGrid)
+  
+  fullPooledScoringRulesLeftOut = do.call("rbind", allScoringRulesLeftOut)
+  pooledScoringRulesLeftOut = colMeans(fullPooledScoringRulesLeftOut)
   
   # covInfo
   # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
   #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
-  d = covInfo[[1]]$d
+  d = allCovInfo[[1]]$d
   covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
   upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
   lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
-  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
-  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
-  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  corMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$corMean})))
+  upperCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCor})))
+  lowerCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCor})))
   
   # aggregated scoring rules
   # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
@@ -4399,7 +4430,28 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+  save(allScoringRules, 
+       allFits, 
+       allCovInfo, 
+       allPredictionMatrices, 
+       allAggregatedScoringRules, 
+       binnedScoringRulesGrid, 
+       pooledScoringRulesGrid, 
+       fullPooledScoringRulesLeftOut, 
+       pooledScoringRulesLeftOut, 
+       covMean, 
+       upperCov, 
+       lowerCov, 
+       corMean, 
+       upperCor, 
+       lowerCor, 
+       fullPredictionMatrix, 
+       leftOutPredictionMatrix, 
+       leftInPredictionMatrix, 
+       leftOutScores, 
+       leftInScores, 
+       aggregatedScores, 
+       file=paste0("savedOutput/simulations/mixtureLKAll_nsim", nSamples, ".RData"))
 }
 
 # tests the fitSPDE function using data simulated from the LK model
@@ -4982,14 +5034,16 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
                         "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
   
   # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
-  allScoringRules = list()
+  allScoringRulesGrid = list()
+  allScoringRulesLeftOut = list()
   allFits = list()
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
     out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
-    allScoringRules = c(allScoringRules, list(scoringRules))
+    allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
+    allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
@@ -4998,24 +5052,27 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   
   ##### average results from each simulation
   # pointwise scoring rules
-  allPooledScoringRules = do.call("rbind", lapply(allScoringRules, function(x) {x$pooledResults}))
-  allBinnedScoringRules = lapply(allScoringRules, function(x) {x$binnedResults})
-  binnedScoringRules = averageBinnedScores(allBinnedScoringRules)
-  ns = binnedScoringRules[,2]
-  pooledScoringRules = apply(binnedScoringRules, 2, function(x) {sum(x * (ns / sum(ns)))})
-  pooledScoringRules = as.data.frame(matrix(pooledScoringRules, nrow=1))
-  names(pooledScoringRules) = names(binnedScoringRules)
+  allPooledScoringRulesGrid = do.call("rbind", lapply(allScoringRulesGrid, function(x) {x$pooledResults}))
+  allBinnedScoringRulesGrid = lapply(allScoringRulesGrid, function(x) {x$binnedResults})
+  binnedScoringRulesGrid = averageBinnedScores(allBinnedScoringRulesGrid)
+  ns = binnedScoringRulesGrid[,2]
+  pooledScoringRulesGrid = apply(binnedScoringRulesGrid, 2, function(x) {sum(x * (ns / sum(ns)))})
+  pooledScoringRulesGrid = as.data.frame(matrix(pooledScoringRulesGrid, nrow=1))
+  names(pooledScoringRulesGrid) = names(binnedScoringRulesGrid)
+  
+  fullPooledScoringRulesLeftOut = do.call("rbind", allScoringRulesLeftOut)
+  pooledScoringRulesLeftOut = colMeans(fullPooledScoringRulesLeftOut)
   
   # covInfo
   # covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
   #                corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
   d = allCovInfo[[1]]$d
   covMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$covMean})))
-  upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov})))
-  lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov})))
-  corMean = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$corMean})))
-  uppercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$uppercor})))
-  lowercor = rowMeans(do.call("cbind", lapply(allCorInfo, function(x) {x$lowercor})))
+  upperCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCov[1,]})))
+  lowerCov = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCov[1,]})))
+  corMean = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$corMean})))
+  upperCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$upperCor[1,]})))
+  lowerCor = rowMeans(do.call("cbind", lapply(allCovInfo, function(x) {x$lowerCor[1,]})))
   
   # aggregated scoring rules
   # aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
@@ -5030,7 +5087,28 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+  save(allScoringRules, 
+       allFits, 
+       allCovInfo, 
+       allPredictionMatrices, 
+       allAggregatedScoringRules, 
+       binnedScoringRulesGrid, 
+       pooledScoringRulesGrid, 
+       fullpooledScoringRulesLeftOut, 
+       pooledScoringRulesLeftOut, 
+       covMean, 
+       upperCov, 
+       lowerCov, 
+       corMean, 
+       upperCor, 
+       lowerCor, 
+       fullPredictionMatrix, 
+       leftOutPredictionMatrix, 
+       leftInPredictionMatrix, 
+       leftOutScores, 
+       leftInScores, 
+       aggregatedScores, 
+      file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
 }
 
 # test how close we can get to the spatial correlation function:

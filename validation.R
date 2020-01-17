@@ -218,10 +218,88 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   scoresLeaveOneOutBinomial = scoresInSampleBinomial[,c(1, leaveOneOutI)]
   scoresInSampleBinomial = scoresInSampleBinomial[,-leaveOneOutI]
   
+  ##### concatenate binned and single scoring rule results
+  # binnedScoringRulesuuAll=averageBinnedScores(binnedScoringRulesuuAll), binnedScoringRulesuUAll=averageBinnedScores(binnedScoringRulesuUAll), 
+  # binnedScoringRulesUuAll=averageBinnedScores(binnedScoringRulesUuAll), binnedScoringRulesUUAll=averageBinnedScores(binnedScoringRulesUUAll), 
+  # binnedScoringRulesAuAll=averageBinnedScores(binnedScoringRulesAuAll), binnedScoringRulesAUAll=averageBinnedScores(binnedScoringRulesAUAll), 
+  # binnedScoringRulesuAAll=averageBinnedScores(binnedScoringRulesuAAll), binnedScoringRulesUAAll=averageBinnedScores(binnedScoringRulesUAAll), 
+  # binnedScoringRulesAAAll=averageBinnedScores(binnedScoringRulesAAAll), 
+  # binnedScoringRulesuuBinomialAll=averageBinnedScores(binnedScoringRulesuuBinomialAll), binnedScoringRulesuUBinomialAll=averageBinnedScores(binnedScoringRulesuUBinomialAll), 
+  # binnedScoringRulesUuBinomialAll=averageBinnedScores(binnedScoringRulesUuBinomialAll), binnedScoringRulesUUBinomialAll=averageBinnedScores(binnedScoringRulesUUBinomialAll), 
+  # binnedScoringRulesAuBinomialAll=averageBinnedScores(binnedScoringRulesAuBinomialAll), binnedScoringRulesAUBinomialAll=averageBinnedScores(binnedScoringRulesAUBinomialAll), 
+  # binnedScoringRulesuABinomialAll=averageBinnedScores(binnedScoringRulesuABinomialAll), binnedScoringRulesUABinomialAll=averageBinnedScores(binnedScoringRulesUABinomialAll), 
+  # binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
+  # 
+  # singleScores=singleScores, singleScoresBinomial=singleScoresBinomial
+  binnedScoringRulesuuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuuAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuUAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUuAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUUAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAuAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAUAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuAAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUAAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAAAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  
+  binnedScoringRulesuuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  
+  singleScoresAll = c(lapply(resultsListSPDE, function(x) {x$singleScores}), lapply(resultsListLKINLA, function(x) {x$singleScores}))
+  names(singleScoresAll) = modelNames
+  singleScoresBinomialAll = c(lapply(resultsListSPDE, function(x) {x$singleScoresBinomial}), lapply(resultsListLKINLA, function(x) {x$singleScoresBinomial}))
+  names(singleScoresBinomialAll) = modelNames
+  
   ##### Save all scoring rule tables
   fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, "_LORegion", leaveOutRegion, ".RData")
   allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
-                   scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial)
+                   scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial, 
+                   
+                   binnedScoringRulesuuAll=binnedScoringRulesuuAll, 
+                   binnedScoringRulesuUAll=binnedScoringRulesuUAll, 
+                   binnedScoringRulesUuAll=binnedScoringRulesUuAll, 
+                   binnedScoringRulesUUAll=binnedScoringRulesUUAll, 
+                   binnedScoringRulesAuAll=binnedScoringRulesAuAll, 
+                   binnedScoringRulesAUAll=binnedScoringRulesAUAll, 
+                   binnedScoringRulesuAAll=binnedScoringRulesuAAll, 
+                   binnedScoringRulesUAAll=binnedScoringRulesUAAll, 
+                   binnedScoringRulesAAAll=binnedScoringRulesAAAll, 
+                   binnedScoringRulesuuBinomialAll=binnedScoringRulesuuBinomialAll, 
+                   binnedScoringRulesuUBinomialAll=binnedScoringRulesuUBinomialAll, 
+                   binnedScoringRulesUuBinomialAll=binnedScoringRulesUuBinomialAll, 
+                   binnedScoringRulesUUBinomialAll=binnedScoringRulesUUBinomialAll, 
+                   binnedScoringRulesAuBinomialAll=binnedScoringRulesAuBinomialAll, 
+                   binnedScoringRulesAUBinomialAll=binnedScoringRulesAUBinomialAll, 
+                   binnedScoringRulesuABinomialAll=binnedScoringRulesuABinomialAll, 
+                   binnedScoringRulesUABinomialAll=binnedScoringRulesUABinomialAll, 
+                   binnedScoringRulesAABinomialAll=binnedScoringRulesAABinomialAll, 
+                   
+                   singleScoresAll=singleScoresAll, 
+                   singleScoresBinomialAll=singleScoresBinomialAll)
   save(allScores, file=fileName)
   
   allScores

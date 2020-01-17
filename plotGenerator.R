@@ -1127,3 +1127,89 @@ myPairs = function(x, labels, panel = points, ..., horInd = 1:nc, verInd = 1:nc,
   }
   invisible(NULL)
 }
+
+# plotExampleGaussianProcess(extraPlotName="Nugget", phi=.05, sigma2=0.5^2)
+# plotExampleGaussianProcess(sigma2=0)
+plotExampleGaussianProcess = function(resGP=512, mu=0, marginalVariance=1^2, phi=.25, kappa=1, sigma2=.1^2, seed=1, extraPlotName="") {
+  require(fields)
+  require(RandomFields)
+  require(spatstat)
+  
+  set.seed(seed)
+  
+  # genMaternGP generates a Matern covariance GP on the unit square
+  # with the parameters given the in text
+  genMaternGP = function(nsim=1, nx=resGP, ny=resGP, asList=TRUE, coords=NULL, method="circulant") {
+    #mu = 4, sigma^2=1.5, phi=0.15, kappa=1, beta=2, tau^2 = 0
+    
+    # use RFmatern and RFsimulate
+    obj = RMmatern(nu=kappa, var=marginalVariance, scale=phi)
+    # obj = RMwhittle(nu=kappa, var=sigmasq, scale=phi)
+    
+    if(is.null(coords)) {
+      coordsSet=TRUE
+      xs = seq(-1, 1, length=nx)
+      ys = seq(-1, 1, length=ny)
+      coords = make.surface.grid(list(x=xs, y=ys))
+    }
+    else
+      coordsSet = FALSE
+    
+    if(method == "instrinsic")
+      sims = as.matrix(RFsimulate(RPintrinsic(obj), x=coords[,1], y=coords[,2], n=nsim)) + rnorm(nrow(coords)*nsim, sd=sqrt(sigma2)) + mu
+    else if(method == "circulant")
+      sims = as.matrix(RFsimulate(RPcirculant(obj), x=coords[,1], y=coords[,2], n=nsim)) + rnorm(nrow(coords)*nsim, sd=sqrt(sigma2)) + mu
+    else if(method == "cutoff")
+      sims = as.matrix(RFsimulate(RPcutoff(obj), x=coords[,1], y=coords[,2], n=nsim)) + rnorm(nrow(coords)*nsim, sd=sqrt(sigma2)) + mu
+    
+    list(coords=coords, sims=sims)
+  }
+    
+  GP = genMaternGP()
+  GPCoords = GP$coords
+  # par(mfrow=c(1,1), family="serif")
+  png(paste0("Figures/Illustrations/exampleGP", extraPlotName, ".png"), width=800, height=800)
+  quilt.plot(GPCoords, GP$sims, nx=resGP, ny=resGP, )
+  # axis(1, at=seq(-1, 1, l=3))
+  # axis(2, at=seq(-1, 1, l=3))
+  dev.off()
+}
+
+plotExampleMaternCorrelation = function(effectiveScales = c(.1, .5, 1), sigma2=.1^2) {
+  cols = rainbow(length(effectiveScales))
+  
+  pdf("Figures/Illustrations/matern.pdf", width=5, height=5)
+  xs = seq(0, 1, l=200)
+  plot(xs, (1/(1 + sqrt(sigma2))) * Matern(xs, effectiveScales[1] / sqrt(8), smoothness = 1), type="l", col=cols[1], 
+       main="Matern correlation functions", xlab="Distance", ylab="Correlation", ylim=c(0,1))
+  if(length(effectiveScales) >= 1) {
+    for(i in 2:length(effectiveScales)) {
+      lines(xs, (1/(1 + sqrt(sigma2))) * Matern(xs, effectiveScales[i] / sqrt(8), smoothness = 1), col=cols[i])
+    }
+    legend("topright", paste0("Effective range=", effectiveScales), lty=1, col=cols)
+  }
+  points(0, 1, pch=19, cex=.7)
+  dev.off()
+  
+  # pdf("Figures/Illustrations/maternINLA.pdf", width=5, height=5)
+  # xs = seq(0, 1, l=200)
+  # plot(xs, (1 - sqrt(sigma2)) * inla.matern.cov(x=xs, kappa=1 / (effectiveScales[1] / sqrt(8)), nu = 1, corr=TRUE, d=2), type="l", col=cols[1], 
+  #      main="Matern correlation functions", xlab="Distance", ylab="Correlation", ylim=c(0,1))
+  # if(length(effectiveScales) >= 1) {
+  #   for(i in 2:length(effectiveScales)) {
+  #     lines(xs, (1 - sqrt(sigma2)) * inla.matern.cov(x=xs, kappa=1 / (effectiveScales[i] / sqrt(8)), nu = 1, corr=TRUE, d=2), col=cols[i])
+  #   }
+  #   legend("topright", paste0("Effective range=", effectiveScales), lty=1, col=cols)
+  # }
+  # points(0, 1, pch=19, cex=.7)
+  # dev.off()
+}
+
+
+
+
+
+
+
+
+
