@@ -122,6 +122,12 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
         results$fit$fullModelFit = NULL
         save(results, file=paste0(fileName, "compact.RData"))
       }
+      
+      if(names(results$fit)[34] == "") {
+        # leftover error from previous run that we can fix without rerunning the whole thing
+        names(results$fit)[33:34] = c("singleScores", "singleScoresBinomial")
+        save(results, file=paste0(fileName, "compact.RData"))
+      }
     }
     
     resultsListLKINLA = c(resultsListLKINLA, list(results))
