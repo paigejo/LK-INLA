@@ -231,47 +231,47 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   # binnedScoringRulesAABinomialAll=averageBinnedScores(binnedScoringRulesAABinomialAll), 
   # 
   # singleScores=singleScores, singleScoresBinomial=singleScoresBinomial
-  binnedScoringRulesuuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuuAll}))
+  binnedScoringRulesuuAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuuAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuuAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesuUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuUAll}))
+  binnedScoringRulesuUAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuUAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuUAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUuAll}))
+  binnedScoringRulesUuAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUuAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUuAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUUAll}))
+  binnedScoringRulesUUAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUUAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUUAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAuAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAuAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAuAll}))
+  binnedScoringRulesAuAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAuAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAuAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAUAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAUAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAUAll}))
+  binnedScoringRulesAUAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAUAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAUAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesuAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuAAll}))
+  binnedScoringRulesuAAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuAAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuAAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUAAll}))
+  binnedScoringRulesUAAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUAAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUAAll}))
   names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAAAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAAAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAAAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  
-  binnedScoringRulesuuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuuBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesuUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuUBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUuBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUUBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAuBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAUBinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesuABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesuABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesuABinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesUABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesUABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesUABinomialAll}))
-  names(binnedScoringRulesuuAll) = modelNames
-  binnedScoringRulesAABinomialAll = c(lapply(resultsListSPDE, function(x) {x$binnedScoringRulesAABinomialAll}), lapply(resultsListLKINLA, function(x) {x$binnedScoringRulesAABinomialAll}))
+  binnedScoringRulesAAAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAAAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAAAll}))
   names(binnedScoringRulesuuAll) = modelNames
   
-  singleScoresAll = c(lapply(resultsListSPDE, function(x) {x$singleScores}), lapply(resultsListLKINLA, function(x) {x$singleScores}))
+  binnedScoringRulesuuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAuBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAuBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAuBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAUBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAUBinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAUBinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesuABinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesuABinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesuABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesUABinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesUABinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesUABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  binnedScoringRulesAABinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$binnedScoringRulesAABinomialAll}), lapply(resultsListLKINLA, function(x) {x$fit$binnedScoringRulesAABinomialAll}))
+  names(binnedScoringRulesuuAll) = modelNames
+  
+  singleScoresAll = c(lapply(resultsListSPDE, function(x) {x$fit$singleScores}), lapply(resultsListLKINLA, function(x) {x$fit$singleScores}))
   names(singleScoresAll) = modelNames
-  singleScoresBinomialAll = c(lapply(resultsListSPDE, function(x) {x$singleScoresBinomial}), lapply(resultsListLKINLA, function(x) {x$singleScoresBinomial}))
+  singleScoresBinomialAll = c(lapply(resultsListSPDE, function(x) {x$fit$singleScoresBinomial}), lapply(resultsListLKINLA, function(x) {x$fit$singleScoresBinomial}))
   names(singleScoresBinomialAll) = modelNames
   
   ##### Save all scoring rule tables
