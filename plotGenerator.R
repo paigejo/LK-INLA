@@ -361,7 +361,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
           xSamples = rbind(xSamples, 1-colSums(xSamples))
           
           # get hyperparameter draws
-          nuggetVarVals = rep(0, nrow(hyperDraws))
+          nuggetVarVals = rep(0, ncol(hyperDraws))
           if(separateRanges) {
             kappaVals = t(sweep(2.3/exp(hyperDraws[2:(nLayer+1),]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
             rhoVals = exp(hyperDraws[nLayer+2,])
