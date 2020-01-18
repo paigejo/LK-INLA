@@ -588,7 +588,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
 
 # use the fitSPDE function to fit SPDE model to binomial data within Kenya
 fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"), 
-                             nu=1.5, seed=1, nLayer=3, NC=5,
+                             nu=1.5, seed=1, nLayer=3, NC=14,
                              nBuffer=5, priorPar=NULL, 
                              normalize=TRUE, fastNormalize=TRUE, latInfo=NULL, 
                              intStrategy="ccd", strategy="gaussian", 
@@ -694,6 +694,13 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
     xObs = cbind(xObs, obsUrban)
     xPred = cbind(xPred, predsUrban)
   }
+  
+  if(length(NC) == 1) {
+    if(separateRanges)
+      NC = c(30, 107) # by default, use two layers with the finest layer having resolution equal to 10km
+  }
+  if(separateRanges)
+    nLayer = length(NC)
   
   c(fitLKINLAStandard2(obsCoords, obsValues, predPts, nu, seed, nLayer, NC, nBuffer, priorPar, 
                        xObs, xPred, normalize, intStrategy, strategy, fastNormalize, 

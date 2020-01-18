@@ -3580,7 +3580,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # 2: log effective range
   # 3: log spatial variance
   # 4-(3 + nLayer - 1): multivariateLogit alpha
-  nuggetVarVals = 1 / out[,1]
+  # nuggetVarVals = 1 / out[,1]
+  nuggetVarVals = rep(0, ncol(out))
   if(separateRanges) {
     kappaVals = t(sweep(2.3/exp(out[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
     rhoVals = exp(out[,nLayer+2])
@@ -5515,24 +5516,47 @@ getSimulationDataSetsGivenCovarianceTest = function(corFun, nTotal=900, nTest=ro
 # try out several bases, and determine the number of bases elements and their resolution
 testBasisResolution = function() {
   latticeInfo = makeLatGridsKenya(nLayer=3, NC=28, nBuffer=5)
-  min(sapply(latticeInfo, function(x) {x$latWidth}))
-  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  print(paste0("NC=", 28, ", nLayer=", 3))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
+  
+  latticeInfo = makeLatGridsKenya(nLayer=3, NC=14, nBuffer=5)
+  print(paste0("NC=", 14, ", nLayer=", 3))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
   
   latticeInfo = makeLatGridsKenya(nLayer=2, NC=54, nBuffer=5)
-  min(sapply(latticeInfo, function(x) {x$latWidth}))
-  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  print(paste0("NC=", 54, ", nLayer=", 2))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
   
   latticeInfo = makeLatGridsKenya(nLayer=1, NC=107, nBuffer=5)
-  min(sapply(latticeInfo, function(x) {x$latWidth}))
-  sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))
+  print(paste0("NC=", 107, ", nLayer=", 1))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
   
   latticeInfo2 = makeLatGridsKenya(nLayer=1, NC=30, nBuffer=5)
-  min(sapply(latticeInfo2, function(x) {x$latWidth}))
-  sum(sapply(latticeInfo2, function(x) {x$nx * x$ny}))
+  print(paste0("NC=", 30, ", nLayer=", 1))
+  print(paste0("lattice width=", min(sapply(latticeInfo2, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo2, function(x) {x$nx * x$ny}))))
+  
+  latticeInfo2 = makeLatGridsKenya(nLayer=1, NC=14, nBuffer=5)
+  print(paste0("NC=", 14, ", nLayer=", 1))
+  print(paste0("lattice width=", min(sapply(latticeInfo2, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo2, function(x) {x$nx * x$ny}))))
   
   test = c(latticeInfo2, latticeInfo)
   
+  # NC=c(30, 107), 13725
+  
   invisible(NULL)
+}
+
+testBasisResolution2 = function(nLayer, NC, nBuffer=5) {
+  latticeInfo = makeLatGridsKenya(nLayer=nLayer, NC=NC, nBuffer=nBuffer)
+  print(paste0("NC=", NC, ", nLayer=", nLayer))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
 }
 
 
