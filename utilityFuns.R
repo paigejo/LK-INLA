@@ -718,7 +718,7 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   if(!is.null(dim(kappaVals))) {
     kappaVals = kappaVals[,sampleI]
     separateRanges = TRUE
-    effectiveRanges = sweep(2.3/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}))
+    effectiveRanges = sweep(2.3/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}), "*")
     minRange = min(apply(effectiveRanges, 1, min))
     maxRange = max(apply(effectiveRanges, 1, max))
   } else {
@@ -809,9 +809,9 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
     parameterMat = cbind(t(kappaVals), rhoVals, nuggetVarVals, t(alphaMat))
   # browser()
   out = apply(parameterMat, 1, getOneCovariance)
-  d = out[1:200,1]
-  covMat = out[201:400,]
-  corMat = out[401:600,]
+  d = out[1:NP,1]
+  covMat = out[(NP+1):(2*NP),]
+  corMat = out[(2*NP+1):(3*NP),]
   
   # calculate summary statistics
   meanCov = rowMeans(covMat)
