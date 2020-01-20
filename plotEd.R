@@ -70,6 +70,7 @@ widthRange = fullWidthRange
 
 # get correlograms/covariograms
 if(FALSE) {
+  recalculate = TRUE
   cgramList = list()
   for(j in 1:length(filenames)) {
     modelName = paste(modelClasses[j], modelVariations[j])
@@ -77,7 +78,7 @@ if(FALSE) {
     # load this model and get the covariogram if necessary
     print(paste0("Loading ", modelName))
     out = load(filenames[j])
-    if(!("cgram" %in% names(results))) {
+    if(!("cgram" %in% names(results)) || recalculate) {
       print("Calculating covariogram...")
       hyperDraws = results$fit$hyperMat
       
@@ -87,8 +88,8 @@ if(FALSE) {
       # hyperparameters will be drawn differently depending on the type of model
       if(thisModelClass == "SPDE") {
         # get hyperparameter draws
-        effectiveRangeVals = hyperDraws[1,]
-        varVals = hyperDraws[2,]^2
+        effectiveRangeVals = hyperDraws[2,]
+        varVals = hyperDraws[3,]^2
         nuggetVarVals = rep(0, ncol(hyperDraws))
         
         # get range of the data and the SPDE basis function mesh for which to compute the covariograms
@@ -110,24 +111,24 @@ if(FALSE) {
           alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
         else
           alphaI = 4:(3+nLayer-1)
-        zSamples = matrix(hyperDraws[,alphaI], ncol=length(alphaI))
+        zSamples = matrix(hyperDraws[alphaI,], ncol=length(alphaI))
         xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
         xSamples = rbind(xSamples, 1-colSums(xSamples))
         
         
         nuggetVarVals = rep(0, ncol(hyperDraws))
         if(separateRanges) {
-          kappaVals = t(sweep(2.3/exp(hyperDraws[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
-          rhoVals = exp(hyperDraws[,nLayer+2])
+          kappaVals = sweep(2.3/exp(hyperDraws[2:(nLayer+1),]), 2, sapply(latInfo, function(x) {x$latWidth}), "*")
+          rhoVals = exp(hyperDraws[nLayer+2,])
         } else {
           latticeWidth = latInfo[[1]]$latWidth
-          kappaVals = 2.3/exp(hyperDraws[,2]) * latticeWidth
-          rhoVals = exp(hyperDraws[,3])
+          kappaVals = 2.3/exp(hyperDraws[2,]) * latticeWidth
+          rhoVals = exp(hyperDraws[3,])
         }
         alphaMat = xSamples
         
         # compute the covariance function for many different hyperparameter samples
-        out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+        cgram = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
       } else {
         stop(paste0("Unrecognized model class: ", thisModelClass))
       }
@@ -191,7 +192,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
              pixelPredRange, meanTicks, meanTickLabels, pixelWidthRange, widthTicks, widthTickLabels, 
              plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
+             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
@@ -199,7 +200,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
              clusterPredRange, meanTicks, meanTickLabels, clusterWidthRange, widthTicks, widthTickLabels, 
              plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
+             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
 # now make the same plots, but only using models including a cluster effect to better highlight 

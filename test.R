@@ -2181,6 +2181,7 @@ testLKINLAKenyaDat = function(seed=1, nLayer=3, NC=13, nBuffer=5,
   }
   dev.off()
   
+  browser()
   plotSingleModelPredictions(dat=dat, allResults, modelName="", targetPop=targetPop, 
                              areaLevels=c("Region", "County", "Pixel", "Cluster"), 
                              plotNameRoot=plotNameRoot, 
@@ -5558,6 +5559,14 @@ testBasisResolution2 = function(nLayer, NC, nBuffer=5) {
   print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
   print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
 }
+
+testBasisResolution3 = function(nLayer, NC, nBuffer=5) {
+  latticeInfo = makeLatGrids(c(-1,1), c(-1,1), nLayer=nLayer, NC=NC, nBuffer=nBuffer)
+  print(paste0("NC=", NC, ", nLayer=", nLayer))
+  print(paste0("lattice width=", min(sapply(latticeInfo, function(x) {x$latWidth}))))
+  print(paste0("total basis functions=", sum(sapply(latticeInfo, function(x) {x$nx * x$ny}))))
+}
+
 
 
 

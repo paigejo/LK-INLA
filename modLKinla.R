@@ -19,7 +19,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               initialEffectiveRange=NULL, initialAlphas=rep(1/nLayer, nLayer-1), 
                               effRangeRange=NULL, predClusterI=rep(TRUE, nrow(predCoords)), 
                               plotNormalizationSplines=FALSE, verbose=TRUE, separateRanges=FALSE, 
-                              doValidation=FALSE, previousFit=NULL, precomputedNormalizationFun=NULL) {
+                              doValidation=FALSE, previousFit=NULL, precomputedNormalizationFun=NULL, 
+                              useUrbanPrior=FALSE) {
   
   startTime = proc.time()[3]
   set.seed(seed)
@@ -46,7 +47,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   ny = latInfo[[1]]$ny
   
   if(is.null(priorPar))
-    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, latticeInfo=latInfo)
+    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior)
   
   # generate lattice basis matrix
   AObs = makeA(obsCoords, latInfo)
@@ -598,7 +599,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
                              effRangeRange=NULL, leaveOutRegionName=NULL, kmres=5, 
                              separateRanges=FALSE, doValidation=FALSE, previousFit=NULL, 
                              precomputedNormalizationFun=NULL, family=c("binomial", "betabinomial"), 
-                             leaveOutI=NULL, verbose=TRUE) {
+                             leaveOutI=NULL, verbose=TRUE, useUrbanPrior=TRUE) {
   # load observations
   dataType = match.arg(dataType)
   predictionType = match.arg(predictionType)

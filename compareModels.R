@@ -1798,11 +1798,16 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
   list(tab=tab, parTab=parTab, unroundedTab=unroundedTab)
 }
 
-compareMixtureModeling = function(sigma2=.1^2, n=900) {
+compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   nu = 1
   thetas = c(0.08, 0.8) / 2.3
   nTest = n * 0.1
   rho = 1
+  
+  # set random seeds for each simulation, and get the first simulation
+  set.seed(seed)
+  allSeeds = sample(1:1000000, nSamples, replace = FALSE)
+  set.seed(allSeeds[1])
   
   # load and the generator dataset and grid used for predictions
   mixtureCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
@@ -1812,49 +1817,204 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
                                                             saveDataSetPlot=FALSE, doPredGrid=TRUE)
   ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
   
+  # Plot example simulation
+  pdf("Figures/finalMixture/exampleSimulation.pdf", width=5, height=5)
+  quilt.plot(cbind(simulationData$xGrid, simulationData$yGrid), simulationData$zGrid[,1], 
+             nx=70, ny=70, main="Example Simulation")
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  dev.off()
+  
+  # Plot true covariance
+  pdf("Figures/finalMixture/trueCorrelation.pdf", width=5, height=5)
+  ds = seq(0, 1, l=200)
+  spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu, distMat=x) + 
+      0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu, distMat=x)}
+  plot(ds, spatialCorFun(ds) / (1+0.1^2), type="l", main="True correlation function", 
+       xlab="Distance", ylab="Correlation", col="blue", ylim=c(0, 1))
+  points(0, 1, pch=19, col="blue", cex=.2)
+  dev.off()
+  
   plotNamePrefix = "Figures/finalMixture/finalMixture"
   plotNameSuffix = paste0("_nugV", round(sigma2, 2), "_n", n, ".pdf")
   
   # get the file names of the results from the simulations
-  SPDEname = paste0("mixtureSPDE_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
+  SPDEname = paste0("mixtureSPDEAll_nsim10_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
                                    "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKname = paste0("mixtureLK.RData")
-  LKINLA3name = paste0("mixtureLKINLA_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
+  LKname = paste0("mixtureLKAll_nsim10.RData")
+  LKINLA3name = paste0("mixtureLKINLAAll_nsim10_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKINLA2name = paste0("mixtureLKINLA_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
+  LKINLA2name = paste0("mixtureLKINLAAll_nsim10_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
                        round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
   
   # load the simulation results
+  # allScoringRules
+  # allFits
+  ## allCovInfo
+  # allPredictionMatrices
+  # allAggregatedScoringRules
+  # binnedScoringRulesGrid
+  # pooledScoringRulesGrid
+  # fullPooledScoringRulesLeftOut
+  # pooledScoringRulesLeftOut
+  ## covMean
+  ## upperCov
+  ## lowerCov
+  ## corMean
+  ## upperCor
+  ## lowerCor
+  ## fullPredictionMatrix
+  # leftOutPredictionMatrix
+  # leftInPredictionMatrix
+  ## leftOutScores
+  ## leftInScores
+  ## aggregatedScores
   out = load(paste0("savedOutput/simulations/", SPDEname))
-  scoringRulesSPDE = scoringRules
-  fitSPDE = fit
-  covInfoSPDE = covInfo
-  predictionMatrixSPDE = predictionMatrix
-  aggregatedScoringRulesSPDE = aggregatedScoringRules
+  allPredsSPDE = do.call("c", lapply(allFits, function(x) {x$preds}))
+  allSigmasSPDE = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  binnedScoringRulesGridSPDE = binnedScoringRulesGrid
+  pooledScoringRulesGridSPDE = pooledScoringRulesGrid
+  pooledScoringRulesLeftOutSPDE = pooledScoringRulesLeftOut
+  covInfoSPDE = list(d = allCovInfo[[1]]$d, covMean=covMean, 
+                     upperCov=upperCov, 
+                     lowerCov=lowerCov, 
+                     corMean=corMean, 
+                     upperCor=upperCor, 
+                     lowerCor=lowerCor)
+  fullPredictionMatrixSPDE = fullPredictionMatrix
+  leftOutScoresSPDE = leftOutScores
+  leftInScoresSPDE = leftInScores
+  aggregatedScoresSPDE = aggregatedScores
   
   out = load(paste0("savedOutput/simulations/", LKname))
-  scoringRulesLK = scoringRules
-  fitLK = fit
-  covInfoLK = covInfo
-  predictionMatrixLK = predictionMatrix
-  aggregatedScoringRulesLK = aggregatedScoringRules
+  allPredsLK = do.call("c", lapply(allFits, function(x) {x$preds}))
+  allSigmasLK = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  binnedScoringRulesGridLK = binnedScoringRulesGrid
+  pooledScoringRulesGridLK = pooledScoringRulesGrid
+  pooledScoringRulesLeftOutLK = pooledScoringRulesLeftOut
+  covInfoLK = list(d = allCovInfo[[1]]$d, covMean=covMean, 
+                     upperCov=upperCov, 
+                     lowerCov=lowerCov, 
+                     corMean=corMean, 
+                     upperCor=upperCor, 
+                     lowerCor=lowerCor)
+  fullPredictionMatrixLK = fullPredictionMatrix
+  leftOutScoresLK = leftOutScores
+  leftInScoresLK = leftInScores
+  aggregatedScoresLK = aggregatedScores
   
   out = load(paste0("savedOutput/simulations/", LKINLA3name))
-  scoringRulesLKINLA3 = scoringRules
-  fitLKINLA3 = fit
-  covInfoLKINLA3 = covInfo
-  predictionMatrixLKINLA3 = predictionMatrix
-  aggregatedScoringRulesLKINLA3 = aggregatedScoringRules
+  allPredsLKINLA3 = do.call("c", lapply(allFits, function(x) {x$preds}))
+  allSigmasLKINLA3 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  binnedScoringRulesGridLKINLA3 = binnedScoringRulesGrid
+  pooledScoringRulesGridLKINLA3 = pooledScoringRulesGrid
+  pooledScoringRulesLeftOutLKINLA3 = pooledScoringRulesLeftOut
+  covInfoLKINLA3 = list(d = allCovInfo[[1]]$d, covMean=covMean, 
+                     upperCov=upperCov, 
+                     lowerCov=lowerCov, 
+                     corMean=corMean, 
+                     upperCor=upperCor, 
+                     lowerCor=lowerCor)
+  fullPredictionMatrixLKINLA3 = fullPredictionMatrix
+  leftOutScoresLKINLA3 = leftOutScores
+  leftInScoresLKINLA3 = leftInScores
+  aggregatedScoresLKINLA3 = aggregatedScores
   
   out = load(paste0("savedOutput/simulations/", LKINLA2name))
-  scoringRulesLKINLA2 = scoringRules
-  fitLKINLA2 = fit
-  covInfoLKINLA2 = covInfo
-  predictionMatrixLKINLA2 = predictionMatrix
-  aggregatedScoringRulesLKINLA2 = aggregatedScoringRules
+  allPredsLKINLA2 = do.call("c", lapply(allFits, function(x) {x$preds}))
+  allSigmasLKINLA2 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  binnedScoringRulesGridLKINLA2 = binnedScoringRulesGrid
+  pooledScoringRulesGridLKINLA2 = pooledScoringRulesGrid
+  pooledScoringRulesLeftOutLKINLA2 = pooledScoringRulesLeftOut
+  covInfoLKINLA2 = list(d = allCovInfo[[1]]$d, covMean=covMean, 
+                     upperCov=upperCov, 
+                     lowerCov=lowerCov, 
+                     corMean=corMean, 
+                     upperCor=upperCor, 
+                     lowerCor=lowerCor)
+  fullPredictionMatrixLKINLA2 = fullPredictionMatrix
+  leftOutScoresLKINLA2 = leftOutScores
+  leftInScoresLKINLA2 = leftInScores
+  aggregatedScoresLKINLA2 = aggregatedScores
   
-  # modelNames = c("SPDE", "LK", "LKINLA (3 Layer)", "LKINLA (2 Layer)")
-  modelNames = c("SPDE", "LKINLA (3 Layer)", "LKINLA (2 Layer)")
+  browser()
+  modelNames = c("SPDE", "LK", "LK-INLA (3 Layer)", "LK-INLA (2 Layer)")
+  # modelNames = c("SPDE", "LK-INLA (3 Layer)", "LK-INLA (2 Layer)")
+  
+  totalLength = length(allFits[[1]]$preds)
+  testIndices = (length(allFits[[1]]$preds) - length(ysTest) + 1):length(allFits[[1]]$preds)
+  testIndicesAll = c(outer(testIndices, totalLength * (0:9), "+"))
+  leftOutIndices = (length(allFits[[1]]$preds) - length(ysTest) + 1):(length(allFits[[1]]$preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  leftOutIndicesAll = c(outer(leftOutIndices, totalLength * (0:9), "+"))
+  gridIndices = (length(allFits[[1]]$preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(allFits[[1]]$preds)
+  gridIndicesAll = c(outer(gridIndices, totalLength * (0:9), "+"))
+  leftOutIndicesTest = match(leftOutIndices, testIndices)
+  gridIndicesTest = match(gridIndices, testIndices)
+  
+  # Plot predictions together
+  gridCoords = cbind(simulationData$xGrid, simulationData$yGrid)
+  ysGrid = ysTest[gridIndicesTest]
+  predsGridSPDE = allPredsSPDE[gridIndices]
+  predsGridLK = allPredsLK[gridIndices]
+  predsGridLKINLA3 = allPredsLKINLA3[gridIndices]
+  predsGridLKINLA2 = allPredsLKINLA2[gridIndices]
+  zlim = range(c(predsGridSPDE, predsGridLK, predsGridLKINLA3, predsGridLKINLA2))
+  
+  png("Figures/finalMixture/exampleMixturePredictions.png", width=1000, height=1000)
+  par(mfrow=c(2,2))
+  
+  quilt.plot(gridCoords, predsGridSPDE, main="SPDE Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, predsGridLK, main="LatticeKrig Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, predsGridLKINLA3, main="LK-INLA (L=3) Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, predsGridLKINLA2, main="LK-INLA (L=2) Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  dev.off()
+  
+  # Plot predictive standard deviations together
+  sigmasGridSPDE = allSigmasSPDE[gridIndices]
+  sigmasGridLK = allSigmasLK[gridIndices]
+  sigmasGridLKINLA3 = allSigmasLKINLA3[gridIndices]
+  sigmasGridLKINLA2 = allSigmasLKINLA2[gridIndices]
+  zlim = range(c(sigmasGridSPDE, sigmasGridLK, sigmasGridLKINLA3, sigmasGridLKINLA2))
+  
+  png("Figures/finalMixture/exampleMixturePredictiveSDs.png", width=1000, height=1000)
+  par(mfrow=c(2,2))
+  
+  quilt.plot(gridCoords, sigmasGridSPDE, main="SPDE Predictive SDs", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, sigmasGridLK, main="LatticeKrig Predictive SDs", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, sigmasGridLKINLA3, main="LK-INLA (L=3) Predictive SDs", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  
+  quilt.plot(gridCoords, sigmasGridLKINLA2, main="LK-INLA (L=2) Predictive SDs", nx=70, ny=70, zlim=zlim, cex.main=2)
+  abline(h=c(-1 / 3, 1 / 3), lty=2)
+  abline(v=c(-1 / 3, 1 / 3), lty=2)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  dev.off()
   
   # plot correlation functions together
   spatialCovFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
@@ -1869,12 +2029,12 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
   pdf(paste0(plotNamePrefix, "Correlation", plotNameSuffix), width=5, height=5)
   plot(covInfoSPDE$d, covInfoSPDE$corMean, col="blue", 
        main="Correlation functions (and 80% CIs)", ylab="Correlation", xlab="Distance", type="l")
-  lines(covInfoSPDE$d, covInfoSPDE$upperCor[1,], col="blue", lty=2)
-  lines(covInfoSPDE$d, covInfoSPDE$lowerCor[1,], col="blue", lty=2)
+  lines(covInfoSPDE$d, covInfoSPDE$upperCor, col="blue", lty=2)
+  lines(covInfoSPDE$d, covInfoSPDE$lowerCor, col="blue", lty=2)
   
-  # lines(covInfoLK$d, covInfoLK$corMean, col="black")
-  # # lines(covInfoLK$d, covInfoLK$upperCor, col="black", lty=2)
-  # # lines(covInfoLK$d, covInfoLK$lowerCor, col="black", lty=2)
+  lines(covInfoLK$d, covInfoLK$corMean, col="black")
+  # lines(covInfoLK$d, covInfoLK$upperCor, col="black", lty=2)
+  # lines(covInfoLK$d, covInfoLK$lowerCor, col="black", lty=2)
   
   lines(covInfoLKINLA3$d, covInfoLKINLA3$corMean, col="purple")
   lines(covInfoLKINLA3$d, covInfoLKINLA3$upperCor, col="purple", lty=2)
@@ -1886,17 +2046,15 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
   
   lines(covInfoLKINLA2$d, mixtureCorFun(covInfoLKINLA2$d), col="green")
   
-  # legend("topright", c("SPDE", "LK", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
-  legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
+  legend("topright", c("SPDE", "LK", "LK-INLA (L=3)", "LK-INLA (L=2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
+  # legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
   dev.off()
   
   pdf(paste0(plotNamePrefix, "CorrelationNoCIs", plotNameSuffix), width=5, height=5)
   plot(covInfoSPDE$d, covInfoSPDE$corMean, col="blue", 
        main="Correlation functions", ylab="Correlation", xlab="Distance", type="l")
   
-  # lines(covInfoLK$d, covInfoLK$corMean, col="black")
-  # # lines(covInfoLK$d, covInfoLK$upperCor, col="black", lty=2)
-  # # lines(covInfoLK$d, covInfoLK$lowerCor, col="black", lty=2)
+  lines(covInfoLK$d, covInfoLK$corMean, col="black")
   
   lines(covInfoLKINLA3$d, covInfoLKINLA3$corMean, col="purple")
   
@@ -1904,18 +2062,27 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
   
   lines(covInfoLKINLA2$d, mixtureCorFun(covInfoLKINLA2$d), col="green")
   
-  # legend("topright", c("SPDE", "LK", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
-  legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
+  legend("topright", c("SPDE", "LK", "LK-INLA (L=3)", "LK-INLA (L=2)", "Truth"), lty=1, col=c("blue", "black", "purple", "red", "green"))
+  # legend("topright", c("SPDE", "LK-INLA (3)", "LK-INLA (2)", "Truth"), lty=1, col=c("blue", "purple", "red", "green"))
   dev.off()
   
   # construct information for separating out prediction types
-  testIndices = (length(fitSPDE$preds) - length(ysTest) + 1):length(fitSPDE$preds)
-  leftOutIndices = (length(fitSPDE$preds) - length(ysTest) + 1):(length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]))
-  gridIndices = (length(fitSPDE$preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(fitSPDE$preds)
+  totalLength = length(allFits[[1]]$preds)
+  testIndices = (length(allFits[[1]]$preds) - length(ysTest) + 1):length(allFits[[1]]$preds)
+  testIndicesAll = c(outer(testIndices, totalLength * (0:9), "+"))
+  leftOutIndices = (length(allFits[[1]]$preds) - length(ysTest) + 1):(length(allFits[[1]]$preds) - length(ysTest) + length(simulationData$zTest[,1]))
+  leftOutIndicesAll = c(outer(leftOutIndices, totalLength * (0:9), "+"))
+  gridIndices = (length(allFits[[1]]$preds) - length(ysTest) + length(simulationData$zTest[,1]) + 1):length(allFits[[1]]$preds)
+  gridIndicesAll = c(outer(gridIndices, totalLength * (0:9), "+"))
   leftOutIndicesTest = match(leftOutIndices, testIndices)
   gridIndicesTest = match(gridIndices, testIndices)
   
+  set.seed(1)
+  maxPoints = 7500
+  gridIndicesSample = sample(gridIndicesAll, maxPoints, replace=FALSE)
+  
   # plot prediction standard deviations
+  pdf("Figures/finalMixture/pairSigmas.pdf", width=8, height=8)
   my_line <- function(x,y,...){
     # if(diff(range(x)) >= .04)
       xlim = zlim
@@ -1932,11 +2099,11 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
     # par(usr = c(xlim, ylim))
     # points(x,y,..., col="blue")
     abline(a = 0,b = 1,...)
-    points(x[gridIndices],y[gridIndices],..., col="black", cex=.1, pch=".")
-    points(x[leftOutIndices],y[leftOutIndices],..., col="blue", cex=.5, pch=19)
+    points(x[gridIndicesSample],y[gridIndicesSample],..., col="black", cex=.1, pch=".")
+    # points(x[leftOutIndicesAll],y[leftOutIndicesAll],..., col="blue", cex=.5, pch=19)
   }
   
-  values = data.frame(fitSPDE$sigmas, fitLKINLA3$sigmas, fitLKINLA2$sigmas)
+  values = data.frame(allSigmasSPDE, allSigmasLK, allSigmasLKINLA3, allSigmasLKINLA2)
   zlim = range(c(as.matrix(values)))
   lims = rep(list(zlim), length(values))
   myPairs(values, 
@@ -1944,6 +2111,82 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
           lower.panel=my_line, upper.panel = my_line, 
           main=paste0("Predictive SDs"), 
           lims=lims, oma=c(3,3,6,7))
+  dev.off()
+  
+  # aggregated scoring rules
+  fullAggregatedScoresSPDE = getScores(fullPredictionMatrixSPDE$Truth, fullPredictionMatrixSPDE$Est, fullPredictionMatrixSPDE$SDs^2, fullPredictionMatrixSPDE$Lower, fullPredictionMatrixSPDE$Upper, getAverage=FALSE)
+  fullAggregatedScoresLK = getScores(fullPredictionMatrixLK$Truth, fullPredictionMatrixLK$Est, fullPredictionMatrixLK$SDs^2, fullPredictionMatrixLK$Lower, fullPredictionMatrixLK$Upper, getAverage=FALSE)
+  fullAggregatedScoresLKINLA3 = getScores(fullPredictionMatrixLKINLA3$Truth, fullPredictionMatrixLKINLA3$Est, fullPredictionMatrixLKINLA3$SDs^2, fullPredictionMatrixLKINLA3$Lower, fullPredictionMatrixLKINLA3$Upper, getAverage=FALSE)
+  fullAggregatedScoresLKINLA2 = getScores(fullPredictionMatrixLKINLA2$Truth, fullPredictionMatrixLKINLA2$Est, fullPredictionMatrixLKINLA2$SDs^2, fullPredictionMatrixLKINLA2$Lower, fullPredictionMatrixLKINLA2$Upper, getAverage=FALSE)
+  
+  leftOutIndices = seq(5, nrow(fullPredictionMatrixSPDE), by=9)
+  leftInIndices = (1:nrow(fullPredictionMatrixSPDE))[-leftOutIndices]
+  my_line <- function(x,y,...){
+    # if(diff(range(x)) >= .04)
+    xlim = zlim
+    # else
+    #   xlim = zlim2
+    # if(diff(range(y)) >= .04)
+    ylim = zlim
+    # else
+    #   ylim = zlim2
+    # if(diff(range(c(x, y))) > 0.04)
+    #   par(usr = c(zlim, zlim))
+    # else
+    #   par(usr = c(zlim2, zlim2))
+    # par(usr = c(xlim, ylim))
+    # points(x,y,..., col="blue")
+    abline(a = 0,b = 1,...)
+    points(x[leftInIndices],y[leftInIndices],..., col="black", cex=.5, pch=19)
+    points(x[leftOutIndices],y[leftOutIndices],..., col="blue", cex=.5, pch=19)
+  }
+  
+  values = data.frame(fullPredictionMatrixSPDE$SDs, fullPredictionMatrixLK$SDs, fullPredictionMatrixLKINLA2$SDs, fullPredictionMatrixLKINLA3$SDs)
+  zlim = range(c(as.matrix(values)))
+  lims = rep(list(zlim), length(values))
+  myPairs(values, 
+          labels=modelNames, 
+          lower.panel=my_line, upper.panel = my_line, 
+          main=paste0("Aggregated Predictive SDs"), 
+          lims=lims, oma=c(3,3,6,7))
+  
+  
+  values = data.frame(SPDE=fullAggregatedScoresSPDE$RMSE, LK=fullAggregatedScoresLK$RMSE, LKINLA3=fullAggregatedScoresLKINLA3$RMSE, LKINLA2=fullAggregatedScoresLKINLA2$RMSE)[leftOutIndices,]
+  boxplot(values, names=modelNames, col=rainbow(4), main="RMSE (Central Block)")
+  
+  values = data.frame(SPDE=fullAggregatedScoresSPDE$RMSE, LK=fullAggregatedScoresLK$RMSE, LKINLA3=fullAggregatedScoresLKINLA3$RMSE, LKINLA2=fullAggregatedScoresLKINLA2$RMSE)[leftInIndices,]
+  boxplot(values, names=modelNames, col=rainbow(4), main="RMSE (Outer Blocks)")
+  
+  values = data.frame(SPDE=fullAggregatedScoresSPDE$CRPS, LK=fullAggregatedScoresLK$CRPS, LKINLA3=fullAggregatedScoresLKINLA3$CRPS, LKINLA2=fullAggregatedScoresLKINLA2$CRPS)[leftOutIndices,]
+  boxplot(values, names=modelNames, col=rainbow(4), main="CRPS (Central Block)")
+  
+  values = data.frame(SPDE=fullAggregatedScoresSPDE$CRPS, LK=fullAggregatedScoresLK$CRPS, LKINLA3=fullAggregatedScoresLKINLA3$CRPS, LKINLA2=fullAggregatedScoresLKINLA2$CRPS)[leftInIndices,]
+  boxplot(values, names=modelNames, col=rainbow(4), main="CRPS (Outer Blocks)")
+  
+  
+  allLeftOutAggregatedScores = rbind(leftOutScoresSPDE, leftOutScoresLK, leftOutScoresLKINLA3, leftOutScoresLKINLA2)
+  allLeftInAggregatedScores = rbind(leftInScoresSPDE, leftInScoresLK, leftInScoresLKINLA3, leftInScoresLKINLA2)
+  allAggregatedScores = rbind(aggregatedScoresSPDE, aggregatedScoresLK, aggregatedScoresLKINLA3, aggregatedScoresLKINLA2)
+  rownames(allLeftOutAggregatedScores) = modelNames
+  rownames(allLeftInAggregatedScores) = modelNames
+  rownames(allAggregatedScores) = modelNames
+  
+  print("Left out aggregated scores:")
+  print(xtable(format(allLeftOutAggregatedScores[,-3], digits=2)))
+  print("Left in aggregated scores:")
+  print(xtable(format(allLeftInAggregatedScores[,-3], digits=2)))
+  print("All aggregated scores:")
+  print(xtable(format(allAggregatedScores[,-3], digits=2)))
+  
+  # computation times
+  pooledScores = rbind(pooledScoringRulesGridSPDE, pooledScoringRulesGridLK, 
+                       pooledScoringRulesGridLKINLA3, pooledScoringRulesGridLKINLA2)
+  pooledScores = pooledScores[,-c(1, 2, 5)]
+  rownames(pooledScores) = modelNames
+  
+  print("All pointwise scores:")
+  print(xtable(format(round(pooledScores, digits=3), scientific=FALSE)))
+  # binned scoring rules
   
   my_line <- function(x,y,...){
     # if(diff(range(x)) >= .04)
@@ -1964,46 +2207,6 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
     points(x[gridIndicesTest],y[gridIndicesTest],..., col="black", cex=.1, pch=".")
     points(x[leftOutIndicesTest],y[leftOutIndicesTest],..., col="blue", cex=.5, pch=19)
   }
-  
-  values = data.frame((fitSPDE$preds[testIndices]-ysTest)^2, (fitLKINLA3$preds[testIndices]-ysTest)^2, (fitLKINLA2$preds[testIndices]-ysTest)^2)
-  zlim = range(c(as.matrix(values)))
-  lims = rep(list(zlim), length(values))
-  myPairs(values, 
-          labels=modelNames, 
-          lower.panel=my_line, upper.panel = my_line, 
-          main=paste0("Square Error"), 
-          lims=lims, oma=c(3,3,6,7), log="xy")
-  
-  values = data.frame(abs(fitSPDE$preds[testIndices]-ysTest), abs(fitLKINLA3$preds[testIndices]-ysTest), abs(fitLKINLA2$preds[testIndices]-ysTest))
-  zlim = range(c(as.matrix(values)))
-  lims = rep(list(zlim), length(values))
-  myPairs(values, 
-          labels=modelNames, 
-          lower.panel=my_line, upper.panel = my_line, 
-          main=paste0("Absolute Error"), 
-          lims=lims, oma=c(3,3,6,7), log="xy")
-  
-  values = data.frame((fitSPDE$preds[testIndices]-ysTest)/fitSPDE$sigmas[testIndices], 
-                      (fitLKINLA3$preds[testIndices]-ysTest)/fitLKINLA3$sigmas[testIndices], 
-                      (fitLKINLA2$preds[testIndices]-ysTest)/fitLKINLA2$sigmas[testIndices])
-  zlim = range(c(as.matrix(values)))
-  lims = rep(list(zlim), length(values))
-  myPairs(values, 
-          labels=modelNames, 
-          lower.panel=my_line, upper.panel = my_line, 
-          main=paste0("Studentized Errors"), 
-          lims=lims, oma=c(3,3,6,7))
-  
-  values = data.frame(abs(fitSPDE$preds[testIndices]-ysTest)/fitSPDE$sigmas[testIndices], 
-                      abs(fitLKINLA3$preds[testIndices]-ysTest)/fitLKINLA3$sigmas[testIndices], 
-                      abs(fitLKINLA2$preds[testIndices]-ysTest)/fitLKINLA2$sigmas[testIndices])
-  zlim = range(c(as.matrix(values)))
-  lims = rep(list(zlim), length(values))
-  myPairs(values, 
-          labels=modelNames, 
-          lower.panel=my_line, upper.panel = my_line, 
-          main=paste0("Absolute Studentized Errors"), 
-          lims=lims, oma=c(3,3,6,7), log="xy")
   
   # calculate CRPS
   values = data.frame(crps(ysTest, fitSPDE$preds[testIndices], fitSPDE$sigmas[testIndices]^2, getAverage=FALSE), 
@@ -2097,50 +2300,68 @@ compareMixtureModeling = function(sigma2=.1^2, n=900) {
           lims=lims, oma=c(3,3,6,7), log="xy")
   
   ##### binned results versus distance
-  values = data.frame(scoringRulesSPDE$binnedResults$MSE, scoringRulesLKINLA3$binnedResults$MSE, scoringRulesLKINLA2$binnedResults$MSE)
+  ns = binnedScoringRulesGridSPDE$nPerBin
+  cex = 5/sqrt(ns)
+  pdf("Figures/finalMixture/binnedMSE.pdf", width=5, height=5)
+  values = data.frame(binnedScoringRulesGridSPDE$MSE, binnedScoringRulesGridLK$MSE, binnedScoringRulesGridLKINLA3$MSE, binnedScoringRulesGridLKINLA2$MSE)
   zlim = range(c(as.matrix(values)))
-  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
        main="MSE vs Distance to Observation", xlab="Distance to Observation", ylab="MSE")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), lty=1, pch=1, col=c("blue", "black", "purple", "red"))
+  dev.off()
   
-  values = data.frame(scoringRulesSPDE$binnedResults$CRPS, scoringRulesLKINLA3$binnedResults$CRPS, scoringRulesLKINLA2$binnedResults$CRPS)
+  pdf("Figures/finalMixture/binnedCRPS.pdf", width=5, height=5)
+  values = data.frame(binnedScoringRulesGridSPDE$CRPS, binnedScoringRulesGridLK$CRPS, binnedScoringRulesGridLKINLA3$CRPS, binnedScoringRulesGridLKINLA2$CRPS)
   zlim = range(c(as.matrix(values)))
-  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
        main="CRPS vs Distance to Observation", xlab="Distance to Observation", ylab="CRPS")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  dev.off()
   
-  values = data.frame(scoringRulesSPDE$binnedResults$Width, scoringRulesLKINLA3$binnedResults$Width, scoringRulesLKINLA2$binnedResults$Width)
+  pdf("Figures/finalMixture/binnedCoverage.pdf", width=5, height=5)
+  values = data.frame(binnedScoringRulesGridSPDE$Coverage, binnedScoringRulesGridLK$Coverage, binnedScoringRulesGridLKINLA3$Coverage, binnedScoringRulesGridLKINLA2$Coverage)
   zlim = range(c(as.matrix(values)))
-  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
+       main="80% Coverage vs Distance to Observation", xlab="Distance to Observation", ylab="Coverage")
+  abline(h=.8, lty=2)
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  dev.off()
+  
+  pdf("Figures/finalMixture/binnedWidth.pdf", width=5, height=5)
+  values = data.frame(binnedScoringRulesGridSPDE$Width, binnedScoringRulesGridLK$Width, binnedScoringRulesGridLKINLA3$Width, binnedScoringRulesGridLKINLA2$Width)
+  zlim = range(c(as.matrix(values)))
+  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
        main="80% CI Width vs Distance to Observation", xlab="Distance to Observation", ylab="80% CI Width")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
-  
-  values = data.frame(scoringRulesSPDE$binnedResults$Coverage, scoringRulesLKINLA3$binnedResults$Coverage, scoringRulesLKINLA2$binnedResults$Coverage)
-  zlim = range(c(as.matrix(values)))
-  plot(scoringRulesSPDE$binnedResults$NNDist, values[[1]], ylim=zlim, pch=19, col="blue", 
-       main="80% Coverage vs Distance to Observation", xlab="Distance to Observation", ylab="80% Coverage")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[1]], col="blue")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[2]], pch=19, col="purple")
-  points(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  lines(scoringRulesSPDE$binnedResults$NNDist, values[[3]], pch=19, col="red")
-  abline(h=0.8, lty=2)
-  legend("topleft", c("SPDE", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=19, col=c("blue", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  dev.off()
 }
 
 

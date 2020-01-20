@@ -498,7 +498,7 @@ getPrior2 = function(corScaleMed, sd95quant) {
 ## function for making prior on correlation scale and marginal sd (a PC prior)
 # corScaleMed: median correlation scale
 # sdAlpha, sdU: set PC prior so that P(sd > sdU) = sdAlpha
-getPCPrior = function(corScaleMed, sdAlpha, sdU, dirichletConcentration=1.5, nLayer=3, separateRanges=FALSE, latticeInfo=NULL) {
+getPCPrior = function(corScaleMed, sdAlpha, sdU, dirichletConcentration=1.5, nLayer=3, separateRanges=FALSE, latticeInfo=NULL, useUrbanPrior=FALSE) {
   ## set the correlation scale hyperparameter
   if(!separateRanges) {
     corScalePar = corScaleMed*log(2)
@@ -507,10 +507,19 @@ getPCPrior = function(corScaleMed, sdAlpha, sdU, dirichletConcentration=1.5, nLa
     # the other scale parameters decay depending on the lattice widths:
     if(!is.null(latticeInfo)) {
       deltas = sapply(latticeInfo, function(x) {x$latWidth})
+      if(!useUrbanPrior)
+        corScalePar = corScaleMed*log(2) * (deltas / max(deltas))
+      else {
+        if(length(latticeInfo) == 2)
+          corScalePar = c(corScaleMed*log(2), -50*log(0.95))
+        else
+          stop("useUrbanPrior set to TRUE with more than 2 independently fit range parameters")
+      }
     } else {
       deltas = 2^seq(0, -nLayer+1, by=-1)
+      corScalePar = corScaleMed*log(2) * (deltas / max(deltas))
     }
-    corScalePar = corScaleMed*log(2) * (deltas / max(deltas))
+    
   }
   
   ## set the layer weight hyperparameters

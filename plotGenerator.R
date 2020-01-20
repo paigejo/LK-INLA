@@ -104,7 +104,7 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       next
     } else if(thisArea == "Region") {
       thisMap = regionMap
-    } else if(thisArea == "County") {
+    } else {
       thisMap = countyMap
     }
     
@@ -397,6 +397,8 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     for(i in 1:length(uniqueModelClasses)) {
       thisModelClass = uniqueModelClasses[i]
       thisI = modelClasses == thisModelClass
+      if(sum(thisI) == 1)
+        next
       
       thisResultFilenames = resultFilenames[thisI]
       thisModelClasses = modelClasses[thisI]
@@ -410,16 +412,30 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   
   # reorder the models if necessary so that we have 2 blocks of 4 (note that these permutations are 
   # the inverse permutations of themselves)
-  if(numberModels == 8) {
-    reordering = c(t(rbind(c(1, 2, 5, 6), 
-                           c(3, 4, 7, 8))))
+  # if(numberModels == 8) {
+  #   reordering = c(t(rbind(c(1, 2, 5, 6), 
+  #                          c(3, 4, 7, 8))))
+  #   resultFilenames = resultFilenames[reordering]
+  #   modelClasses = modelClasses[reordering]
+  #   modelVariations = modelVariations[reordering]
+  #   cgramList = cgramList[reordering]
+  # } else if(numberModels == 4) {
+  #   reordering = c(t(rbind(c(1, 3), 
+  #                          c(2, 4))))
+  #   resultFilenames = resultFilenames[reordering]
+  #   modelClasses = modelClasses[reordering]
+  #   modelVariations = modelVariations[reordering]
+  #   cgramList = cgramList[reordering]
+  # }
+  if(numberModels == 6) {
+    reordering = c(t(rbind(c(1, 3, 4), 
+                           c(2, 5, 6)))) # urban effects on bottom, first column is SPDE
     resultFilenames = resultFilenames[reordering]
     modelClasses = modelClasses[reordering]
     modelVariations = modelVariations[reordering]
     cgramList = cgramList[reordering]
-  } else if(numberModels == 4) {
-    reordering = c(t(rbind(c(1, 3), 
-                           c(2, 4))))
+  } else {
+    reordering = 1:numberModels # no need to reorder
     resultFilenames = resultFilenames[reordering]
     modelClasses = modelClasses[reordering]
     modelVariations = modelVariations[reordering]
@@ -428,11 +444,13 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   
   # get range of covariogram values
   yRange = c()
+  yRangeNoCIs = c()
   for(j in 1:numberModels) {
     modelName = paste(modelClasses[j], modelVariations[j])
     
     thiscgram = cgramList[[j]]
-    yRange = range(c(yRange, thiscgram$covMean, thiscgram$lowerCov, thiscgram$upperCov))
+    yRange = range(c(yRange, thiscgram$cov, thiscgram$lowerCov, thiscgram$upperCov))
+    yRangeNoCIs = range(c(yRangeNoCIs, thiscgram$cov))
   }
   
   # modify plot file names if necessary
@@ -444,7 +462,6 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   ##### Plot everything
   print("Plotting covariograms...")
   cols = rainbow(numberModels)
-  browser()
   width = 4 * ceiling(numberModels/2)
   pdf(file=paste0("Figures/", resultNameRoot, "/covariograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
   par(mfrow=c(2,ceiling(numberModels/2)))
@@ -473,7 +490,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     lines(d, upperCov, lty=2)
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
-    legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
+    # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
   }
   dev.off()
   
@@ -514,6 +531,69 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   legend("topright", allModelNames[reordering], lty=1, col=cols[reordering], cex=ifelse(numberModels >= 5, .5, 1))
   dev.off()
   
+  width = 4 * ceiling(numberModels/2)
+  pdf(file=paste0("Figures/", resultNameRoot, "/covariogramsNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
+  par(mfrow=c(2,ceiling(numberModels/2)))
+  
+  # plot the covariograms separately
+  for(j in 1:numberModels) {
+    modelName = paste(modelClasses[j], modelVariations[j])
+    
+    thiscgram = cgramList[[j]]
+    d = thiscgram$d
+    sortI = sort(d, index.return=TRUE)$ix
+    d = d[sortI]
+    if(modelClasses[j] == "SPDE") {
+      covMean = thiscgram$cov[sortI]
+    } else {
+      covMean = thiscgram$cov[sortI]
+    }
+    
+    plot(d, covMean, type="l", main=paste0(modelName, " estimated covariance function"), xlab="Distance", ylab="Covariance", 
+         ylim=yRangeNoCIs)
+    # lines(d, mixtureCovFun(d), col="green")
+    # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+    # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
+  }
+  dev.off()
+  
+  pdf(file=paste0("Figures/", resultNameRoot, "/covariogramsAllNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
+  
+  # plot the covariograms together
+  allModelNames = paste(modelClasses, modelVariations)
+  for(j in 1:numberModels) {
+    modelName = paste(modelClasses[j], modelVariations[j])
+    thiscgram = cgramList[[j]]
+    d = thiscgram$d
+    sortI = sort(d, index.return=TRUE)$ix
+    d = d[sortI]
+    
+    if(modelClasses[j] == "SPDE") {
+      covMean = thiscgram$cov[sortI]
+      # upperCov=thiscgram$upperCov[1,sortI] # second row is the 95% CI, while the first is the 80% CI
+      # lowerCov=thiscgram$lowerCov[1,sortI]
+    } else {
+      covMean = thiscgram$cov[sortI]
+      # upperCov=thiscgram$upperCov[sortI]
+      # lowerCov=thiscgram$lowerCov[sortI]
+    }
+    
+    if(j == 1) {
+      plot(d, covMean, type="l", main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
+           ylim=yRangeNoCIs, col=cols[j])
+    } else {
+      lines(d, covMean, col=cols[j])
+    }
+    
+    # lines(d, lowerCov, lty=2, col=cols[j])
+    # lines(d, upperCov, lty=2, col=cols[j])
+    # lines(d, mixtureCovFun(d), col="green")
+    # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+    
+  }
+  legend("topright", allModelNames[reordering], lty=1, col=cols[reordering], cex=ifelse(numberModels >= 5, .5, 1))
+  dev.off()
+  
   print("Plotting correlograms...")
   width = 4 * ceiling(numberModels/2)
   pdf(file=paste0("Figures/", resultNameRoot, "/correlograms", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
@@ -543,7 +623,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     lines(d, upperCor, lty=2)
     # lines(d, mixtureCorFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
-    legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
+    # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
   }
   dev.off()
   
@@ -583,6 +663,77 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   }
   legend("topright", allModelNames[reordering], lty=1, col=cols[reordering], cex=ifelse(numberModels >= 5, .5, 1))
   dev.off()
+  
+  width = 4 * ceiling(numberModels/2)
+  pdf(file=paste0("Figures/", resultNameRoot, "/correlogramsNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=width, height=8)
+  par(mfrow=c(2,ceiling(numberModels/2)))
+  
+  # plot the correlograms
+  for(j in 1:numberModels) {
+    modelName = paste(modelClasses[j], modelVariations[j])
+    
+    thiscgram = cgramList[[j]]
+    d = thiscgram$d
+    sortI = sort(d, index.return=TRUE)$ix
+    d = d[sortI]
+    if(modelClasses[j] == "SPDE") {
+      corMean = thiscgram$cor[sortI]
+      # upperCor=thiscgram$upperCor[1,sortI] # second row is the 95% CI, while the first is the 80% CI
+      # lowerCor=thiscgram$lowerCor[1,sortI]
+    } else {
+      corMean = thiscgram$cor[sortI]
+      # upperCor=thiscgram$upperCor[sortI]
+      # lowerCor=thiscgram$lowerCor[sortI]
+    }
+    
+    plot(d, corMean, type="l", main=paste0(modelName, " estimated correlation function"), xlab="Distance", ylab="Correlation", 
+         ylim=c(0,1))
+    # lines(d, lowerCor, lty=2)
+    # lines(d, upperCor, lty=2)
+    # lines(d, mixtureCorFun(d), col="green")
+    # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+    # legend("topright", c("Estimate", "80% CI"), lty=c(1, 2), col="black")
+  }
+  dev.off()
+  
+  pdf(file=paste0("Figures/", resultNameRoot, "/correlogramsAllNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
+  
+  # plot the correlograms together
+  allModelNames = paste(modelClasses, modelVariations)
+  for(j in 1:numberModels) {
+    modelName = paste(modelClasses[j], modelVariations[j])
+    thiscgram = cgramList[[j]]
+    d = thiscgram$d
+    sortI = sort(d, index.return=TRUE)$ix
+    d = d[sortI]
+    
+    if(modelClasses[j] == "SPDE") {
+      corMean = thiscgram$cor[sortI]
+      # upperCor=thiscgram$upperCor[1,sortI] # second row is the 95% CI, while the first is the 80% CI
+      # lowerCor=thiscgram$lowerCor[1,sortI]
+    } else {
+      corMean = thiscgram$cor[sortI]
+      # upperCor=thiscgram$upperCor[sortI]
+      # lowerCor=thiscgram$lowerCor[sortI]
+    }
+    
+    if(j == 1) {
+      plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
+           ylim=c(0, 1), col=cols[j])
+    } else {
+      lines(d, corMean, col=cols[j])
+    }
+    
+    # lines(d, lowerCor, lty=2, col=cols[j])
+    # lines(d, upperCor, lty=2, col=cols[j])
+    # lines(d, mixtureCovFun(d), col="green")
+    # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
+    
+  }
+  legend("topright", allModelNames[reordering], lty=1, col=cols[reordering], cex=ifelse(numberModels >= 5, .5, 1))
+  dev.off()
+  
+  browser()
 }
 
 printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="Ed", areaLevels=c("Region", "County"), 
