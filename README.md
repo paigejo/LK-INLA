@@ -1,2 +1,2 @@
 # LK-INLA
-LatticeKrig--in INLA!
+LatticeKrig--but wayyyy more in...la!
