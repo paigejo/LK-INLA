@@ -2,7 +2,8 @@
 
 # first name elements of ed to be the same as the corresponding elements of the simulated datasets
 
-generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1) {
+generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, family=c("betabinomial", "binomial")) {
+  family = match.arg(family)
   targetPop = match.arg(targetPop)
   if(targetPop == "women") {
     load("../U5MR/kenyaDataEd.RData")
@@ -17,10 +18,14 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   }
   resultNameRootLower = tolower(resultNameRoot)
   
+  familyText=""
+  if(family == "binomial")
+    familyText = "_LgtN"
+  
   ##### run SPDE 
   argList = list(list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, family="betabinomial", clusterEffect=FALSE)
+  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=FALSE)
   
   for(i in 1:length(argList)) {
     if(startI <= i) {
@@ -28,7 +33,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       clusterEffect = args$clusterEffect
       urbanEffect = args$urbanEffect
       fileName = paste0("savedOutput/", resultNameRoot, "/resultsSPDE", resultNameRootLower, 
-                        "_urbanEffect", urbanEffect, ".RData")
+                        "_urbanEffect", urbanEffect, familyText, ".RData")
       
       print(paste0("Fitting SPDE model with urbanEffect=", urbanEffect, "..."))
       spdeResults = do.call("fitSPDEKenyaDat", c(args, otherArguments))
@@ -47,7 +52,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, family="betabinomial", clusterEffect=FALSE)
+  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=FALSE)
   
   for(i in 1:length(argList)) {
     if(startI <= i + 2) {
@@ -55,7 +60,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
       fileName = paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
-                        "_urbanEffect", urbanEffect, ".RData")
+                        "_urbanEffect", urbanEffect, familyText, ".RData")
       
       print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       lkinlaResults = do.call("fitLKINLAKenyaDat", c(args, otherArguments))
