@@ -3587,7 +3587,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # 3: log spatial variance
   # 4-(3 + nLayer - 1): multivariateLogit alpha
   # nuggetVarVals = 1 / out[,1]
-  nuggetVarVals = rep(0, ncol(out))
+  nuggetVarVals = rep(0, ncol(xSamples))
   if(separateRanges) {
     kappaVals = t(sweep(sqrt(8)/exp(out[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
     rhoVals = exp(out[,nLayer+2])
