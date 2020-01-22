@@ -132,10 +132,10 @@ precomputeNormalization = function(xRangeDat=c(-1,1), yRangeDat=c(-1,1), effRang
   # set the values of effRange between which we want to interpolate
   effRangeKnots = exp(seq(log(effRangeRange[1]), log(effRangeRange[2]), l=nKnots))
   if(singleKappa) {
-    kappaKnots = 2.3/effRangeKnots * latticeInfo[[1]]$latWidth
+    kappaKnots = sqrt(8)/effRangeKnots * latticeInfo[[1]]$latWidth
   } else {
     effRangeKnots = matrix(effRangeKnots, nrow=1)
-    kappaKnots = outer(sapply(latticeInfo, function(x) {x$latWidth}), c(2.3/effRangeKnots), "*")
+    kappaKnots = outer(sapply(latticeInfo, function(x) {x$latWidth}), c(sqrt(8)/effRangeKnots), "*")
   }
   
   # compute ctilde vector for each value of effective range. The ctilde value for one layer is independent of the 
@@ -387,7 +387,7 @@ LKSimulator2 = function(coords, nsim=1, NC=5, effRange=(max(coords[,1])-min(coor
   
   # convert from effRange, margVar to rho, kappa
   latticeWidth = (xRangeKnots[2] - xRangeKnots[1])/(nx-1)
-  kappa = 2.3/effRange * latticeWidth
+  kappa = sqrt(8)/effRange * latticeWidth
   
   # since we are normalizing the process, rho is just sigmaSq
   rho = margVar
@@ -718,13 +718,13 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   if(!is.null(dim(kappaVals))) {
     kappaVals = kappaVals[,sampleI]
     separateRanges = TRUE
-    effectiveRanges = sweep(2.3/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}), "*")
+    effectiveRanges = sweep(sqrt(8)/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}), "*")
     minRange = min(apply(effectiveRanges, 1, min))
     maxRange = max(apply(effectiveRanges, 1, max))
   } else {
     kappaVals = kappaVals[sampleI]
     separateRanges = FALSE
-    effectiveRanges = 2.3 * latticeInfo[[1]]$latWidth / kappaVals
+    effectiveRanges = sqrt(8) * latticeInfo[[1]]$latWidth / kappaVals
     minRange = min(effectiveRanges) / 2^(length(latticeInfo) - 1)
     maxRange = max(effectiveRanges)
   }
@@ -1039,7 +1039,7 @@ getTrueLKEffectiveRange = function(nLayer=3, NP=200, sigma2 = 0, rho=1,
     latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
   }
   # set true parameter values
-  kappa = (2.3 * latInfo[[1]]$latWidth /effectiveRange)
+  kappa = (sqrt(8) * latInfo[[1]]$latWidth /effectiveRange)
   
   xlim <- latInfo[[1]]$xRangeDat
   ux <- seq(xlim[1], xlim[2], , NP)

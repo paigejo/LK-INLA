@@ -93,7 +93,7 @@ testRainfallData = function(normalize=TRUE, NC=5, nLayer=3, nBuffer=5, seed=1, m
   abline(0,1, col="green")
   dev.off()
   
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, LKIout$mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, LKIout$mod$marginals.hyperpar$`Theta1 for field`)
   pdf(file=paste0("Figures/Rainfall/posteriorKappa.pdf"), width=5, height=5)
   plot(kappaMarg, type="l", xlab=TeX("$\\kappa$"), main=TeX("Marginal for $\\kappa$"))
   abline(v=inla.qmarginal(c(.025, .975), kappaMarg), col="purple", lty=2)

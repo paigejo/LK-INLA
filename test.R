@@ -438,12 +438,12 @@ testCorrelation = function(nsim=1000, kappa=1, rho=1, N=30, NPred=60) {
   plot(corMean$centers[notnans], corMean$ys[notnans], ylim=corRange, xlim=c(0, sqrt(2)), type="o", pch=19, 
        xlab="Distance", ylab="Correlation", main="Lattice Coefficient Correlation")
   xs = seq(0, sqrt(2), l=100)
-  # > Matern(2.3)
+  # > Matern(sqrt(8))
   # [1] 0.1002588
   # effectiveRange=sqrt(8*1)/kappa # the distance at which Matern correlation is roughly .1
   squareWidth = .1
   effectiveRange=2.687/kappa*squareWidth
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange/2.3))
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange/sqrt(8)))
   
   ## plot empirical versus theoretical correlograms for basis coefficients
   corMean = getVGMean(fullCorGramPred, N=NPred)
@@ -452,12 +452,12 @@ testCorrelation = function(nsim=1000, kappa=1, rho=1, N=30, NPred=60) {
   plot(corMean$centers[notnans], corMean$ys[notnans], ylim=corRange, xlim=c(0, sqrt(2)), type="o", pch=19, 
        xlab="Distance", ylab="Correlation", main="Latent Field Correlation")
   xs = seq(0, sqrt(2), l=100)
-  # > Matern(2.3)
+  # > Matern(sqrt(8))
   # [1] 0.1002588
   # effectiveRange=sqrt(8*1)/kappa # the distance at which Matern correlation is roughly .1
   squareWidth = .1
   effectiveRange=2.687/kappa*squareWidth
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange/2.3))
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange/sqrt(8)))
 }
 # control.family(list(hyper=list(prec=list(initial=starting_value_for_log_prec, fixed=TRUE))))
 # reduce observation noise by a lot (sigma=.1, sigma2=.01)
@@ -537,14 +537,14 @@ testCorrelation2 = function(kappa=1, rho=1, nx=30, mx=20, maxPlot=300, minEdgeDi
   plot(uniqueD, uniqueCorC, ylim=c(0,1), xlim=c(0, (latWidth*nx - 2*buffer)*sqrt(2)), pch=19, cex=.5, 
        xlab="Distance", ylab="Correlation", main="Lattice Coefficient Correlation")
   xs = seq(0, sqrt(2), l=100)
-  # > Matern(2.3)
+  # > Matern(sqrt(8))
   # [1] 0.1002588
   # effectiveRange=sqrt(8*1)/kappa # the distance at which Matern correlation is roughly .1
   squareWidth = latWidth
-  effectiveRange1=2.3/kappa*squareWidth
+  effectiveRange1=sqrt(8)/kappa*squareWidth
   effectiveRange2=sqrt(8)/kappa * latWidth
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange1/2.3), col="blue")
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange2/2.3), col="purple")
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange1/sqrt(8)), col="blue")
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange2/sqrt(8)), col="purple")
   legend("topright", c(TeX("$w/\\kappa$"), bquote(sqrt(8)*w/kappa)), 
          col=c("blue", "purple"), lty=1)
   
@@ -552,10 +552,10 @@ testCorrelation2 = function(kappa=1, rho=1, nx=30, mx=20, maxPlot=300, minEdgeDi
   plot(uniqueDPred, uniqueCorAC, ylim=c(0,1), xlim=c(0, (latWidth*nx - 2*buffer)*sqrt(2)), pch=19, cex=.3, 
        xlab="Distance", ylab="Correlation", main="Latent Field Correlation")
   xs = seq(0, sqrt(2), l=100)
-  # > Matern(2.3)
+  # > Matern(sqrt(8))
   # [1] 0.1002588
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange1/2.3), col="blue")
-  lines(xs, Matern(xs, smoothness=1, range=effectiveRange2/2.3), col="purple")
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange1/sqrt(8)), col="blue")
+  lines(xs, Matern(xs, smoothness=1, range=effectiveRange2/sqrt(8)), col="purple")
   legend("topright", c(TeX("$w/\\kappa$"), bquote(sqrt(8)*w/kappa)), 
          col=c("blue", "purple"), lty=1)
 }
@@ -684,12 +684,12 @@ testCorrelation3 = function(kappa=1, rho=1, nx=30, mx=20, maxPlot=300, minEdgeDi
     plot(uniqueD, uniqueCorC, ylim=c(0,1), xlim=c(0, (latWidth*nx - 2*buffer)*sqrt(2)), pch=19, cex=.5, 
          xlab="Distance", ylab="Correlation", main=paste0("Lattice Coefficient Correlation, Layer ", l, " alpha = ", round(alphas[l], digits=3)))
     xs = seq(0, sqrt(2), l=100)
-    # > Matern(2.3)
+    # > Matern(sqrt(8))
     # [1] 0.1002588
     # effectiveRange=sqrt(8*1)/kappa # the distance at which Matern correlation is roughly .1
     squareWidth = latWidth/res
-    effectiveRange=2.3/kappa*squareWidth
-    lines(xs, Matern(xs, smoothness=1, range=effectiveRange/2.3), col="blue")
+    effectiveRange=sqrt(8)/kappa*squareWidth
+    lines(xs, Matern(xs, smoothness=1, range=effectiveRange/sqrt(8)), col="blue")
     
     # plot variance of layer basis coefficients
     # thisVarC = as.matrix(varC[layerInds, layerInds])
@@ -723,17 +723,17 @@ testCorrelation3 = function(kappa=1, rho=1, nx=30, mx=20, maxPlot=300, minEdgeDi
   plot(uniqueDPred, uniqueCorAC, ylim=c(0,1), xlim=c(0, (latWidth*nx - 2*buffer)*sqrt(2)), pch=19, cex=.3, 
        xlab="Distance", ylab="Correlation", main=paste0("Latent Field Correlation, ", nLayer, " Layers"))
   xs = seq(0, sqrt(2), l=100)
-  effectiveRange = 2.3/kappa*latWidth
-  lines(xs, Matern(xs, smoothness=nu, range=effectiveRange/2.3), col="blue")
+  effectiveRange = sqrt(8)/kappa*latWidth
+  lines(xs, Matern(xs, smoothness=nu, range=effectiveRange/sqrt(8)), col="blue")
   
   # add line representing weighted sum of materns based on alphas
   cors = matrix(nrow=length(xs), ncol=nLayer)
   for(l in 1:nLayer) {
     res = 2^(l-1)
     squareWidth = latWidth/res
-    effectiveRange=2.3/kappa*squareWidth
+    effectiveRange=sqrt(8)/kappa*squareWidth
     
-    cors[,l] = alphas[l] * Matern(xs, smoothness=1, range=effectiveRange/2.3)
+    cors[,l] = alphas[l] * Matern(xs, smoothness=1, range=effectiveRange/sqrt(8))
   }
   ys = rowSums(cors)
   lines(xs, ys, col="purple")
@@ -1002,7 +1002,7 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
-  effRange = 2.3/kappa * latticeWidth
+  effRange = sqrt(8)/kappa * latticeWidth
   # marginalVar = rho/(4*pi * kappa^2)
   # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
   #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
@@ -1057,11 +1057,11 @@ testLKINLAModelStandard = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, n
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # thetasToRho = function(xs) {
   #   logCor = xs[2]
   #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   #   sigma2 = exp(logVar)
   #   sigma2 * 4*pi * kappa^2
   # }
@@ -1313,7 +1313,7 @@ testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, s
   
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
-  effRange = 2.3/kappa * latticeWidth
+  effRange = sqrt(8)/kappa * latticeWidth
   # marginalVar = rho/(4*pi * kappa^2)
   # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
   #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
@@ -1368,11 +1368,11 @@ testLKINLAModelStandardBinomial = function(buffer=2.5, kappa=1, rho=1, nu=1.5, s
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # thetasToRho = function(xs) {
   #   logCor = xs[2]
   #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   #   sigma2 = exp(logVar)
   #   sigma2 * 4*pi * kappa^2
   # }
@@ -1575,7 +1575,7 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1, seed=1, nLayer=3, nx=20
   
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
-  effRange = 2.3/kappa * latticeWidth
+  effRange = sqrt(8)/kappa * latticeWidth
   # marginalVar = rho/(4*pi * kappa^2)
   # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
   #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
@@ -1630,11 +1630,11 @@ testLKModel = function(buffer=2.5, kappa=1, rho=1, nu=1, seed=1, nLayer=3, nx=20
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # thetasToRho = function(xs) {
   #   logCor = xs[2]
   #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   #   sigma2 = exp(logVar)
   #   sigma2 * 4*pi * kappa^2
   # }
@@ -1874,10 +1874,10 @@ testLKINLAKenyaDat = function(seed=1, nLayer=3, NC=13, nBuffer=5,
   effectiveRangeVals = t(matrix(rinvexp(100*length(priorPar$corScalePar), rate=priorPar$corScalePar), nrow=length(priorPar$corScalePar)))
   if(separateRanges) {
     latticeWidth = sapply(latInfo, function(x) {x$latWidth})
-    kappaVals = t(sweep(2.3/effectiveRangeVals, 2, latticeWidth, "*"))
+    kappaVals = t(sweep(sqrt(8)/effectiveRangeVals, 2, latticeWidth, "*"))
   } else {
     latticeWidth = latInfo[[1]]$latWidth
-    kappaVals = c(2.3/exp(effectiveRangeVals) * latticeWidth)
+    kappaVals = c(sqrt(8)/exp(effectiveRangeVals) * latticeWidth)
   }
   if(clusterEffect)
     nuggetVarVals = rpcvar(100, alpha=.05, u=1)
@@ -2280,11 +2280,11 @@ testLKINLAKenyaDat = function(seed=1, nLayer=3, NC=13, nBuffer=5,
   
   # # do the same for kappa, rho
   # # in order to get distribution for rho, must sample from joint hyperparameters
-  # kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # # thetasToRho = function(xs) {
   # #   logCor = xs[2]
   # #   logVar = xs[3]
-  # #   kappa = 2.3/exp(logCor) * latticeWidth
+  # #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   # #   sigma2 = exp(logVar)
   # #   sigma2 * 4*pi * kappa^2
   # # }
@@ -2349,10 +2349,10 @@ testLKINLAKenyaDat = function(seed=1, nLayer=3, NC=13, nBuffer=5,
     nuggetVarVals = rep(0, nrow(out))
   
   if(separateRanges) {
-    kappaVals = t(sweep(2.3/exp(out[,1:nLayer]), 2, latticeWidth, "*"))
+    kappaVals = t(sweep(sqrt(8)/exp(out[,1:nLayer]), 2, latticeWidth, "*"))
     rhoVals = exp(out[,nLayer+1])
   } else {
-    kappaVals = 2.3/exp(out[,1]) * latticeWidth
+    kappaVals = sqrt(8)/exp(out[,1]) * latticeWidth
     rhoVals = exp(out[,2])
   }
   alphaMat = xSamples
@@ -2582,10 +2582,10 @@ testSPDEKenyaDat = function(seed=1, urbanEffect=TRUE, clusterEffect=TRUE,
   # effectiveRangeVals = t(matrix(rinvexp(100*length(priorPar$corScalePar), rate=priorPar$corScalePar), nrow=length(priorPar$corScalePar)))
   # if(separateRanges) {
   #   latticeWidth = sapply(latInfo, function(x) {x$latWidth})
-  #   kappaVals = t(sweep(2.3/effectiveRangeVals, 2, latticeWidth, "*"))
+  #   kappaVals = t(sweep(sqrt(8)/effectiveRangeVals, 2, latticeWidth, "*"))
   # } else {
   #   latticeWidth = latInfo[[1]]$latWidth
-  #   kappaVals = c(2.3/exp(effectiveRangeVals) * latticeWidth)
+  #   kappaVals = c(sqrt(8)/exp(effectiveRangeVals) * latticeWidth)
   # }
   # if(clusterEffect)
   #   nuggetVarVals = rpcvar(100, alpha=.05, u=1)
@@ -2762,11 +2762,11 @@ testSPDEKenyaDat = function(seed=1, urbanEffect=TRUE, clusterEffect=TRUE,
   
   # # do the same for kappa, rho
   # # in order to get distribution for rho, must sample from joint hyperparameters
-  # kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  # kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # # thetasToRho = function(xs) {
   # #   logCor = xs[2]
   # #   logVar = xs[3]
-  # #   kappa = 2.3/exp(logCor) * latticeWidth
+  # #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   # #   sigma2 = exp(logVar)
   # #   sigma2 * 4*pi * kappa^2
   # # }
@@ -2936,13 +2936,13 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # set true parameter values
   if(useKenya) {
     if(is.null(thetas))
-      thetas=c(.08, .8) * (1000/2) / 2.3
+      thetas=c(.08, .8) * (1000/2) / sqrt(8)
   } else {
     if(is.null(thetas))
-      thetas=c(.08, .8) / 2.3
+      thetas=c(.08, .8) / sqrt(8)
   }
   rho = 1
-  effectiveRange = thetas * 2.3
+  effectiveRange = thetas * sqrt(8)
   
   # load data set if necessary
   if(is.null(n)) {
@@ -3135,9 +3135,9 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   alphaVals = t(rdirichlet(100, alpha=priorPar$alphaPar))
   rhoVals = rpcvar(100, alpha=priorPar$alpha, u=priorPar$u)
   if(!separateRanges) {
-    kappaVals = 2.3/rinvexp(100, rate=priorPar$corScalePar) * latInfo[[1]]$latWidth
+    kappaVals = sqrt(8)/rinvexp(100, rate=priorPar$corScalePar) * latInfo[[1]]$latWidth
   } else {
-    kappaVals = matrix(2.3/rinvexp(100*3, rate=priorPar$corScalePar) * sapply(latInfo, function(x) {x$latWidth}), nrow=nLayer)
+    kappaVals = matrix(sqrt(8)/rinvexp(100*3, rate=priorPar$corScalePar) * sapply(latInfo, function(x) {x$latWidth}), nrow=nLayer)
   }
   nuggetVarVals = rpcvar(100, alpha=.05, u=1)
   out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaVals, 
@@ -3516,11 +3516,11 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # thetasToRho = function(xs) {
   #   logCor = xs[2]
   #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   #   sigma2 = exp(logVar)
   #   sigma2 * 4*pi * kappa^2
   # }
@@ -3584,10 +3584,10 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   # nuggetVarVals = 1 / out[,1]
   nuggetVarVals = rep(0, ncol(out))
   if(separateRanges) {
-    kappaVals = t(sweep(2.3/exp(out[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
+    kappaVals = t(sweep(sqrt(8)/exp(out[,2:(nLayer+1)]), 2, sapply(latInfo, function(x) {x$latWidth}), "*"))
     rhoVals = exp(out[,nLayer+2])
   } else {
-    kappaVals = 2.3/exp(out[,2]) * latticeWidth
+    kappaVals = sqrt(8)/exp(out[,2]) * latticeWidth
     rhoVals = exp(out[,3])
   }
   alphaMat = xSamples
@@ -3991,7 +3991,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
 testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
-                              plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
+                              plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / sqrt(8), 
                               testfrac=1/9, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
                               gscratch=FALSE) {
   set.seed(seed)
@@ -4003,7 +4003,7 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
   
   # set true parameter values
   rho = 1
-  effectiveRange = thetas * 2.3
+  effectiveRange = thetas * sqrt(8)
   
   # load data set if necessary
   spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu) + 
@@ -4398,7 +4398,7 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
 # seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
 # nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
 # printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
-# plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
+# plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / sqrt(8), 
 # testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot
 testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) {
   # set random seeds for each simulation
@@ -4551,13 +4551,13 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   # set true parameter values
   if(useKenya) {
     if(is.null(thetas))
-      thetas=c(.08, .8) * (1000/2) / 2.3
+      thetas=c(.08, .8) * (1000/2) / sqrt(8)
   } else {
     if(is.null(thetas))
-      thetas=c(.08, .8) / 2.3
+      thetas=c(.08, .8) / sqrt(8)
   }
   rho = 1
-  effectiveRange = thetas * 2.3
+  effectiveRange = thetas * sqrt(8)
   
   # set the SPDE mesh if necessary
   if(is.null(mesh)) {
@@ -5218,7 +5218,7 @@ testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200,
   
   # set true parameter values
   rho = 1
-  effectiveRange = thetas * 2.3
+  effectiveRange = thetas * sqrt(8)
   sigma2 = sqrt(.1)
   # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
   spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 
@@ -5231,7 +5231,7 @@ testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200,
     latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer)
   
   # set initial parameter values
-  initialKappa = (2.3 * latInfo[[1]]$latWidth /initialEffectiveRange)
+  initialKappa = (sqrt(8) * latInfo[[1]]$latWidth /initialEffectiveRange)
   
   xlim <- latInfo[[1]]$xRangeDat
   ux <- seq(xlim[1], xlim[2], , NP)
@@ -5265,7 +5265,7 @@ testLKINLACorrelationApproximation = function(seed=1, nLayer=3, NP=200,
   outlogitAlphas = outPar[2:nLayer]
   outalphas = multivariateExpit(outlogitAlphas)
   outalphas = c(outalphas, 1 - sum(outalphas))
-  outEffectiveRange = (1/outkappa) * 2.3 * latInfo[[1]]$latWidth
+  outEffectiveRange = (1/outkappa) * sqrt(8) * latInfo[[1]]$latWidth
   
   trueEffectiveRangeOverall = getTrueLKEffectiveRange(nLayer, NP, sigma2=0, rho=1, nBuffer, normalize, fastNormalize, 
                                                       NC, latInfo, outEffectiveRange, outalphas)
@@ -5294,7 +5294,7 @@ getCorrelationApproximation = function(thetas=c(.1, .4), nu=0.5) {
   NP = 200
   # set true parameter values
   rho = 1
-  effectiveRange = thetas * 2.3
+  effectiveRange = thetas * sqrt(8)
   sigma2 = sqrt(.1)
   # spatialCorFun = function(x) {0.4 * Exp.cov(x, theta=thetas[1], distMat=x) + 0.6 * Exp.cov(x, theta=thetas[2], distMat=x)}
   spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", distMat=x, smoothness=nu) + 

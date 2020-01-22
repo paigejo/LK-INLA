@@ -39,7 +39,7 @@ inla.rgeneric.lk.model.test = function(
     latticeWidth = (xRange[2]-xRange[1])/(nx-1)
     effectiveCor = exp(theta[1L])
     sigmaSq = exp(theta[2L])
-    kappa = 2.3/effectiveCor * latticeWidth
+    kappa = sqrt(8)/effectiveCor * latticeWidth
     rho = sigmaSq * 4*pi * kappa^2
     
     list(effectiveCor = effectiveCor, 
@@ -280,11 +280,11 @@ testLKModelBase = function(buffer=1) {
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
   latticeWidth = (xRangeBasis[2] - xRangeBasis[1])/(nx-1)
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   thetasToRho = function(xs) {
     logCor = xs[2]
     logVar = xs[3]
-    kappa = 2.3/exp(logCor) * latticeWidth
+    kappa = sqrt(8)/exp(logCor) * latticeWidth
     sigma2 = exp(logVar)
     sigma2 * 4*pi * kappa^2
   }
@@ -412,7 +412,7 @@ testLKModelBase2 = function(buffer=1, kappa=1, rho=1, seed=1) {
   
   # calculate true effective range and marginal variance:
   latticeWidth = (xRangeBasis[2] - xRangeBasis[1])/(nx-1)
-  effRange = 2.3/kappa * latticeWidth
+  effRange = sqrt(8)/kappa * latticeWidth
   marginalVar = rho/(4*pi * kappa^2)
   
   # plot marginals on interpretable scale (effective range, marginal variance)
@@ -429,11 +429,11 @@ testLKModelBase2 = function(buffer=1, kappa=1, rho=1, seed=1) {
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   thetasToRho = function(xs) {
     logCor = xs[2]
     logVar = xs[3]
-    kappa = 2.3/exp(logCor) * latticeWidth
+    kappa = sqrt(8)/exp(logCor) * latticeWidth
     sigma2 = exp(logVar)
     sigma2 * 4*pi * kappa^2
   }
@@ -585,7 +585,7 @@ inla.rgeneric.lk.model.simple = function(
   envir = environment(sys.call()[[1]])
     
   # # convert to theoretical kappa estimate
-  # kappaEst = 2.3/effectiveRangeInit * latWidth
+  # kappaEst = sqrt(8)/effectiveRangeInit * latWidth
   # 
   # # now to the important part: get an initial estimate of marginal variance and a range (go with /100 and *100 of initial guess of kappa)
   # kappas <<- 10^(seq(log10(kappaEst)-2, log10(kappaEst)+2, l=100))
@@ -611,12 +611,12 @@ inla.rgeneric.lk.model.simple = function(
     # precomputations: get lattice grid cell width, convert parameters from effective correlation 
     # and marginal variance to kappa and rho.  Use spline to convert from marginal variance to kappa
     latticeWidth = latInfo[[1]]$latWidth
-    kap = 2.3/effectiveCor * latticeWidth
+    kap = sqrt(8)/effectiveCor * latticeWidth
     
     # since we are normalizing the process, rho is just sigmaSq
     rho = sigmaSq
     
-    # # kap = 2.3/effectiveCor * latticeWidth
+    # # kap = sqrt(8)/effectiveCor * latticeWidth
     # 
     # # If we're at a value of kappa outside out current reparameterization range, 
     # # adjust the range by refitting the spline function
@@ -1031,7 +1031,7 @@ testLKModelSimple = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=
   
   # calculate true effective range and marginal variance:
   latticeWidth = latInfo[[1]]$latWidth
-  effRange = 2.3/kappa * latticeWidth
+  effRange = sqrt(8)/kappa * latticeWidth
   # marginalVar = rho/(4*pi * kappa^2)
   # marginalVar = getMultiMargVar(kappa, rho, nLayer=nLayer, nu=nu, xRange=xRangeBasis, 
   #                               yRange=yRangeBasis, nx=nx, ny=ny)[1]
@@ -1086,11 +1086,11 @@ testLKModelSimple = function(buffer=2.5, kappa=1, rho=1, nu=1.5, seed=1, nLayer=
   
   # do the same for kappa, rho
   # in order to get distribution for rho, must sample from joint hyperparameters
-  kappaMarg = inla.tmarginal(function(x) {2.3/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
+  kappaMarg = inla.tmarginal(function(x) {sqrt(8)/exp(x) * latticeWidth}, mod$marginals.hyperpar$`Theta1 for field`)
   # thetasToRho = function(xs) {
   #   logCor = xs[2]
   #   logVar = xs[3]
-  #   kappa = 2.3/exp(logCor) * latticeWidth
+  #   kappa = sqrt(8)/exp(logCor) * latticeWidth
   #   sigma2 = exp(logVar)
   #   sigma2 * 4*pi * kappa^2
   # }
@@ -1277,7 +1277,7 @@ rawGridToLK = function(xRangeKnot=c(0,1), xNKnot=10, yRangeKnot=c(0,1), yNKnot=1
 #     knotPts <<- thisLatGridInfo[[1]]$latCoords
 #     
 #     # # convert to theoretical kappa estimate
-#     # kappaEst = 2.3/effectiveRangeInit * latWidth
+#     # kappaEst = sqrt(8)/effectiveRangeInit * latWidth
 #     # 
 #     # # now to the important part: get an initial estimate of marginal variance and a range (go with /100 and *100 of initial guess of kappa)
 #     # kappas <<- 10^(seq(log10(kappaEst)-2, log10(kappaEst)+2, l=100))
@@ -1306,12 +1306,12 @@ rawGridToLK = function(xRangeKnot=c(0,1), xNKnot=10, yRangeKnot=c(0,1), yNKnot=1
 #     # precomputations: get lattice grid cell width, convert parameters from effective correlation 
 #     # and marginal variance to kappa and rho.  Use spline to convert from marginal variance to kappa
 #     latticeWidth = (xRange[2]-xRange[1])/(nx-1)
-#     kap = 2.3/effectiveCor * latticeWidth
+#     kap = sqrt(8)/effectiveCor * latticeWidth
 #     
 #     # since we are normalizing the process, rho is just sigmaSq
 #     rho = sigmaSq
 #     
-#     # # kap = 2.3/effectiveCor * latticeWidth
+#     # # kap = sqrt(8)/effectiveCor * latticeWidth
 #     # 
 #     # # If we're at a value of kappa outside out current reparameterization range, 
 #     # # adjust the range by refitting the spline function
@@ -1481,7 +1481,7 @@ inla.rgeneric.lk.model.standard = function(
   envir = environment(sys.call()[[1]])
   
   # # convert to theoretical kappa estimate
-  # kappaEst = 2.3/effectiveRangeInit * latWidth
+  # kappaEst = sqrt(8)/effectiveRangeInit * latWidth
   # 
   # # now to the important part: get an initial estimate of marginal variance and a range (go with /100 and *100 of initial guess of kappa)
   # kappas <<- 10^(seq(log10(kappaEst)-2, log10(kappaEst)+2, l=100))
@@ -1531,12 +1531,12 @@ inla.rgeneric.lk.model.standard = function(
     # precomputations: get lattice grid cell width, convert parameters from effective correlation 
     # and marginal variance to kappa and rho.  Use spline to convert from marginal variance to kappa
     latticeWidth = latInfo[[1]]$latWidth
-    kap = 2.3/effectiveCor * latticeWidth
+    kap = sqrt(8)/effectiveCor * latticeWidth
     
     # since we are normalizing the process, rho is just sigmaSq
     rho = sigmaSq
     
-    # # kap = 2.3/effectiveCor * latticeWidth
+    # # kap = sqrt(8)/effectiveCor * latticeWidth
     # 
     # # If we're at a value of kappa outside out current reparameterization range, 
     # # adjust the range by refitting the spline function
@@ -1764,7 +1764,7 @@ inla.rgeneric.lk.model.full = function(
   envir = environment(sys.call()[[1]])
   
   # # convert to theoretical kappa estimate
-  # kappaEst = 2.3/effectiveRangeInit * latWidth
+  # kappaEst = sqrt(8)/effectiveRangeInit * latWidth
   # 
   # # now to the important part: get an initial estimate of marginal variance and a range (go with /100 and *100 of initial guess of kappa)
   # kappas <<- 10^(seq(log10(kappaEst)-2, log10(kappaEst)+2, l=100))
@@ -1814,12 +1814,12 @@ inla.rgeneric.lk.model.full = function(
     # precomputations: get lattice grid cell width, convert parameters from effective correlation 
     # and marginal variance to kappa and rho.  Use spline to convert from marginal variance to kappa
     latticeWidth = sapply(latInfo, function(x) {x$latWidth})
-    kap = 2.3/effectiveCor * latticeWidth
+    kap = sqrt(8)/effectiveCor * latticeWidth
     
     # since we are normalizing the process, rho is just sigmaSq
     rho = sigmaSq
     
-    # # kap = 2.3/effectiveCor * latticeWidth
+    # # kap = sqrt(8)/effectiveCor * latticeWidth
     # 
     # # If we're at a value of kappa outside out current reparameterization range, 
     # # adjust the range by refitting the spline function
