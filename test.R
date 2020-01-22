@@ -3828,7 +3828,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 #                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
 #                                   leaveOutRegion=TRUE) {
 testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
-                                          useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, gscratch=FALSE, ...) {
+                                          useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, gscratch=TRUE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
