@@ -2897,7 +2897,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                                   testfrac=.1, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
-                                  leaveOutRegion=TRUE) {
+                                  leaveOutRegion=TRUE, gscratch=FALSE) {
   set.seed(seed)
   clusterEffect=TRUE
   
@@ -3803,7 +3803,10 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                                 includedAggregatedScores=includedAggregatedScores)
   
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+  if(!gscratch)
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+  else
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLKINLA", plotNameRoot, ".RData"))
 }
 
 # tests the fitLKINLAStandard function using data simulated from the LK model
@@ -3824,8 +3827,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 #                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
 #                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
 #                                   leaveOutRegion=TRUE) {
-testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
-                                          useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
+testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
+                                          useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, gscratch=FALSE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -3835,7 +3838,8 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
     print(paste0("Beginning simulation ", i, "/", nSamples))
     thisPlotNameRoot = paste0("sim", i)
     do.call("testLKINLAModelMixture", c(list(seed = allSeeds[i], NC=NC, nLayer=nLayer, separateRanges=separateRanges, n=n, nu=nu, sigma2=sigma2, 
-                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, plotNameRoot=thisPlotNameRoot), list(...)))
+                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, 
+                                             plotNameRoot=thisPlotNameRoot, gscratch=gscratch), list(...)))
   }
   sapply(1:nSamples, temp)
   
@@ -3876,7 +3880,10 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
-    out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
+    if(!gscratch)
+      out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
+    else
+      out = load(paste0("/work/johnpai/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
     allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
     allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
@@ -3922,28 +3929,53 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=10, NC=14, nLayer=3, 
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(allScoringRules, 
-       allFits, 
-       allCovInfo, 
-       allPredictionMatrices, 
-       allAggregatedScoringRules, 
-       binnedScoringRulesGrid, 
-       pooledScoringRulesGrid, 
-       fullPooledScoringRulesLeftOut, 
-       pooledScoringRulesLeftOut, 
-       covMean, 
-       upperCov, 
-       lowerCov, 
-       corMean, 
-       upperCor, 
-       lowerCor, 
-       fullPredictionMatrix, 
-       leftOutPredictionMatrix, 
-       leftInPredictionMatrix, 
-       leftOutScores, 
-       leftInScores, 
-       aggregatedScores, 
-       file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+  if(!gscratch) {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullPooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+  } else {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullPooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("/work/johnpai/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+  }
 }
 
 # tests the fitLKStandard function using data simulated from the LK model
@@ -3960,7 +3992,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
                               plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
-                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot) {
+                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
+                              gscratch=gscratch) {
   set.seed(seed)
   
   # if(useKenya)
@@ -4355,8 +4388,10 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
                                 includedAggregatedScores=includedAggregatedScores)
   
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
-  
+  if(!gscratch)
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
+  else
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", plotNameRoot, ".RData"))
   invisible(NULL)
 }
 
@@ -4365,7 +4400,7 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
 # printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
 # plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
 # testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot
-testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
+testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -4374,7 +4409,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   temp = function(i) {
     print(paste0("Beginning simulation ", i, "/", nSamples))
     thisPlotNameRoot = paste0("sim", i)
-    do.call("testLKModelMixture", c(list(seed = allSeeds[i], plotNameRoot=thisPlotNameRoot), list(...)))
+    do.call("testLKModelMixture", c(list(seed = allSeeds[i], plotNameRoot=thisPlotNameRoot, gscratch=gscratch), list(...)))
   }
   sapply(1:nSamples, temp)
   
@@ -4386,7 +4421,10 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
-    out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
+    if(!gscratch)
+      out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
+    else
+      out = load(paste0("/work/johnpai/mixtureLKsim", i, ".RData"))
     allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
     allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
@@ -4432,28 +4470,53 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=10, ...) {
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(allScoringRules, 
-       allFits, 
-       allCovInfo, 
-       allPredictionMatrices, 
-       allAggregatedScoringRules, 
-       binnedScoringRulesGrid, 
-       pooledScoringRulesGrid, 
-       fullPooledScoringRulesLeftOut, 
-       pooledScoringRulesLeftOut, 
-       covMean, 
-       upperCov, 
-       lowerCov, 
-       corMean, 
-       upperCor, 
-       lowerCor, 
-       fullPredictionMatrix, 
-       leftOutPredictionMatrix, 
-       leftInPredictionMatrix, 
-       leftOutScores, 
-       leftInScores, 
-       aggregatedScores, 
-       file=paste0("savedOutput/simulations/mixtureLKAll_nsim", nSamples, ".RData"))
+  if(!gscratch) {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullPooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("savedOutput/simulations/mixtureLKAll_nsim", nSamples, ".RData"))
+  } else {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullPooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("/work/johnpai/mixtureLKAll_nsim", nSamples, ".RData"))
+  }
 }
 
 # tests the fitSPDE function using data simulated from the LK model
@@ -4473,7 +4536,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 nPostSamples=1000, mesh=NULL, 
                                 prior=NULL, testfrac=.1, nu=1, 
                                 plotNameRoot="", sigma2 = 0.1^2, useKenya=FALSE, 
-                                urbanOverSamplefrac=0, leaveOutRegion=TRUE) {
+                                urbanOverSamplefrac=0, leaveOutRegion=TRUE, gscratch=FALSE) {
   set.seed(seed)
   
   if(useKenya)
@@ -5012,12 +5075,16 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 includedAggregatedScores=includedAggregatedScores)
   
   fit$mod = NULL
-  save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
+  if(!gscratch)
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
+  else
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai1/mixtureSPDE", plotNameRoot, ".RData"))
 }
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
-testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2=0.1^2, 
-                                        useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, ...) {
+testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma2=0.1^2, 
+                                        useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, 
+                                        gscratch=TRUE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -5026,7 +5093,7 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   temp = function(i) {
     print(paste0("Beginning simulation ", i, "/", nSamples))
     thisPlotNameRoot = paste0("sim", i)
-    do.call("testSPDEModelMixture", c(list(seed = allSeeds[i], n=n, nu=nu, sigma2=sigma2, 
+    do.call("testSPDEModelMixture", c(list(seed = allSeeds[i], n=n, nu=nu, sigma2=sigma2, gscratch=gscratch, 
                                              useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, plotNameRoot=thisPlotNameRoot), list(...)))
   }
   sapply(1:nSamples, temp)
@@ -5043,7 +5110,10 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
   for(i in 1:nSamples) {
-    out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
+    if(!gscratch)
+      out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
+    else
+      out = load(paste0("/work/johnpai/mixtureSPDEsim", i, plotNameRoot, ".RData"))
     allScoringRulesGrid = c(allScoringRulesGrid, list(scoringRules$gridScoringRules))
     allScoringRulesLeftOut = c(allScoringRulesLeftOut, list(scoringRules$leftOutScoringRules))
     allFits = c(allFits, list(fit))
@@ -5089,28 +5159,53 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=10, n=900, nu=1, sigma2
   aggregatedScores = getScores(fullPredictionMatrix[,1], fullPredictionMatrix[,2], fullPredictionMatrix[,3]^2)
   
   ##### Save results
-  save(allScoringRules, 
-       allFits, 
-       allCovInfo, 
-       allPredictionMatrices, 
-       allAggregatedScoringRules, 
-       binnedScoringRulesGrid, 
-       pooledScoringRulesGrid, 
-       fullpooledScoringRulesLeftOut, 
-       pooledScoringRulesLeftOut, 
-       covMean, 
-       upperCov, 
-       lowerCov, 
-       corMean, 
-       upperCor, 
-       lowerCor, 
-       fullPredictionMatrix, 
-       leftOutPredictionMatrix, 
-       leftInPredictionMatrix, 
-       leftOutScores, 
-       leftInScores, 
-       aggregatedScores, 
-      file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+  if(!gscratch) {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullpooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+  } else {
+    save(allScoringRules, 
+         allFits, 
+         allCovInfo, 
+         allPredictionMatrices, 
+         allAggregatedScoringRules, 
+         binnedScoringRulesGrid, 
+         pooledScoringRulesGrid, 
+         fullpooledScoringRulesLeftOut, 
+         pooledScoringRulesLeftOut, 
+         covMean, 
+         upperCov, 
+         lowerCov, 
+         corMean, 
+         upperCor, 
+         lowerCor, 
+         fullPredictionMatrix, 
+         leftOutPredictionMatrix, 
+         leftInPredictionMatrix, 
+         leftOutScores, 
+         leftInScores, 
+         aggregatedScores, 
+         file=paste0("/work/johnpai/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+  }
 }
 
 # test how close we can get to the spatial correlation function:
