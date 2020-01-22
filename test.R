@@ -3833,16 +3833,6 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
   
-  # call testLKINLAModelMixture for each simulation requested
-  temp = function(i) {
-    print(paste0("Beginning simulation ", i, "/", nSamples))
-    thisPlotNameRoot = paste0("sim", i)
-    do.call("testLKINLAModelMixture", c(list(seed = allSeeds[i], NC=NC, nLayer=nLayer, separateRanges=separateRanges, n=n, nu=nu, sigma2=sigma2, 
-                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, 
-                                             plotNameRoot=thisPlotNameRoot, gscratch=gscratch), list(...)))
-  }
-  sapply(1:nSamples, temp)
-  
   # load in the results
   print("Loading in simulation results")
   # set plotNameRoot
@@ -3871,6 +3861,25 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
   }
   plotNameRoot = paste0("_L", nLayer, ncText, "_sepRange", separateRanges, "_n", n, "_nu", nu, "_nugV", 
                         round(sigma2, 2), "_Kenya", useKenya, "_noInt", assumeMeanZero, "_urbOversamp", round(urbanOverSamplefrac, 4))
+  
+  
+  # call testLKINLAModelMixture for each simulation requested
+  precomputationFileNameRoot = paste0("precomputationMixLKINLA", plotNameRoot)
+  temp = function(i) {
+    print(paste0("Beginning simulation ", i, "/", nSamples))
+    thisPlotNameRoot = paste0("sim", i)
+    
+    # make sure to save the precomputed results if this is the first run
+    savePrecomputationResults = i == 1
+    loadPrecomputationResults = i != 1
+    do.call("testLKINLAModelMixture", c(list(seed = allSeeds[i], NC=NC, nLayer=nLayer, separateRanges=separateRanges, n=n, nu=nu, sigma2=sigma2, 
+                                             useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, 
+                                             plotNameRoot=thisPlotNameRoot, gscratch=gscratch, 
+                                             savePrecomputationResults=savePrecomputationResults, 
+                                             loadPrecomputationResults=loadPrecomputationResults, 
+                                             precomputationFileNameRoot=precomputationFileNameRoot), list(...)))
+  }
+  sapply(1:nSamples, temp)
   
   # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
   allScoringRulesGrid = list()

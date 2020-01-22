@@ -20,7 +20,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               effRangeRange=NULL, predClusterI=rep(TRUE, nrow(predCoords)), 
                               plotNormalizationSplines=FALSE, verbose=TRUE, separateRanges=FALSE, 
                               doValidation=FALSE, previousFit=NULL, precomputedNormalizationFun=NULL, 
-                              useUrbanPrior=FALSE) {
+                              useUrbanPrior=FALSE, savePrecomputationResults=FALSE, loadPrecomputationResults=FALSE, 
+                              precomputationFileNameRoot="precomputationResults") {
   
   startTime = proc.time()[3]
   set.seed(seed)
@@ -52,13 +53,25 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # generate lattice basis matrix
   AObs = makeA(obsCoords, latInfo)
   
-  # run precomputations
+  ## run precomputations
   print("running precomputations...")
   startTimePrecomputations = proc.time()[3]
-  precomputedMatrices = precomputationsQ2(latInfo)
-  if(is.null(precomputedNormalizationFun)) {
-    precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=effRangeRange, 
-                                                          plotNormalizationSplines=plotNormalizationSplines)
+  
+  # either run the precomputations or load them in
+  if(!loadPrecomputationResults) {
+    precomputedMatrices = precomputationsQ2(latInfo)
+    if(is.null(precomputedNormalizationFun)) {
+      precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=effRangeRange, 
+                                                            plotNormalizationSplines=plotNormalizationSplines)
+    }
+  } else {
+    load(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+  }
+  
+  # save the precomputations if necessary
+  if(savePrecomputationResults) {
+    save(precomputedMatrices, precomputedNormalizationFun, 
+         file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
   }
   
   endTimePrecomputations = proc.time()[3]
