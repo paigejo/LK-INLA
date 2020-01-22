@@ -3993,7 +3993,7 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
                               plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
                               testfrac=1/9, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
-                              gscratch=gscratch) {
+                              gscratch=FALSE) {
   set.seed(seed)
   
   # if(useKenya)
@@ -5078,7 +5078,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   if(!gscratch)
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
   else
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai1/mixtureSPDE", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureSPDE", plotNameRoot, ".RData"))
 }
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
