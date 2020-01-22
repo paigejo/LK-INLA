@@ -2894,7 +2894,7 @@ aggregateModelPreds = function(modelResults, B, addClusterError=TRUE) {
 testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero=TRUE, nu=1, 
                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=14, testCovs=FALSE, 
                                   printVerboseTimings=FALSE, latInfo=NULL, n=900, thetas=NULL, 
-                                  testfrac=.1, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
+                                  testfrac=1/9, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
                                   leaveOutRegion=TRUE, gscratch=FALSE) {
@@ -3992,7 +3992,7 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
                               plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / 2.3, 
-                              testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
+                              testfrac=1/9, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
                               gscratch=gscratch) {
   set.seed(seed)
   
@@ -4534,7 +4534,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 testCovs=FALSE, n=900, thetas=NULL, 
                                 int.strategy="auto", strategy="gaussian", 
                                 nPostSamples=1000, mesh=NULL, 
-                                prior=NULL, testfrac=.1, nu=1, 
+                                prior=NULL, testfrac=1/9, nu=1, 
                                 plotNameRoot="", sigma2 = 0.1^2, useKenya=FALSE, 
                                 urbanOverSamplefrac=0, leaveOutRegion=TRUE, gscratch=FALSE) {
   set.seed(seed)
