@@ -2897,7 +2897,9 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                                   testfrac=1/9, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
-                                  leaveOutRegion=TRUE, gscratch=FALSE) {
+                                  leaveOutRegion=TRUE, gscratch=FALSE, 
+                                  savePrecomputationResults=FALSE, loadPrecomputationResults=FALSE, 
+                                  precomputationFileNameRoot="precomputationResults") {
   set.seed(seed)
   clusterEffect=TRUE
   
@@ -3191,7 +3193,10 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                                                nBuffer=nBuffer, priorPar=priorPar, xObs=X, xPred=XPred, normalize=normalize, 
                                                intStrategy=intStrategy, strategy=strategy, fastNormalize=fastNormalize, 
                                                printVerboseTimings=printVerboseTimings, latInfo=latInfo, effRangeRange=effRangeRange, 
-                                               separateRanges=separateRanges, clusterEffect=clusterEffect))
+                                               separateRanges=separateRanges, clusterEffect=clusterEffect, 
+                                               savePrecomputationResults=savePrecomputationResults, 
+                                               loadPrecomputationResults=loadPrecomputationResults, 
+                                               precomputationFileNameRoot=precomputationFileNameRoot))
   mod = fit$mod
   preds=fit$preds
   predSDs=fit$sigmas
