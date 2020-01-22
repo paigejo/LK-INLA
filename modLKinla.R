@@ -14,7 +14,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                               intStrategy="grid", strategy="gaussian", fastNormalize=TRUE, 
                               predictionType=c("mean", "median"), significanceCI=0.8, 
-                              printVerboseTimings=FALSE, nPostSamples=10000, family=c("normal", "binomial", "betabinomial"),
+                              printVerboseTimings=FALSE, nPostSamples=1000, family=c("normal", "binomial", "betabinomial"),
                               obsNs=rep(1, length(obsValues)), clusterEffect=TRUE, latInfo=NULL, 
                               initialEffectiveRange=NULL, initialAlphas=rep(1/nLayer, nLayer-1), 
                               effRangeRange=NULL, predClusterI=rep(TRUE, nrow(predCoords)), 
@@ -1192,7 +1192,7 @@ fitLKINLAStandard = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5,
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                               intStrategy="grid", strategy="laplace", fastNormalize=TRUE, 
                               predictionType=c("mean", "median"), significanceCI=0.8, 
-                              printVerboseTimings=FALSE, nPostSamples=10000) {
+                              printVerboseTimings=FALSE, nPostSamples=1000) {
   set.seed(seed)
   
   # get the type of prediction the user wants

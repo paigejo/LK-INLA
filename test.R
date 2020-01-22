@@ -2895,7 +2895,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
                                   nBuffer=5, normalize=TRUE, fastNormalize=TRUE, NC=14, testCovs=FALSE, 
                                   printVerboseTimings=FALSE, latInfo=NULL, n=900, thetas=NULL, 
                                   testfrac=1/9, plotNameRoot="", sigma2=.1^2, useKenya=FALSE, 
-                                  effRangeRange=NULL, urbanOverSamplefrac=0, 
+                                  effRangeRange=NULL, urbanOverSamplefrac=0, nHyperSamples=1000, 
                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
                                   leaveOutRegion=TRUE, gscratch=FALSE, 
                                   savePrecomputationResults=FALSE, loadPrecomputationResults=FALSE, 
@@ -3142,8 +3142,12 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     kappaVals = matrix(sqrt(8)/rinvexp(100*3, rate=priorPar$corScalePar) * sapply(latInfo, function(x) {x$latWidth}), nrow=nLayer)
   }
   nuggetVarVals = rpcvar(100, alpha=.05, u=1)
+  if(loadPrecomputationResults)
+    loadFilename = precomputationFileNameRoot
+  else
+    loadFilename = ""
   out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaVals, 
-                                     normalize=normalize, fastNormalize=fastNormalize)
+                                     normalize=normalize, fastNormalize=fastNormalize, precomputationsFileNameRoot=loadFilename)
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -3544,7 +3548,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   
   ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
   ## the posterior, and transform them back to the probability scale
-  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  out = inla.hyperpar.sample(nHyperSamples, mod, improve.marginals=TRUE)
   if(separateRanges)
     alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
   else
@@ -3598,7 +3602,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   alphaMat = xSamples
   
   # compute the covariance function for many different hyperparameter samples
-  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+  out = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat, precomputationsFileNameRoot=loadFilename)
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -4548,7 +4552,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 testCovs=FALSE, n=900, thetas=NULL, 
                                 int.strategy="auto", strategy="gaussian", 
                                 nPostSamples=1000, mesh=NULL, 
-                                prior=NULL, testfrac=1/9, nu=1, 
+                                prior=NULL, testfrac=1/9, nu=1, nHyperSamples=1000, 
                                 plotNameRoot="", sigma2 = 0.1^2, useKenya=FALSE, 
                                 urbanOverSamplefrac=0, leaveOutRegion=TRUE, gscratch=FALSE) {
   set.seed(seed)
@@ -4866,7 +4870,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   
   ## Now generate marginals for the alpha parameters. In order to do this, we must generate draws from 
   ## the posterior, and transform them back to the probability scale
-  out = inla.hyperpar.sample(20000, mod, improve.marginals=TRUE)
+  out = inla.hyperpar.sample(nHyperSamples, mod, improve.marginals=TRUE)
   
   ## plot covariance and correlation functions
   # first get the true covariance an correlation functions

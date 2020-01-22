@@ -624,10 +624,26 @@ meanSegmentLength = function(mesh, filterLargerThan=NULL) {
 
 LKINLA.cov = function(x1, x2, latticeInfo, kappa, alphas, rho=1, normalize=TRUE, 
                       fastNormalize=TRUE, 
-                      precomputedMatrices=NULL, precomputedA1=NULL, precomputedA2=NULL) {
+                      precomputedMatrices=NULL, precomputedA1=NULL, precomputedA2=NULL, 
+                      precomputationsFileNameRoot="") {
+  ctildes = NULL
+  
+  if(precomputationsFileNameRoot != "") {
+    # load in precomputations
+    load(paste0("savedOutput/precomputations/", precomputationsFileNameRoot, ".RData"))
+    
+    if(!is.null(precomputedNormalizationFun)) {
+      if(length(kappa) == 1)
+        effectiveCor = sqrt(8) / kappa * latticeInfo[[1]]$latWidth
+      else
+        effectiveCor = sqrt(8) / kappa * sapply(latticeInfo, function(x) {x$latWidth})
+      ctildes = precomputedNormalizationFun$fullFun(effectiveCor, alphas)
+    }
+    
+  }
   if(!is.null(precomputedMatrices)) {
     Q = makeQPrecomputed(precomputedMatrices, kappa, rho, latticeInfo, alphas, normalized=normalize, 
-                         fastNormalize=fastNormalize)
+                         fastNormalize=fastNormalize, ctildes=ctildes)
   } else {
     Q = makeQ(kappa, rho, latticeInfo, 1, alphas, normalized=normalize, fastNormalize=fastNormalize)
   }
@@ -708,7 +724,8 @@ getLKInlaCovarianceFun = function(kappa, rho, nuggetVar, alphas, NP=200, lattice
 }
 
 covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, length(kappaVals)), nuggetVarVals=rep(0, length(kappaVals)), 
-                                        alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL, NP = 200) {
+                                        alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL, NP = 200, 
+                                        precomputationsFileNameRoot="") {
   if(!is.null(seed))
     set.seed(seed)
   nLayer = length(latticeInfo)
@@ -782,12 +799,12 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
     x2 <- rbind(center)
     d <- c(rdist(x1, x2))
     y <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
-                               Qprecomputations, Ax, Acenter))
+                               Qprecomputations, Ax, Acenter, precomputationsFileNameRoot=precomputationsFileNameRoot))
     y[NP/2] = y[NP/2] + nuggetVar
     x1 <- cbind(rep(center[1], NP), uy)
     d2 <- c(rdist(x1, x2))
     y2 <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
-                                Qprecomputations, Ay, Acenter))
+                                Qprecomputations, Ay, Acenter, precomputationsFileNameRoot=precomputationsFileNameRoot))
     y2[NP/2] = y2[NP/2] + nuggetVar
     
     # average x and y covariances
