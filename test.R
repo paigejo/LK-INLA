@@ -3816,6 +3816,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
   else
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLKINLA", plotNameRoot, ".RData"))
+  
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
 }
 
 # tests the fitLKINLAStandard function using data simulated from the LK model
@@ -3948,7 +3950,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
   
   ##### Save results
   if(!gscratch) {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
@@ -3971,7 +3973,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
          aggregatedScores, 
          file=paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
   } else {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
@@ -4006,7 +4008,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
 # Xmat: design matrix
 # ys: observations
 # first.time: is first time evaluating function.  User should always set to FALSE
-testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
+testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
                               nBuffer=5, normalize=TRUE, NC=14, testCovs=TRUE, 
                               printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
                               plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / sqrt(8), 
@@ -4410,7 +4412,8 @@ testLKModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZe
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
   else
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", plotNameRoot, ".RData"))
-  invisible(NULL)
+  
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
 }
 
 # seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
@@ -4489,7 +4492,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) 
   
   ##### Save results
   if(!gscratch) {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
@@ -4512,7 +4515,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) 
          aggregatedScores, 
          file=paste0("savedOutput/simulations/mixtureLKAll_nsim", nSamples, ".RData"))
   } else {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
@@ -5097,6 +5100,8 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
   else
     save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureSPDE", plotNameRoot, ".RData"))
+  
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
 }
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
@@ -5178,14 +5183,14 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
   
   ##### Save results
   if(!gscratch) {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
          allAggregatedScoringRules, 
          binnedScoringRulesGrid, 
          pooledScoringRulesGrid, 
-         fullpooledScoringRulesLeftOut, 
+         fullPooledScoringRulesLeftOut, 
          pooledScoringRulesLeftOut, 
          covMean, 
          upperCov, 
@@ -5201,14 +5206,14 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
          aggregatedScores, 
          file=paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
   } else {
-    save(allScoringRules, 
+    save(#allScoringRules, 
          allFits, 
          allCovInfo, 
          allPredictionMatrices, 
          allAggregatedScoringRules, 
          binnedScoringRulesGrid, 
          pooledScoringRulesGrid, 
-         fullpooledScoringRulesLeftOut, 
+         fullPooledScoringRulesLeftOut, 
          pooledScoringRulesLeftOut, 
          covMean, 
          upperCov, 

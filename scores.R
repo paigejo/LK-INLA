@@ -136,11 +136,15 @@ mse <- function(truth, est, weights=NULL, getAverage=TRUE){
 # lower: the lower end of the credible interval
 # upper: the upper end of the credible interval
 # estMat: a matrix of joint draws of estimates, with number of rows equal to the length of truth, a number of 
-#         columns equal to the number of draws. If not included, a gaussian distribution is assumed.
+#         columns equal to the number of draws. If not included, a lgaussian distribution is assumed. Can be 
+#         Gaussian or discrete values such as empirical proportions
 # significance: the significance level of the credible interval. By default 80%
 # doRandomReject, doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
+# ns: a vector of maximum possible counts (denominators) for each observation. Used only for random/fuzzy reject. 
+#     Can be left out, in which case it will be inferred from the minimum draw difference in each row of estMat.
 coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
-                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE){
+                    estMat=NULL, significance=.8, returnIntervalWidth=FALSE, 
+                    doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE, ns=NULL){
   
   if(any(is.null(lower)) || any(is.null(upper))) {
     # if the user did not supply their own credible intervals, we must get them ourselves given the other information
@@ -196,7 +200,10 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     }
     
     # determine minimum differences between probabilities
-    deltas = apply(estMat, 1, function(x) {min(diff(sort(unique(x))))})
+    if(is.null(ns))
+      deltas = apply(estMat, 1, function(x) {min(diff(sort(unique(x))))})
+    else
+      deltas = 1 / ns
     
     if(length(atLowerEdge) != 0) {
       res[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(res[atLowerEdge][i], (1-rejectLower[i]))})
