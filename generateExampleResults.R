@@ -2,7 +2,7 @@
 
 # first name elements of ed to be the same as the corresponding elements of the simulated datasets
 
-generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, family=c("betabinomial", "binomial")) {
+generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, family=c("betabinomial", "binomial"), urbanPrior=TRUE) {
   family = match.arg(family)
   targetPop = match.arg(targetPop)
   if(targetPop == "women") {
@@ -53,15 +53,20 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect)
+  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect, useUrbanPrior=urbanPrior)
   
   for(i in 1:length(argList)) {
     if(startI <= i + 2) {
       args = argList[[i]]
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
+      
+      urbanPriorText = ""
+      if(!urbanPrior && separateRanges)
+        urbanPriorText = "_noUrbanPrior"
+      
       fileName = paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
-                        "_urbanEffect", urbanEffect, familyText, ".RData")
+                        "_urbanEffect", urbanEffect, familyText, urbanPriorText, ".RData")
       
       print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       lkinlaResults = do.call("fitLKINLAKenyaDat", c(args, otherArguments))

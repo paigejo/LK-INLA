@@ -70,7 +70,7 @@ widthRange = fullWidthRange
 
 # get correlograms/covariograms
 if(FALSE) {
-  recalculate = TRUE
+  recalculate = FALSE
   cgramList = list()
   for(j in 1:length(filenames)) {
     modelName = paste(modelClasses[j], modelVariations[j])
@@ -170,7 +170,7 @@ meanTickLabels = c("0.01", meanTickLabels)
 #              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
 #              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
 #              plotUrbanMap=FALSE, makeModelPredictions=TRUE)
-
+ncols = 29
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "Region", 
              regionPredRange, meanTicks, meanTickLabels, regionWidthRange, widthTicks, widthTickLabels, 

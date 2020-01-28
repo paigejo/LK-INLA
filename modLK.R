@@ -294,7 +294,6 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # calculate predictive standard errors
   predSEs = predSimulations$SE
-  browser()
   
   # calculate confidence intervals
   lower = preds + qnorm((1 - significanceCI) / 2, sd=predSEs)
