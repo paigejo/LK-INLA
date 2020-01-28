@@ -1893,6 +1893,12 @@ getValidationI = function(dat=NULL, dataType=c("mort", "ed"), allCountyNames=NUL
   sampleMatrix
 }
 
+dDiscDist = function(d, r = 1) {
+  out = 4 * d / (pi*r^2) * (acos(d / (2*r)) - d / (2*r) * sqrt(1 - (d / (2*r))^2))
+  out[d<0] = 0
+  out[d>2*r] = 0
+  out
+}
 
 
 

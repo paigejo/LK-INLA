@@ -48,7 +48,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   ny = latInfo[[1]]$ny
   
   if(is.null(priorPar))
-    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior)
+    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior) # 1444.772/5
   
   # generate lattice basis matrix
   AObs = makeA(obsCoords, latInfo)
@@ -723,7 +723,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
                        initialEffectiveRange, initialAlphas, effRangeRange, predClusterI, 
                        separateRanges=separateRanges, doValidation=doValidation, 
                        previousFit=previousFit, precomputedNormalizationFun=precomputedNormalizationFun, 
-                       verbose=verbose), 
+                       verbose=verbose, useUrbanPrior=useUrbanPrior), 
     list(obsCoords=obsCoords, obsValues=obsValues, xObs=xObs, xPred=xPred, obsNs=obsNs, obsUrban=obsUrban, 
          predPts=predPts, predClusterI=predClusterI, predsUrban=predsUrban, kmres=kmres)
   )
