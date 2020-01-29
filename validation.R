@@ -2,8 +2,10 @@ library(kableExtra)
 
 # validate the smoothing models by leaving out data from one county at a time
 validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
-                           startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE) {
+                           startI=ifelse(urbanPrior, 5, 1), loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
+                           urbanPrior=TRUE, family=c("betabinomial", "binomial")) {
   targetPop = match.arg(targetPop)
+  family = match.arg(family)
   
   # load in relevant data for the given example
   if(targetPop == "women") {
@@ -24,6 +26,11 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   resultNameRootLower = tolower(resultNameRoot)
   dataType = resultNameRootLower
   
+  familyText=""
+  if(family == "binomial")
+    familyText = "_LgtN"
+  clusterEffect = family == "binomial"
+  
   # get region names
   regions = sort(unique(countyToRegion(as.character(dat$admin1))))
   
@@ -34,7 +41,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   ##### run SPDE
   argList = list(list(dat = dat, urbanEffect = FALSE), 
                  list(dat = dat, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, loadPreviousFit=loadPreviousFit, family="betabinomial", 
+  otherArguments = list(dataType=dataType, verbose=verbose, loadPreviousFit=loadPreviousFit, family=family, 
                         loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
   
   modelNames = c()
@@ -42,7 +49,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
     args = argList[[i]]
     separateRanges = args$separateRanges
     urbanEffect = args$urbanEffect
-    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, "_LORegion", leaveOutRegion)
+    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, familyText, "_LORegion", leaveOutRegion)
     if(urbanEffect)
       urbanText = "U"
     else
@@ -82,15 +89,20 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, loadPreviousFit=loadPreviousFit, family="betabinomial", 
+  otherArguments = list(dataType=dataType, loadPreviousFit=loadPreviousFit, family=family, 
                         loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
   
   for(i in 1:length(argList)) {
     args = argList[[i]]
     separateRanges = args$separateRanges
     urbanEffect = args$urbanEffect
+    
+    urbanPriorText = ""
+    if(!urbanPrior && separateRanges)
+      urbanPriorText = "_noUrbanPrior"
+    
     fileName = paste0("savedOutput/validation/resultsLKINLA", resultNameRootLower, "_urbanEffect", urbanEffect, 
-                      "_separateRanges", separateRanges, "_LORegion", leaveOutRegion)
+                      "_separateRanges", separateRanges, familyText, urbanPriorText, "_LORegion", leaveOutRegion)
     if(separateRanges)
       separateText = "S"
     else
