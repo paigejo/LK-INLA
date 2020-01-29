@@ -2,7 +2,7 @@
 
 # first name elements of ed to be the same as the corresponding elements of the simulated datasets
 
-generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, family=c("betabinomial", "binomial"), urbanPrior=TRUE) {
+generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, endI=Inf, family=c("betabinomial", "binomial"), urbanPrior=TRUE) {
   family = match.arg(family)
   targetPop = match.arg(targetPop)
   if(targetPop == "women") {
@@ -29,7 +29,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect)
   
   for(i in 1:length(argList)) {
-    if(startI <= i) {
+    if(startI <= i && i <= endI) {
       args = argList[[i]]
       clusterEffect = args$clusterEffect
       urbanEffect = args$urbanEffect
@@ -56,7 +56,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect, useUrbanPrior=urbanPrior)
   
   for(i in 1:length(argList)) {
-    if(startI <= i + 2) {
+    if(startI <= i + 2 && i + 2 <= endI) {
       args = argList[[i]]
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
