@@ -710,8 +710,10 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   }
   
   if(length(NC) == 1) {
+    # if(separateRanges)
+    #   NC = c(30, 107) # by default, use two layers with the finest layer having resolution equal to 10km
     if(separateRanges)
-      NC = c(30, 107) # by default, use two layers with the finest layer having resolution equal to 10km
+      NC = c(30, 214) # by default, use two layers with the finest layer having resolution equal to 5km
   }
   if(separateRanges)
     nLayer = length(NC)
