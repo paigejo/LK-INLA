@@ -31,7 +31,6 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   for(i in 1:length(argList)) {
     if(startI <= i && i <= endI) {
       args = argList[[i]]
-      clusterEffect = args$clusterEffect
       urbanEffect = args$urbanEffect
       fileName = paste0("savedOutput/", resultNameRoot, "/resultsSPDE", resultNameRootLower, 
                         "_urbanEffect", urbanEffect, familyText, ".RData")
