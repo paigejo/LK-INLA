@@ -3,7 +3,14 @@
 resultName = "Ed"
 resultNameRootLower = tolower(resultName)
 
-modelClasses = c(rep("SPDE", 2), rep("LK-INLA", 4))
+family = "betabinomial" # logit normal binomial model versus beta binomial
+urbanPrior = TRUE # whether to place fine scale urban effective range prior on the fine scale layer
+
+familyText=""
+if(family == "binomial")
+  familyText = "_LgtN"
+
+modelClasses = c(rep("SPDE", 2), rep("ELK", 4))
 modelVariations = c("u", "U", "ui", "uI", "Ui", "UI")
 groupPlot = rep(c(FALSE, TRUE), 4)
 
@@ -16,7 +23,7 @@ argList = list(list(urbanEffect = FALSE),
 for(i in 1:length(argList)) {
   args = argList[[i]]
   urbanEffect = args$urbanEffect
-  filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, ".RData"))
+  filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, familyText, ".RData"))
 }
 
 argList = list(list(urbanEffect = FALSE, separateRanges = FALSE), 
@@ -27,8 +34,13 @@ for(i in 1:length(argList)) {
   args = argList[[i]]
   separateRanges = args$separateRanges
   urbanEffect = args$urbanEffect
+  
+  urbanPriorText = ""
+  if(!urbanPrior && separateRanges)
+    urbanPriorText = "_noUrbanPrior"
+  
   filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
-                    "_urbanEffect", urbanEffect, ".RData"))
+                    "_urbanEffect", urbanEffect, familyText, urbanPriorText, ".RData"))
 }
 
 # now load in the files, and calculate the range of the predictions
@@ -70,8 +82,10 @@ widthRange = fullWidthRange
 
 # get correlograms/covariograms
 if(FALSE) {
-  recalculate = FALSE
+  recalculate = TRUE
+  maxRadius = 500
   cgramList = list()
+  # for(j in 5:length(filenames)) {
   for(j in 1:length(filenames)) {
     modelName = paste(modelClasses[j], modelVariations[j])
     
@@ -88,9 +102,15 @@ if(FALSE) {
       # hyperparameters will be drawn differently depending on the type of model
       if(thisModelClass == "SPDE") {
         # get hyperparameter draws
-        effectiveRangeVals = hyperDraws[2,]
-        varVals = hyperDraws[3,]^2
-        nuggetVarVals = rep(0, ncol(hyperDraws))
+        if(family == "betabinomial") {
+          effectiveRangeVals = hyperDraws[2,]
+          varVals = hyperDraws[3,]^2
+          nuggetVarVals = rep(0, ncol(hyperDraws))
+        } else {
+          effectiveRangeVals = hyperDraws[1,]
+          varVals = hyperDraws[2,]^2
+          nuggetVarVals = 1/hyperDraws[3,]
+        }
         
         # get range of the data and the SPDE basis function mesh for which to compute the covariograms
         out = load(paste0("dataPointsKenya.RData"))
@@ -99,36 +119,54 @@ if(FALSE) {
         mesh = results$fit$mesh
         
         # compute the covariance function for the different hyperparameter samples
-        cgram = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
-      } else if(thisModelClass == "LK-INLA") {
+        cgram = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat, maxRadius=maxRadius)
+      } else if(thisModelClass == "ELK") {
         # get lattice information object
         latInfo = results$fit$latInfo
         
         # get hyperparameter draws
         separateRanges = grepl("separateRangesTRUE", filenames[j])
         nLayer = length(latInfo)
-        if(separateRanges)
-          alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
-        else
-          alphaI = 4:(3+nLayer-1)
+        
+        if(family == "betabinomial") {
+          if(separateRanges)
+            alphaI = (1 + nLayer+1 + 1):(1 + nLayer+1 + nLayer-1)
+          else
+            alphaI = 4:(3+nLayer-1)
+          
+          nuggetVarVals = rep(0, ncol(hyperDraws))
+          if(separateRanges) {
+            kappaVals = sweep(2.3/exp(hyperDraws[2:(nLayer+1),]), 2, sapply(latInfo, function(x) {x$latWidth}), "*")
+            rhoVals = exp(hyperDraws[nLayer+2,])
+          } else {
+            latticeWidth = latInfo[[1]]$latWidth
+            kappaVals = 2.3/exp(hyperDraws[2,]) * latticeWidth
+            rhoVals = exp(hyperDraws[3,])
+          }
+        } else {
+          if(separateRanges)
+            alphaI = (nLayer+1 + 1):(nLayer+1 + nLayer-1)
+          else
+            alphaI = 3:(2+nLayer-1)
+          
+          nuggetVarVals = 1/hyperDraws[nrow(hyperDraws),]
+          if(separateRanges) {
+            kappaVals = sweep(2.3/exp(hyperDraws[1:nLayer,]), 2, sapply(latInfo, function(x) {x$latWidth}), "*")
+            rhoVals = exp(hyperDraws[nLayer+1,])
+          } else {
+            latticeWidth = latInfo[[1]]$latWidth
+            kappaVals = 2.3/exp(hyperDraws[1,]) * latticeWidth
+            rhoVals = exp(hyperDraws[2,])
+          }
+        }
+        
         zSamples = matrix(hyperDraws[alphaI,], ncol=length(alphaI))
         xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
         xSamples = rbind(xSamples, 1-colSums(xSamples))
-        
-        
-        nuggetVarVals = rep(0, ncol(hyperDraws))
-        if(separateRanges) {
-          kappaVals = sweep(2.3/exp(hyperDraws[2:(nLayer+1),]), 2, sapply(latInfo, function(x) {x$latWidth}), "*")
-          rhoVals = exp(hyperDraws[nLayer+2,])
-        } else {
-          latticeWidth = latInfo[[1]]$latWidth
-          kappaVals = 2.3/exp(hyperDraws[2,]) * latticeWidth
-          rhoVals = exp(hyperDraws[3,])
-        }
         alphaMat = xSamples
         
         # compute the covariance function for many different hyperparameter samples
-        cgram = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat)
+        cgram = covarianceDistributionLKINLA(latInfo, kappaVals, rhoVals, nuggetVarVals, alphaMat, maxRadius=maxRadius)
       } else {
         stop(paste0("Unrecognized model class: ", thisModelClass))
       }
@@ -162,6 +200,8 @@ widthTickLabels = widthTickLabels[-1]
 meanTicks = c(.01, meanTicks)
 meanTickLabels = c("0.01", meanTickLabels)
 
+plotNameRoot = paste0("Education", familyText, urbanPriorText)
+
 # rather than plot everything with the same color scales, we should use a different color scale for each areal level
 # makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
 #              c("Region", "County", "Pixel", "Cluster"), 
@@ -174,7 +214,7 @@ ncols = 29
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "Region", 
              regionPredRange, meanTicks, meanTickLabels, regionWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
              plotUrbanMap=FALSE, makeModelPredictions=FALSE, makeCovariograms=TRUE, makePairPlots=TRUE)
@@ -182,7 +222,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "County", 
              countyPredRange, meanTicks, meanTickLabels, countyWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
@@ -190,7 +230,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "Pixel", 
              pixelPredRange, meanTicks, meanTickLabels, pixelWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
@@ -198,43 +238,44 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "Cluster", 
              clusterPredRange, meanTicks, meanTickLabels, clusterWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
-# now make the same plots, but only using models including a cluster effect to better highlight 
-# differences between models caused by including or leaving out an urban effect
-makeAllPlots(dataType="ed", filenames[groupPlot], modelClasses[groupPlot], modelVariations[groupPlot], 
+# show reduction in oversmoothing
+group = c(1, 4, 2, 6)
+groupPlotName = paste0(plotNameRoot, "oversmoothing")
+makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "Region", 
              regionPredRange, meanTicks, meanTickLabels, regionWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=groupPlotName, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
-             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE)
+             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
+             plotUrbanMap=FALSE, makeModelPredictions=FALSE, makeCovariograms=TRUE, makePairPlots=TRUE)
 
-makeAllPlots(dataType="ed", filenames[groupPlot], modelClasses[groupPlot], modelVariations[groupPlot], 
+makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "County", 
              countyPredRange, meanTicks, meanTickLabels, countyWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=groupPlotName, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
-makeAllPlots(dataType="ed", filenames[groupPlot], modelClasses[groupPlot], modelVariations[groupPlot], 
+makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "Pixel", 
              pixelPredRange, meanTicks, meanTickLabels, pixelWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=groupPlotName, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
+             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
-makeAllPlots(dataType="ed", filenames[groupPlot], modelClasses[groupPlot], modelVariations[groupPlot], 
+makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "Cluster", 
              clusterPredRange, meanTicks, meanTickLabels, clusterWidthRange, widthTicks, widthTickLabels, 
-             plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+             plotNameRoot=groupPlotName, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
+             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
 # printModelPredictionTables("ed", resultNameRoot="Ed", nDigitsPredictions=2)

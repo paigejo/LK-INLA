@@ -2,7 +2,7 @@ library(kableExtra)
 
 # validate the smoothing models by leaving out data from one county at a time
 validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
-                           startI=ifelse(urbanPrior, 5, 1), loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
+                           startI=ifelse(urbanPrior, 5, 1), loadPreviousFit=FALSE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
                            urbanPrior=TRUE, family=c("betabinomial", "binomial")) {
   targetPop = match.arg(targetPop)
   family = match.arg(family)
@@ -293,7 +293,9 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   names(singleScoresBinomialAll) = modelNames
   
   ##### Save all scoring rule tables
-  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, "_LORegion", leaveOutRegion, ".RData")
+  if(!urbanPrior)
+    urbanPriorText = "_noUrbanPrior"
+  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".RData")
   allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
                    scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial, 
                    
@@ -678,8 +680,14 @@ printValidationResults = function(resultNameRoot="Ed") {
 }
 
 plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
-                                 startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE) {
+                                 startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
+                                 family = c("betabinomial", "binomial")) {
   targetPop = match.arg(targetPop)
+  family = match.arg(family)
+  
+  familyText=""
+  if(family == "binomial")
+    familyText = "_LgtN"
   
   # load in relevant data for the given example
   if(targetPop == "women") {

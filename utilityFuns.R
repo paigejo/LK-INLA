@@ -725,7 +725,7 @@ getLKInlaCovarianceFun = function(kappa, rho, nuggetVar, alphas, NP=200, lattice
 
 covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, length(kappaVals)), nuggetVarVals=rep(0, length(kappaVals)), 
                                         alphaMat, maxSamples=100, significanceCI=.8, normalize=TRUE, fastNormalize=TRUE, seed=NULL, NP = 200, 
-                                        precomputationsFileNameRoot="") {
+                                        precomputationsFileNameRoot="", maxRadius=NULL) {
   if(!is.null(seed))
     set.seed(seed)
   nLayer = length(latticeInfo)
@@ -737,13 +737,13 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
     separateRanges = TRUE
     effectiveRanges = sweep(sqrt(8)/kappaVals, 1, sapply(latticeInfo, function(x){x$latWidth}), "*")
     minRange = min(apply(effectiveRanges, 1, min))
-    maxRange = max(apply(effectiveRanges, 1, max))
+    maxRange = max(apply(cbind(5 * sapply(latticeInfo, function(x){x$latWidth}), effectiveRanges), 1, max))
   } else {
     kappaVals = kappaVals[sampleI]
     separateRanges = FALSE
     effectiveRanges = sqrt(8) * latticeInfo[[1]]$latWidth / kappaVals
     minRange = min(effectiveRanges) / 2^(length(latticeInfo) - 1)
-    maxRange = max(effectiveRanges)
+    maxRange = max(c(effectiveRanges, latticeInfo[[1]]$latWidth * 5))
   }
   rhoVals = rhoVals[sampleI]
   nuggetVarVals = nuggetVarVals[sampleI]
@@ -756,7 +756,8 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   # uy <- seq(ylim[1], ylim[2], , NP)
   # center <- rbind(c(ux[NP/2], uy[NP/2]))
   
-  maxRadius = maxRange * 2
+  if(is.null(maxRadius))
+    maxRadius = maxRange * 2
   minStep = minRange / 10
   ThisNP = 2 * maxRadius / minStep
   xlim <- latticeInfo[[1]]$xRangeDat
@@ -942,7 +943,8 @@ covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVa
 }
 
 covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(effectiveRangeVals)), nuggetVarVals=rep(0, length(rhoVals)), 
-                                      mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL, NP = 200) {
+                                      mesh, maxSamples=100, significanceCI=c(.8, .95), seed=NULL, xRangeDat=NULL, yRangeDat=NULL, NP = 200, 
+                                      maxRadius=NULL) {
   if(!is.null(seed))
     set.seed(seed)
   
@@ -968,7 +970,8 @@ covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(
   
   maxRange = max(effectiveRangeVals)
   minRange = min(effectiveRangeVals)
-  maxRadius = maxRange * 2
+  if(is.null(maxRadius))
+    maxRadius = maxRange * 2
   minStep = minRange / 10
   ThisNP = 2 * maxRadius / minStep
   centerX = mean(xlim)
@@ -1891,13 +1894,6 @@ getValidationI = function(dat=NULL, dataType=c("mort", "ed"), allCountyNames=NUL
   
   # return results
   sampleMatrix
-}
-
-dDiscDist = function(d, r = 1) {
-  out = 4 * d / (pi*r^2) * (acos(d / (2*r)) - d / (2*r) * sqrt(1 - (d / (2*r))^2))
-  out[d<0] = 0
-  out[d>2*r] = 0
-  out
 }
 
 

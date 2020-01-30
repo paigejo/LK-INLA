@@ -68,6 +68,9 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       thisModelClass = uniqueModelClasses[i]
       thisI = modelClasses == thisModelClass
       
+      if(sum(thisI) == 1)
+        next
+      
       thisResultFilenames = resultFilenames[thisI]
       thisModelClasses = modelClasses[thisI]
       thisModelVariations = modelVariations[thisI]
@@ -204,6 +207,9 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
       thisModelClass = uniqueModelClasses[i]
       thisI = modelClasses == thisModelClass
       
+      if(sum(thisI) == 1)
+        next
+      
       thisResultFilenames = resultFilenames[thisI]
       thisModelClasses = modelClasses[thisI]
       thisModelVariations = modelVariations[thisI]
@@ -225,16 +231,15 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
       extraPlotNameRoot = ""
     
     if(thisArea %in% c("Region", "County")) {
-      width = 400 * numberModels
-      png(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=width)
+      
     }
     else {
-      width = 2 * numberModels
-      pdf(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=width)
+      
     }
     
     # collect predictions and proportion urban per area/point
     predsList = list()
+    widthsList = list()
     # modelNames = c()
     modelNames = list()
     for(j in 1:numberModels) {
@@ -250,6 +255,7 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
       theseCols = urbCols[colI]
       
       predsList = c(predsList, list(theseResults$preds))
+      widthsList = c(widthsList, list(theseResults$Q90 - theseResults$Q10))
     }
     
     valMat = do.call("cbind", predsList)
@@ -277,6 +283,9 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
         points(x,y,..., col=theseCols)
       }
       
+      width = 400 * numberModels
+      png(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=width)
+      
       # pairs(valMat, 
       #       modelNames, 
       #       pch=19, cex=.3, lower.panel=my_line, upper.panel = my_line, 
@@ -292,12 +301,68 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
                  legend.lab = "Urbanicity", legend.line=3.0, legend.width=1, legend.shrink=.9, 
                  legend.cex=2, axis.args=list(cex.axis=1, tck=-1, hadj=-.1))
       dev.off()
+      
+      valMat = do.call("cbind", widthsList)
+      zlim = range(valMat)
+      width = 400 * numberModels
+      png(file=paste0("Figures/", resultNameRoot, "/pairPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=width)
+      
+      # pairs(valMat, 
+      #       modelNames, 
+      #       pch=19, cex=.3, lower.panel=my_line, upper.panel = my_line, 
+      #       main=paste0(thisArea, " estimate comparisons"))
+      # lims = c(list(zlim), list(zlim), list(zlim2), list(zlim2), list(zlim2))
+      lims = rep(list(zlim), numberModels)
+      myPairs(valMat, 
+              as.expression(unlist(modelNames)), 
+              pch=19, cex=2, lower.panel=my_line, upper.panel = my_line, 
+              main=paste0(thisArea, " posterior 80% CI width comparisons"), 
+              lims=lims, oma=c(3,3,6,10), cex.main=2)
+      image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=7, col=urbCols, add=TRUE, 
+                 legend.lab = "Urbanicity", legend.line=3.0, legend.width=1, legend.shrink=.9, 
+                 legend.cex=2, axis.args=list(cex.axis=1, tck=-1, hadj=-.1))
+      dev.off()
     } else {
+      my_line <- function(x,y,...){
+        if(diff(range(x)) >= .04)
+          xlim = zlim
+        # else
+        #   xlim = zlim2
+        if(diff(range(y)) >= .04)
+          ylim = zlim
+        # else
+        #   ylim = zlim2
+        # if(diff(range(c(x, y))) > 0.04)
+        #   par(usr = c(zlim, zlim))
+        # else
+        #   par(usr = c(zlim2, zlim2))
+        # par(usr = c(xlim, ylim))
+        # points(x,y,..., col="blue")
+        abline(a = 0,b = 1,...)
+        points(x,y,..., col=theseCols)
+      }
+      
+      width = 2 * numberModels
+      pdf(file=paste0("Figures/", resultNameRoot, "/pairPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=width)
+      
       lims = rep(list(zlim), numberModels)
       myPairs(valMat, 
               as.expression(unlist(modelNames)), 
               pch=19, cex=.4, lower.panel=my_line, upper.panel = my_line, 
               main=paste0(thisArea, " estimate comparisons"), 
+              lims=lims, oma=c(3,3,6,7))
+      # legend("topleft", c("Urban", "Rural"), col=c(urbCols[ncols], urbCols[1]), pch=19)
+      dev.off()
+      
+      valMat = do.call("cbind", widthsList)
+      zlim = range(valMat)
+      pdf(file=paste0("Figures/", resultNameRoot, "/pairPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=width)
+      
+      lims = rep(list(zlim), numberModels)
+      myPairs(valMat, 
+              as.expression(unlist(modelNames)), 
+              pch=19, cex=.4, lower.panel=my_line, upper.panel = my_line, 
+              main=paste0(thisArea, " posterior 80% CI width comparisons"), 
               lims=lims, oma=c(3,3,6,7))
       legend("topleft", c("Urban", "Rural"), col=c(urbCols[ncols], urbCols[1]), pch=19)
       dev.off()
@@ -571,7 +636,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     
     if(j == 1) {
       plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
-           ylim=yRange, col=cols[j])
+           ylim=c(0,1), col=cols[j])
     } else {
       lines(d, corMean, col=cols[j])
     }
@@ -606,7 +671,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     }
     
     if(j == 1) {
-      plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
+      plot(d, corMean, type="l", main=paste0("Correlation central estimates"), xlab="Distance (km)", ylab="Correlation", 
            ylim=c(0, 1), col=cols[j])
     } else {
       lines(d, corMean, col=cols[j])
@@ -1255,7 +1320,59 @@ plotExampleMaternCorrelation = function(effectiveScales = c(.1, .5, 1), sigma2=.
   # dev.off()
 }
 
+plotBasisKnots = function(NC=14, nBuffer=5) {
+  # get lattice points, prediction points
+  nLayer=3
+  xRangeDat = c(-1, 1)
+  yRangeDat = c(-1, 1)
+  latInfo = makeLatGrids(xRangeDat, yRangeDat, NC, nBuffer, nLayer=nLayer)
+  
+  # get first, coarsest layer
+  pdf("Figures/illustrations/basisKnots.pdf", width=5, height=5)
+  pts = latInfo[[1]]$latCoords
+  border = rbind(c(xRangeDat[1], yRangeDat[1]), 
+                 c(xRangeDat[1], yRangeDat[2]), 
+                 c(xRangeDat[2], yRangeDat[2]), 
+                 c(xRangeDat[2], yRangeDat[1]))
+  plot(pts[,1], pts[,2], type="n", xlab="x", ylab="y", main="Basis Knot Locations")
+  polygon(border[,1], border[,2], col=rgb(.5, .5, .5, .5), border=rgb(0, 0, 0, 0))
+  points(pts[,1], pts[,2], pch="+", cex=1)
+  
+  # plot second layer
+  pts = latInfo[[2]]$latCoords
+  points(pts[,1], pts[,2], pch="+", cex=.6, col="darkGreen")
+  
+  # plot third layer
+  pts = latInfo[[3]]$latCoords
+  points(pts[,1], pts[,2], pch="+", cex=.25, col="red")
+  dev.off()
+}
 
+plotDiskDistanceDistribution = function() {
+  r=1
+  dDiskDist = function(d, r = 1) {
+    out = 4 * d / (pi*r^2) * (acos(d / (2*r)) - d / (2*r) * sqrt(1 - (d / (2*r))^2))
+    out[d<0] = 0
+    out[d>2*r] = 0
+    out
+  }
+  
+  ds = seq(0, 2 * r, l=200)
+  pdf("Figures/Illustrations/diskDistanceDistribution.pdf", width=5, height=5)
+  plot(ds, dDiskDist(ds, r), type="l", main="Distances between points in disk (radius R)", ylab="Probability density", xlab="Distance", xaxt="n", yaxt="n")
+  xtick<-seq(0, 2, by=1)
+  axis(side=1, at=xtick, labels = FALSE)
+  text(x=xtick,  par("usr")[3]-.02, 
+       labels = c("0", "R", "2R"), pos = 1, xpd = TRUE)
+  
+  ytick<-seq(0, max(dDiskDist(ds, r)), l=5)
+  axis(side=2, at=ytick, labels = FALSE)
+  text(par("usr")[1]-.01, ytick, 
+       labels = c("0", TeX("$\\frac{1}{5R}$"), TeX("$\\frac{2}{5R}$"), TeX("$\\frac{3}{5R}$"), TeX("$\\frac{4}{5R}$")), pos = 2, xpd = TRUE)
+  dev.off()
+  
+  print(ds[which.max(dDiskDist(ds, r))])
+}
 
 
 
