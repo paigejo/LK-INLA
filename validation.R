@@ -146,6 +146,8 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   }
   names(resultsListLKINLA) = modelNames[3:6]
   
+  print("Finished validating models, now concatenating results...")
+  
   ##### concatenate all scoring rules into a single table (one for in sample, and one for out of sample)
   allModelNames = c(names(resultsListSPDE), names(resultsListLKINLA))
   
