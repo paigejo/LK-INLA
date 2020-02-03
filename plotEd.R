@@ -3,16 +3,18 @@
 resultName = "Ed"
 resultNameRootLower = tolower(resultName)
 
-family = "betabinomial" # logit normal binomial model versus beta binomial
+family = "binomial" # logit normal binomial model versus beta binomial
 urbanPrior = TRUE # whether to place fine scale urban effective range prior on the fine scale layer
 
 familyText=""
 if(family == "binomial")
   familyText = "_LgtN"
 
-modelClasses = c(rep("SPDE", 2), rep("ELK", 4))
-modelVariations = c("u", "U", "ui", "uI", "Ui", "UI")
-groupPlot = rep(c(FALSE, TRUE), 4)
+# modelClasses = c(rep("SPDE", 2), rep("ELK", 4))
+# modelVariations = c("u", "U", "ui", "uI", "Ui", "UI")
+modelClasses = c(rep("SPDE", 2), rep("ELK", 2))
+modelVariations = rep(c("u", "U"), 2)
+# groupPlot = rep(c(FALSE, TRUE), 4)
 
 ##### before we make any plots, get the scale on which to put all of them
 # first get the file names for the results to load in later
@@ -26,9 +28,11 @@ for(i in 1:length(argList)) {
   filenames = c(filenames, paste0("savedOutput/", resultName, "/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, familyText, ".RData"))
 }
 
-argList = list(list(urbanEffect = FALSE, separateRanges = FALSE), 
-               list(urbanEffect = FALSE, separateRanges = TRUE), 
-               list(urbanEffect = TRUE, separateRanges = FALSE), 
+# argList = list(list(urbanEffect = FALSE, separateRanges = FALSE), 
+#                list(urbanEffect = FALSE, separateRanges = TRUE), 
+#                list(urbanEffect = TRUE, separateRanges = FALSE), 
+#                list(urbanEffect = TRUE, separateRanges = TRUE))
+argList = list(list(urbanEffect = FALSE, separateRanges = TRUE), 
                list(urbanEffect = TRUE, separateRanges = TRUE))
 for(i in 1:length(argList)) {
   args = argList[[i]]
@@ -217,7 +221,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
              plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
-             plotUrbanMap=FALSE, makeModelPredictions=FALSE, makeCovariograms=TRUE, makePairPlots=TRUE)
+             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE)
 
 makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
              "County", 
@@ -244,7 +248,7 @@ makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations,
              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
 # show reduction in oversmoothing
-group = c(1, 4, 2, 6)
+group = c(1, 3, 2, 4)
 groupPlotName = paste0(plotNameRoot, "oversmoothing")
 makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "Region", 
@@ -252,7 +256,7 @@ makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariatio
              plotNameRoot=groupPlotName, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
-             plotUrbanMap=FALSE, makeModelPredictions=FALSE, makeCovariograms=TRUE, makePairPlots=TRUE)
+             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE)
 
 makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "County", 

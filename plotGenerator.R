@@ -24,6 +24,22 @@ makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses,
     dat = ed
   }
   
+  # print lattice resolutions
+  print("SPDE mesh resolution: ")
+  test <- getSPDEMeshKenya()
+  # plot(test)
+  print(meanSegmentLength(getSPDEMeshKenya(), 50))
+  print("three layer coarse resolution:")
+  test = makeLatGridsKenya(3,NC=14)
+  print(test[[1]]$latWidth)
+  print("three layer fine resolution:")
+  print(test[[3]]$latWidth)
+  print("two layer coarse resolution:")
+  test = makeLatGridsKenya(2,NC=c(30, 214))
+  print(test[[1]]$latWidth)
+  print("two layer fine resolution:")
+  print(test[[2]]$latWidth)
+  
   if(makeModelPredictions) {
     plotModelPredictions(dat, resultFilenames, modelClasses, modelVariations, areaLevels, 
                          meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
@@ -381,6 +397,8 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   if(is.null(cols))
     cols = rainbow(length(modelClasses))
   
+  binomialFamily = grepl("LgtN", resultFilenames[1])
+  
   # first get the covariograms if necessary
   if(is.null(cgramList)) {
     cgramList = list()
@@ -392,6 +410,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       out = load(resultFilenames[j])
       if(!loadResults || !("cgram" %in% names(results))) {
         hyperDraws = results$fit$hyperMat
+        browser()
         
         # determine if this model has a cluster effect
         thisModelClass = modelClasses[j]
@@ -417,7 +436,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
           
           # compute the covariance function for the different hyperparameter samples
           cgram = covarianceDistributionSPDE(effectiveRangeVals, varVals, nuggetVarVals, mesh, xRangeDat=xRangeDat, yRangeDat=yRangeDat)
-        } else if(thisModelClass == "LK-INLA") {
+        } else if(thisModelClass == "ELK") {
           # get lattice information object, determine whether it's a separateRange model
           latInfo = results$fit$latInfo
           nLayer = length(latInfo)
@@ -560,15 +579,33 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       lowerCov=thiscgram$lowerCov[sortI]
     }
     
-    if(j == 1) {
-      plot(d, covMean, type="l", main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
-           ylim=yRange, col=cols[j])
+    if(binomialFamily) {
+      d0 = d == 0
+      if(j == 1) {
+        plot(0, mean(covMean[d0]), pch=19, cex=.4, main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRange, xlim=range(d), col=cols[j])
+        lines(d[!d0], covMean[!d0], col=cols[j])
+      } else {
+        points(0, mean(covMean[d0]), pch=19, cex=.4, col=cols[j])
+        lines(d[!d0], covMean[!d0], col=cols[j])
+      }
+      
+      points(0, mean(lowerCov[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      lines(d[!d0], lowerCov[!d0], col=cols[j], lty=2)
+      points(0, mean(upperCov[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      lines(d[!d0], upperCov[!d0], col=cols[j], lty=2)
     } else {
-      lines(d, covMean, col=cols[j])
+      if(j == 1) {
+        plot(d, covMean, type="l", main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRange, col=cols[j])
+      } else {
+        lines(d, covMean, col=cols[j])
+      }
+      
+      lines(d, lowerCov, lty=2, col=cols[j])
+      lines(d, upperCov, lty=2, col=cols[j])
     }
     
-    lines(d, lowerCov, lty=2, col=cols[j])
-    lines(d, upperCov, lty=2, col=cols[j])
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
@@ -596,11 +633,23 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       # lowerCov=thiscgram$lowerCov[sortI]
     }
     
-    if(j == 1) {
-      plot(d, covMean, type="l", main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
-           ylim=yRangeNoCIs, col=cols[j])
+    if(binomialFamily) {
+      d0 = d == 0
+      if(j == 1) {
+        plot(0, mean(covMean[d0]), pch=19, cex=.4, main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRangeNoCIs, xlim=range(d), col=cols[j])
+        lines(d[!d0], covMean[!d0], col=cols[j])
+      } else {
+        points(0, mean(covMean[d0]), pch=19, cex=.4, col=cols[j])
+        lines(d[!d0], covMean[!d0], col=cols[j])
+        }
     } else {
-      lines(d, covMean, col=cols[j])
+      if(j == 1) {
+        plot(d, covMean, type="l", main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRangeNoCIs, col=cols[j])
+      } else {
+        lines(d, covMean, col=cols[j])
+      }
     }
     
     # lines(d, lowerCov, lty=2, col=cols[j])
@@ -634,15 +683,32 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       lowerCor=thiscgram$lowerCor[sortI]
     }
     
-    if(j == 1) {
-      plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
-           ylim=c(0,1), col=cols[j])
+    if(binomialFamily) {
+      d0 = d == 0
+      if(j == 1) {
+        plot(0, mean(corMean[d0]), pch=19, cex=.4, main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), xlim=range(d), col=cols[j])
+        lines(d[!d0], corMean[!d0], col=cols[j])
+      } else {
+        points(0, mean(corMean[d0]), pch=19, cex=.4, col=cols[j])
+        lines(d[!d0], corMean[!d0], col=cols[j])
+      }
+      
+      points(0, mean(lowerCor[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      lines(d[!d0], lowerCor[!d0], col=cols[j], lty=2)
+      points(0, mean(upperCor[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      lines(d[!d0], upperCor[!d0], col=cols[j], lty=2)
     } else {
-      lines(d, corMean, col=cols[j])
+      if(j == 1) {
+        plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), col=cols[j])
+      } else {
+        lines(d, corMean, col=cols[j])
+      }
+      
+      lines(d, lowerCor, lty=2, col=cols[j])
+      lines(d, upperCor, lty=2, col=cols[j])
     }
-    
-    lines(d, lowerCor, lty=2, col=cols[j])
-    lines(d, upperCor, lty=2, col=cols[j])
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
@@ -670,11 +736,23 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       # lowerCor=thiscgram$lowerCor[sortI]
     }
     
-    if(j == 1) {
-      plot(d, corMean, type="l", main=paste0("Correlation central estimates"), xlab="Distance (km)", ylab="Correlation", 
-           ylim=c(0, 1), col=cols[j])
+    if(binomialFamily) {
+      d0 = d == 0
+      if(j == 1) {
+        plot(0, mean(corMean[d0]), pch=19, cex=.4, main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), xlim=range(d), col=cols[j])
+        lines(d[!d0], corMean[!d0], col=cols[j])
+      } else {
+        points(0, mean(corMean[d0]), pch=19, cex=.4, col=cols[j])
+        lines(d[!d0], corMean[!d0], col=cols[j])
+      }
     } else {
-      lines(d, corMean, col=cols[j])
+      if(j == 1) {
+        plot(d, corMean, type="l", main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), col=cols[j])
+      } else {
+        lines(d, corMean, col=cols[j])
+      }
     }
     
     # lines(d, lowerCor, lty=2, col=cols[j])
@@ -714,8 +792,8 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   spdeResultsCounty = results$aggregatedResults$predictions$countyPredictions
   spdeParameterTable = results$aggregatedResults$parameterSummary
   
-  ##### LK-INLA estimates
-  print("getting LK-INLA estimates...")
+  ##### ELK estimates
+  print("getting ELK estimates...")
   
   includeUrban = TRUE
   includeCluster = TRUE
@@ -751,8 +829,8 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
     # print out relevant summary statistics about the predictions
     print(paste0("SPDE UC range of predictions: ", diff(range(as.numeric(tab[,2])))))
     print(paste0("SPDE UC median 80% CI width: ", median(as.numeric(tab[,4])-as.numeric(tab[,3]))))
-    print(paste0("LK-INLA UC range of predictions: ", diff(range(as.numeric(tab[,5])))))
-    print(paste0("LK-INLA UC median 80% CI width: ", median(as.numeric(tab[,7])-as.numeric(tab[,6]))))
+    print(paste0("ELK UC range of predictions: ", diff(range(as.numeric(tab[,5])))))
+    print(paste0("ELK UC median 80% CI width: ", median(as.numeric(tab[,7])-as.numeric(tab[,6]))))
     
     # print out the reformatted table
     require(kableExtra)
@@ -760,7 +838,7 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
       kable("latex", escape = F, booktabs = TRUE, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
             align=c("l", rep("r", ncol(tab) - 1)), longtable=TRUE, caption = "Longtable") %>% 
       kable_styling(latex_options =c("repeat_header", "scale_down"))
-    numberColumns = c(" "=1, "SPDE UC"=3, "LK-INLA UC"=3)
+    numberColumns = c(" "=1, "SPDE UC"=3, "ELK UC"=3)
     print(add_header_above(fullTab, numberColumns, italic=TRUE, bold=TRUE, escape=FALSE, line=TRUE))
   }
   
@@ -793,7 +871,7 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   parTable = cbind(rownames(parTable), parTable)
   rownames(parTable) = NULL
   
-  # LK-INLA
+  # ELK
   
   parameters = round(lkinlaParameterTable, digits=nDigitsParameters)
   
@@ -827,7 +905,7 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   nrow(parTable)
   fullTab = fullTab %>% 
     pack_rows("SPDE UC", 1, 9, escape=FALSE, bold=TRUE, italic=TRUE) %>% 
-    pack_rows("LK-INLA UC", 10, nrow(parTable), escape=FALSE, bold=TRUE, italic=TRUE)
+    pack_rows("ELK UC", 10, nrow(parTable), escape=FALSE, bold=TRUE, italic=TRUE)
   print(fullTab)
 }
 

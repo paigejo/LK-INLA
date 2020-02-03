@@ -734,7 +734,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
 # use the fitLKINLAKenyaDat function to validate LKINLA model to binomial data within Kenya with leave one 
 # region out validation, and prediction at cluster level
 validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"), 
-                                  nu=1.5, seed=1, nLayer=3, NC=13,
+                                  nu=1.5, seed=1, nLayer=3, NC=14,
                                   nBuffer=5, priorPar=NULL, 
                                   normalize=TRUE, fastNormalize=TRUE, latInfo=NULL, 
                                   intStrategy="ccd", strategy="gaussian", 
@@ -750,7 +750,7 @@ validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   
   if(separateRanges && is.null(latInfo)) {
     nLayer = 2
-    NC = c(30, 107)
+    NC = c(30, 214)
   }
   
   family = match.arg(family)

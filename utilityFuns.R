@@ -621,6 +621,7 @@ meanSegmentLength = function(mesh, filterLargerThan=NULL) {
   
   mean(dists)
 }
+# meanSegmentLength(getSPDEMeshKenya(), 50)
 
 LKINLA.cov = function(x1, x2, latticeInfo, kappa, alphas, rho=1, normalize=TRUE, 
                       fastNormalize=TRUE, 

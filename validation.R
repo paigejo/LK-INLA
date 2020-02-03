@@ -295,6 +295,7 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   names(singleScoresBinomialAll) = modelNames
   
   ##### Save all scoring rule tables
+  urbanPriorText = ""
   if(!urbanPrior)
     urbanPriorText = "_noUrbanPrior"
   fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".RData")
@@ -328,223 +329,110 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
 }
 
 # print out validation results and plot the PITs
-printValidationResults = function(resultNameRoot="Ed") {
+printValidationResults = function(dat=NULL, targetPop=c("women", "children"), family=c("betabinomial", "binomial"), leaveOutRegion=TRUE, urbanPrior=FALSE) {
   require(stringr)
   require(dplyr)
   require(kableExtra)
   
+  targetPop = match.arg(targetPop)
+  family = match.arg(family)
+  
+  familyText=""
+  if(family == "binomial")
+    familyText = "_LgtN"
+  
+  urbanPriorText = ""
+  if(!urbanPrior)
+    urbanPriorText = "_noUrbanPrior"
+  
+  # load in relevant data for the given example
+  if(targetPop == "women") {
+    resultNameRoot="Ed"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaDataEd.RData")
+      dat = ed
+    }
+    load("../U5MR/popGridAdjustedWomen.RData")
+  } else if(targetPop == "children") {
+    resultNameRoot="Mort"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaData.RData")
+      dat = mort
+    }
+    load("../U5MR/popGridAdjusted.RData")
+  }
+  resultNameRootLower = tolower(resultNameRoot)
+  dataType = resultNameRootLower
+  
+  # get region names
+  regions = sort(unique(countyToRegion(as.character(dat$admin1))))
+  
+  # Load all scoring rule tables
+  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".RData")
+  
   # first load the validation results
-  out = load(paste0("resultsValidationAll", resultNameRoot, ".RData"))
-  modelNames = rownames(validationResults$scoresInSample)
+  out = load(fileName)
+  browser()
+  # remove the three layer model
+  threeLayerModel = grepl("lkinlaus", rownames(allScores$scoresLeaveOutRegionBinomial)) | grepl("lkinlaUs", rownames(allScores$scoresLeaveOutRegionBinomial))
+  allScores$scoresLeaveOutRegionBinomial = allScores$scoresLeaveOutRegionBinomial[!threeLayerModel,]
+  modelNames = rownames(allScores$scoresLeaveOutRegionBinomial)
   
   # change the modelNames to the adjusted ones:
-  badNames = c("IV", "III", "II", "I")
-  goodNames = c("UC", "Uc", "uC", "uc")
+  badNames = c("lkinla", "spde", "uS", "US")
+  goodNames = c("ELK", "SPDE", "u", "U")
   for(i in 1:length(badNames)) {
     badName = badNames[i]
     goodName = goodNames[i]
     whichI = grepl(badName, modelNames)
     modelNames[whichI] = gsub(badName, goodName, modelNames[whichI])
   }
-  rownames(validationResults$scoresInSample) = modelNames
-  rownames(validationResults$scoresLeaveOutCounty) = modelNames
-  rownames(validationResults$scoresLeaveOutCluster) = modelNames[-1]
-  
-  modelCodes = gsub(" ", "", modelNames, fixed = TRUE)
-  modelCodes[3] = "BYM2uClust"
-  modelCodes[4] = "BYM2uClust'"
-  modelCodes[5] = "BYM2Urbc"
-  modelCodes[6] = "BYM2UrbClust"
-  modelCodes[7] = "BYM2UrbClust'"
-  modelCodes[9] = "SPDEuClust"
-  modelCodes[10] = "SPDEUrbc"
-  modelCodes[11] = "SPDEUrbClust"
-  ## plot the PITs
-  for(i in 1:length(modelNames)) {
-    thisModelCode = modelCodes[i]
-    pdf(paste0("figures/validationPITHistogram", resultNameRoot, "_", thisModelCode, ".pdf"), width=9, height=5)
-    par(mfrow=c(1,2))
-    hist(unlist(validationResults$pitInSample[[i]]), main=paste0(modelNames[i], " In Sample PITs"), 
-         xlab="PIT", freq=FALSE, breaks=30, col="skyblue")
-    
-    hist(unlist(validationResults$pitLeaveOutCounty[[i]]), main=paste0(modelNames[i], " Leave Out County PITs"), 
-         xlab="PIT", freq=FALSE, breaks=30, col="skyblue")
-    dev.off()
-    
-    # only CPO is calculated when just leaving out individual clusters
-    # if(i != 1) {
-    #   hist(unlist(validationResults$pitLeaveOutCluster[[i]]), main=paste0("Histogram of ", modelNames[i], " Left Out Cluster PITs"), 
-    #        xlab="PIT", freq=FALSE, breaks=30, col="skyblue")
-    # }
-  }
-  
-  ## modify the BYM2 model names 
-  tab = validationResults$scoresInSample
+  rownames(allScores$scoresLeaveOutRegionBinomial) = modelNames
+  allScores$scoresLeaveOutRegionBinomial$Coverage = allScores$scoresLeaveOutRegionBinomial$Coverage * 100
   
   ## print out the scoring rule tables
-  print("In sample results:")
-  displayRow = "s"
-  displayIC = rep("f", 2)
-  displayMSE = rep("f", 3)
-  displayVar = rep("f", 3)
-  displayBias = rep("f", 3)
-  displayCRPS = "f"
-  display = c(displayRow, displayIC, displayMSE, displayVar, displayBias, displayCRPS)
-  scalingPower = c(MSE=2, Var=3, Bias=3)
-  if(resultNameRoot == "Mort") {
-    scalingPower = c(MSE=4, Var=4, Bias=4)
-  }
-  colScaleIC = rep(1, 2)
-  colScaleMSE = rep(10^scalingPower[1], 3)
-  colScaleVar = rep(10^scalingPower[2], 3)
-  colScaleBias = rep(10^scalingPower[3], 3)
-  colScaleCRPS = 1
-  colScale = c(colScaleIC, colScaleMSE, colScaleVar, colScaleBias, colScaleCRPS)
-  colUnitsIC = rep("", 2)
-  colUnitsMSE = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[1]), "}$)"), 3)
-  colUnitsVar = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[2]), "}$)"), 3)
-  colUnitsBias = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[3]), "}$)"), 3)
-  colUnitsCRPS = ""
-  colUnits = c(colUnitsIC, colUnitsMSE, colUnitsVar, colUnitsBias, colUnitsCRPS)
-  digitsIC = rep(0, 2)
-  digitsMSE = rep(1, 3)
-  digitsVar = rep(1, 3)
-  digitsBias = rep(1, 3)
-  digitsCRPS = 2
-  colDigits = c(digitsIC, digitsMSE, digitsVar, digitsBias, digitsCRPS)
-  
-  tab = validationResults$scoresInSample
-  for(i in 1:ncol(tab)) {
-    tab[,i] = as.numeric(round(tab[,i] * colScale[i], digits=colDigits[i]))
-    colnames(tab)[i] = paste0(colnames(tab)[i], colUnits[i])
-  }
-  colnames(tab) = gsub(".", " ", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Urban", "Urb", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Rural", "Rur", colnames(tab), fixed=TRUE)
-  tab = tab[,-1] # filter out WAIC since it doesn't work for spatially correlated data
-  colDigits=colDigits[-1]
-  display=display[-1]
-  colUnits = colUnits[-1]
-  # print(xtable(tab, digits=c(1,colDigits), display=display), 
-  #       include.colnames=TRUE,
-  #       hline.after=0, 
-  #       math.style.exponents=TRUE, 
-  #       sanitize.text.function=function(x){x}, 
-  #       scalebox=0.5)
-  tab = t(tab)
-  colnames(tab) = gsub("SPDE ", "", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("BYM2 ", "", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Smoothed Direct", " ", colnames(tab), fixed=TRUE)
-  tab = tab[c(2:11, 1), ]
-  colUnits = colUnits[c(2:11, 1)]
-  # temp = xtable2kable(xtable(tab), 
-  #                     include.colnames=TRUE,
-  #                     hline.after=0, 
-  #                     math.style.exponents=TRUE, 
-  #                     sanitize.text.function=function(x){x})
-  # print(add_header_above(kable_styling(temp), c(" " = 1, "Smoothed Direct" = 1, "BYM2"=4, "SPDE"=4)))
-  
-  # remove the smoothed direct results
-  tab = tab[,-1]
-  
-  # bold the best entries of each row, italicize worst entries of each row
-  centers = c(rep(0, nrow(tab)))
-  rowBest = apply(abs(sweep(tab, 1, centers, "-")), 1, min, na.rm=TRUE)
-  rowWorst = apply(abs(sweep(tab, 1, centers, "-")), 1, max, na.rm=TRUE)
-  boldFun = function(i) {
-    vals = tab[i,]
-    isNA = is.na(vals)
-    out = rep(FALSE, length(vals))
-    out[!isNA] = abs(tab[i,!isNA] - centers[i]) <= rowBest[i]
-    out
-  }
-  italicFun = function(i) {
-    vals = tab[i,]
-    isNA = is.na(vals)
-    out = rep(FALSE, length(vals))
-    out[!isNA] = abs(tab[i,!isNA] - centers[i]) >= rowWorst[i]
-    out
-  }
-  test = t(sapply(1:nrow(tab), function(i) {cell_spec(tab[i,], "latex", bold=boldFun(i), italic=italicFun(i), 
-                                                      monospace=FALSE, underline=FALSE, strikeout=FALSE)}))
-  
-  # revert the column names to their true values
-  colnames(test) = colnames(tab)
-  scoreVariations = c("Avg", "Urban", "Rural")
-  scoreVariations = c(rep(scoreVariations, 3), "Avg", "Avg")
-  test = cbind(" "=scoreVariations, test)
-  rownames(test)=NULL
-  
-  # group the rows by urbanicity
-  fullTab = test %>%
-    kable("latex", escape = F, booktabs = T, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
-          align=c("l", rep("r", ncol(test) - 1))) %>% kable_styling()
-  uniqueScoreTypes = c("MSE", "Var", "Bias", "CRPS", "DIC")
-  uniqueColUnits = colUnits[c(1, 4, 7, 10:11)]
-  for(i in 1:length(uniqueScoreTypes)) {
-    uniqueScoreTypes[i] = paste0(uniqueScoreTypes[i], uniqueColUnits[i])
-  }
-  scoreTypeGroups = c(rep(uniqueScoreTypes[1:3], each=3), uniqueScoreTypes[4:5])
-  
-  for(i in 1:length(uniqueScoreTypes)) {
-    startR = match(TRUE, scoreTypeGroups == uniqueScoreTypes[i])
-    endR = nrow(tab) - match(TRUE, rev(scoreTypeGroups == uniqueScoreTypes[i])) + 1
-    fullTab = fullTab %>% pack_rows(uniqueScoreTypes[i], startR, endR, latex_gap_space = "0.3em", escape=FALSE)
-  }
-  print(add_header_above(fullTab, c(" " = 1, "BYM2"=4, "SPDE"=4), italic=TRUE, bold=TRUE, escape=FALSE))
-  
-  # print(xtable(tab, digits=digits, display=display), 
-  #       include.colnames=TRUE,
-  #       hline.after=0, 
-  #       math.style.exponents=TRUE, 
-  #       sanitize.text.function=function(x){x}, 
-  #       scalebox=0.5)
-  
   print("")
   print("Leave out county results:")
   
-  scalingPower = c(MSE=2, Var=3, Bias=3)
-  if(resultNameRoot == "Mort") {
-    scalingPower = c(MSE=4, Var=4, Bias=4)
-  }
-  displayRow = "s"
-  displayMSE = rep("f", 3)
-  displayVar = rep("f", 3)
-  displayBias = rep("f", 3)
-  displayCPO = "f"
-  displayCRPS = "f"
-  display = c(displayRow, displayMSE, displayVar, displayBias, displayCPO, displayCRPS)
-  colScaleMSE = rep(10^scalingPower[1], 3)
-  colScaleVar = rep(10^scalingPower[2], 3)
-  colScaleBias = rep(10^scalingPower[3], 3)
-  colScaleCPO = 1
-  colScaleCRPS = 1
-  colScale = c(colScaleMSE, colScaleVar, colScaleBias, colScaleCPO, colScaleCRPS)
-  colUnitsMSE = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[1]), "}$)"), 3)
-  colUnitsVar = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[2]), "}$)"), 3)
-  colUnitsBias = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[3]), "}$)"), 3)
-  colUnitsCPO = ""
-  colUnitsCRPS = ""
-  colUnits = c(colUnitsMSE, colUnitsVar, colUnitsBias, colUnitsCPO, colUnitsCRPS)
-  digitsMSE = rep(1, 3)
-  digitsVar = rep(1, 3)
-  digitsBias = rep(1, 3)
-  digitsCPO = 2
-  digitsCRPS = 2
-  if(resultNameRoot == "Mort") {
-    digitsCPO = 3
-    digitsCRPS = 3
-  }
-  colDigits = c(digitsMSE, digitsVar, digitsBias, digitsCPO, digitsCRPS)
+  # scalingPower = c(MSE=2, Var=3, Bias=3)
+  # displayRow = "s"
+  # displayMSE = rep("f", 3)
+  # displayVar = rep("f", 3)
+  # displayBias = rep("f", 3)
+  # displayCPO = "f"
+  # displayCRPS = "f"
+  # display = c(displayRow, displayMSE, displayVar, displayBias, displayCPO, displayCRPS)
+  # colScaleMSE = rep(10^scalingPower[1], 3)
+  # colScaleVar = rep(10^scalingPower[2], 3)
+  # colScaleBias = rep(10^scalingPower[3], 3)
+  # colScaleCPO = 1
+  # colScaleCRPS = 1
+  # colScale = c(colScaleMSE, colScaleVar, colScaleBias, colScaleCPO, colScaleCRPS)
+  # colUnitsMSE = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[1]), "}$)"), 3)
+  # colUnitsVar = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[2]), "}$)"), 3)
+  # colUnitsBias = rep(paste0(" ($\\times 10^{-", as.character(scalingPower[3]), "}$)"), 3)
+  # colUnitsCPO = ""
+  # colUnitsCRPS = ""
+  # colUnits = c(colUnitsMSE, colUnitsVar, colUnitsBias, colUnitsCPO, colUnitsCRPS)
+  # digitsMSE = rep(1, 3)
+  # digitsVar = rep(1, 3)
+  # digitsBias = rep(1, 3)
+  # digitsCPO = 2
+  # digitsCRPS = 2
+  # if(resultNameRoot == "Mort") {
+  #   digitsCPO = 3
+  #   digitsCRPS = 3
+  # }
+  # colDigits = c(digitsMSE, digitsVar, digitsBias, digitsCPO, digitsCRPS)
   
-  tab = data.frame(validationResults$scoresLeaveOutCounty)
-  for(i in 1:ncol(tab)) {
-    tab[,i] = as.numeric(round(unlist(tab[,i]) * colScale[i], digits=colDigits[i]))
-    colnames(tab)[i] = paste0(colnames(tab)[i], colUnits[i])
-  }
+  tab = data.frame(allScores$scoresLeaveOutRegionBinomial)
+  # for(i in 1:ncol(tab)) {
+  #   tab[,i] = as.numeric(round(unlist(tab[,i]) * colScale[i], digits=colDigits[i]))
+  #   colnames(tab)[i] = paste0(colnames(tab)[i], colUnits[i])
+  # }
   colnames(tab) = gsub(".", " ", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Urban", "Urb", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Rural", "Rur", colnames(tab), fixed=TRUE)
+  # colnames(tab) = gsub("Urban", "Urb", colnames(tab), fixed=TRUE)
+  # colnames(tab) = gsub("Rural", "Rur", colnames(tab), fixed=TRUE)
   # print(xtable(tab, digits=c(1,colDigits), display=display), 
   #       include.colnames=TRUE,
   #       hline.after=0, 
@@ -557,7 +445,7 @@ printValidationResults = function(resultNameRoot="Ed") {
   #       math.style.exponents=TRUE, 
   #       sanitize.text.function=function(x){x}, 
   #       scalebox=0.5)
-  tab = t(tab)
+  # tab = t(tab)
   colnames(tab) = gsub("SPDE ", "", colnames(tab), fixed=TRUE)
   colnames(tab) = gsub("BYM2 ", "", colnames(tab), fixed=TRUE)
   colnames(tab) = gsub("Smoothed Direct", " ", colnames(tab), fixed=TRUE)
@@ -569,33 +457,34 @@ printValidationResults = function(resultNameRoot="Ed") {
   # print(add_header_above(kable_styling(temp), c(" " = 1, "Smoothed Direct" = 1, "BYM2"=4, "SPDE"=4)))
   
   # remove the smoothed direct results
+  subsets = tab[,1]
   tab = tab[,-1]
   
+  cbind(Bias=round(tab$Bias, digits=3), format(tab[,c()], digits=3))
+  
   # bold the best entries of each row, italicize worst entries of each row
-  centers = c(rep(0, nrow(tab)))
-  rowWorst = apply(abs(sweep(tab, 1, centers, "-")), 1, max, na.rm=TRUE)
-  rowBest = apply(abs(sweep(tab, 1, centers, "-")), 1, min, na.rm=TRUE)
-  temp = rowWorst[10]
-  rowWorst[10] = rowBest[10] # highest CPO is best, not the lowest
-  rowBest[10] = temp
+  centers = c(rep(0, ncol(tab)))
+  centers[6] = 80
+  colWorst = apply(abs(sweep(tab, 2, centers, "-")), 2, max, na.rm=TRUE)
+  colBest = apply(abs(sweep(tab, 2, centers, "-")), 2, min, na.rm=TRUE)
   boldFun = function(i) {
-    vals = tab[i,]
+    vals = tab[,i]
     isNA = is.na(vals)
     out = rep(FALSE, length(vals))
-    out[!isNA] = abs(tab[i,!isNA] - centers[i]) == rowBest[i]
+    out[!isNA] = abs(tab[!isNA,i] - centers[i]) == colBest[i]
     out
   }
   italicFun = function(i) {
-    vals = tab[i,]
+    vals = tab[,i]
     isNA = is.na(vals)
     out = rep(FALSE, length(vals))
-    out[!isNA] = abs(tab[i,!isNA] - centers[i]) == rowWorst[i]
+    out[!isNA] = abs(tab[!isNA,i] - centers[i]) == colWorst[i]
     out
   }
   if(resultNameRoot == "Ed") {
     # bold the best model for each scoring rule, italicize the worst
-    test = t(sapply(1:nrow(tab), function(i) {cell_spec(tab[i,], "latex", bold=boldFun(i), italic=italicFun(i), 
-                                                        monospace=FALSE, underline=FALSE, strikeout=FALSE)}))
+    test = sapply(1:ncol(tab), function(i) {cell_spec(tab[,i], "latex", bold=boldFun(i), italic=italicFun(i), 
+                                                        monospace=FALSE, underline=FALSE, strikeout=FALSE)})
   }
   else {
     # don't bother bolding or italicizing, since all models perform essentially equally
@@ -633,7 +522,7 @@ printValidationResults = function(resultNameRoot="Ed") {
   colDigits = digitsCPO
   colUnits = colUnitsCPO
   display = c(displayRow, displayCPO)
-  tab = data.frame(validationResults$scoresLeaveOutCluster)
+  tab = data.frame(allScores$scoresLeaveOutCluster)
   for(i in 1:ncol(tab)) {
     tab[,i] = as.numeric(round(unlist(tab[,i]) * colScale[i], digits=colDigits[i]))
     colnames(tab)[i] = paste0(colnames(tab)[i], colUnits[i])
@@ -682,14 +571,17 @@ printValidationResults = function(resultNameRoot="Ed") {
 }
 
 plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
-                                 startI=0, loadPreviousFit=TRUE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
-                                 family = c("betabinomial", "binomial")) {
+                                 family = c("betabinomial", "binomial"), urbanPrior=TRUE) {
   targetPop = match.arg(targetPop)
   family = match.arg(family)
   
   familyText=""
   if(family == "binomial")
     familyText = "_LgtN"
+  
+  urbanPriorText = ""
+  if(!urbanPrior)
+    urbanPriorText = "_noUrbanPrior"
   
   # load in relevant data for the given example
   if(targetPop == "women") {
@@ -714,7 +606,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
   regions = sort(unique(countyToRegion(as.character(dat$admin1))))
   
   # Load all scoring rule tables
-  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, "_LORegion", leaveOutRegion, ".RData")
+  fileName = paste0("savedOutput/validation/validationResults", resultNameRoot, familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".RData")
   # allScores = list(scoresInSample=scoresInSample, scoresLeaveOneOut=scoresLeaveOneOut, scoresLeaveOutRegion=scoresLeaveOutRegion, 
   #                  scoresInSampleBinomial=scoresInSampleBinomial, scoresLeaveOneOutBinomial=scoresLeaveOneOutBinomial, scoresLeaveOutRegionBinomial=scoresLeaveOutRegionBinomial, 
   #                  
@@ -743,8 +635,10 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
   out = load(fileName)
   # modelNames = names(allScores$singleScoresBinomialAll)
   modelNames = c(expression("SPDE"[u]), expression("SPDE"[U]), 
-                 expression("LK-INLA"[ui]), expression("LK-INLA"[Ui]), 
-                 expression("LK-INLA"[uI]), expression("LK-INLA"[UI]))
+                 expression("ELK"[ui]), expression("ELK"[Ui]), 
+                 expression("ELK"[uI]), expression("ELK"[UI]))
+  
+  browser()
   
   ##### Start with single observation scoring rules
   # construct information for separating out prediction types
@@ -841,10 +735,10 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
                       allScores$singleScoresBinomialAll$lkinlaus$RMSE[sortI], 
                       allScores$singleScoresBinomialAll$lkinlauS$RMSE[sortI])
   zlim = range(c(as.matrix(values)))
-  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  modelNames = c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI]))
   
   width = 1000
-  png(file=paste0("Figures/", resultNameRoot, "/spatialRMSE_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
+  png(file=paste0("Figures/", resultNameRoot, "/spatialRMSE", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
   par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
   for(i in 1:ncol(values)) {
     quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " RMSE"), 
@@ -857,9 +751,9 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
                       allScores$singleScoresBinomialAll$lkinlaus$Bias[sortI], 
                       allScores$singleScoresBinomialAll$lkinlauS$Bias[sortI])
   zlim = range(c(as.matrix(values)))
-  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  modelNames = c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI]))
   
-  png(file=paste0("Figures/", resultNameRoot, "/spatialBias_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
+  png(file=paste0("Figures/", resultNameRoot, "/spatialBias", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
   par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
   for(i in 1:ncol(values)) {
     quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " Bias"), 
@@ -872,9 +766,9 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
                       allScores$singleScoresBinomialAll$lkinlaus$Width[sortI], 
                       allScores$singleScoresBinomialAll$lkinlauS$Width[sortI])
   zlim = range(c(as.matrix(values)))
-  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  modelNames = c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI]))
   
-  png(file=paste0("Figures/", resultNameRoot, "/spatialWidthBinomial_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
+  png(file=paste0("Figures/", resultNameRoot, "/spatialWidthBinomial", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
   par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
   for(i in 1:ncol(values)) {
     quilt.plot(coords, values[,i], xlim=lonRange, ylim=latRange, main=bquote(.(modelNames[[i]]) ~ " Width"), 
@@ -887,9 +781,9 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
                       allScores$singleScoresAll$lkinlaus$Width[sortI], 
                       allScores$singleScoresAll$lkinlauS$Width[sortI])
   zlim = range(c(as.matrix(values)))
-  modelNames = c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI]))
+  modelNames = c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI]))
   
-  png(file=paste0("Figures/", resultNameRoot, "/spatialWidth_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
+  png(file=paste0("Figures/", resultNameRoot, "/spatialWidth", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=width, height=1000)
   par(mfrow=c(2,2), oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
   quilt.plot(popCoords, popUrban, xlim=lonRange, ylim=latRange, main="Urbanicity", 
              nx=170, ny=170, col=c(rgb(0,0,0,0), "blue"), add.legend=FALSE)
@@ -901,31 +795,31 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
   }
   dev.off()
   
-  png(file=paste0("Figures/", resultNameRoot, "/womenPerCluster_LORegion", leaveOutRegion, ".png"), width=500, height=500)
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCluster", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=500, height=500)
   quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Cluster", 
              nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64))
   plotMapDat(mapDat=countyMap, lwd=.5)
   dev.off()
   
-  png(file=paste0("Figures/", resultNameRoot, "/womenPerClusterLog_LORegion", leaveOutRegion, ".png"), width=500, height=500)
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerClusterLog", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=500, height=500)
   quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Cluster", 
              nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN=function(x){mean(log10(x))})
   plotMapDat(mapDat=countyMap, lwd=.5)
   dev.off()
   
-  png(file=paste0("Figures/", resultNameRoot, "/womenPerCell_LORegion", leaveOutRegion, ".png"), width=500, height=500)
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCell", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=500, height=500)
   quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Grid Cell", 
              nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {log10(sum(x)+1)})
   plotMapDat(mapDat=countyMap, lwd=.5)
   dev.off()
   
-  png(file=paste0("Figures/", resultNameRoot, "/womenPerCellLog_LORegion", leaveOutRegion, ".png"), width=500, height=500)
+  png(file=paste0("Figures/", resultNameRoot, "/womenPerCellLog", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=500, height=500)
   quilt.plot(coords, dat$n, xlim=lonRange, ylim=latRange, main="Women Per Grid Cell", 
              nx=120, ny=120, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {log10(sum(x)+1)})
   plotMapDat(mapDat=countyMap, lwd=.5)
   dev.off()
   
-  png(file=paste0("Figures/", resultNameRoot, "/Variance_LORegion", leaveOutRegion, ".png"), width=500, height=500)
+  png(file=paste0("Figures/", resultNameRoot, "/Variance", familyText, urbanPriorText, "_LORegion", leaveOutRegion, ".png"), width=500, height=500)
   quilt.plot(coords, dat$y/dat$n, xlim=lonRange, ylim=latRange, main="Variance", 
              nx=50, ny=50, col=makeBlueYellowSequentialColors(n=64), FUN = function(x) {var(x)})
   plotMapDat(mapDat=countyMap, lwd=.5)
@@ -952,7 +846,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Au
   values = data.frame(allScores$binnedScoringRulesAuBinomialAll$spdeu$RMSE, allScores$binnedScoringRulesAuBinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesAuBinomialAll$lkinlauS$RMSE)
@@ -973,7 +867,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Uu
   values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$RMSE, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$RMSE)
@@ -994,7 +888,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # uu
   values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$RMSE, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$RMSE)
@@ -1015,7 +909,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   ## CRPS
   # AA
@@ -1037,7 +931,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Au
   values = data.frame(allScores$binnedScoringRulesAuBinomialAll$spdeu$CRPS, allScores$binnedScoringRulesAuBinomialAll$lkinlaus$CRPS, allScores$binnedScoringRulesAuBinomialAll$lkinlauS$CRPS)
@@ -1058,7 +952,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Uu
   values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$CRPS, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$CRPS, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$CRPS)
@@ -1079,7 +973,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # uu
   values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$CRPS, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$CRPS, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$CRPS)
@@ -1100,7 +994,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   ## Width
   # AA
@@ -1122,7 +1016,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Au
   values = data.frame(allScores$binnedScoringRulesAuBinomialAll$spdeu$Width, allScores$binnedScoringRulesAuBinomialAll$lkinlaus$Width, allScores$binnedScoringRulesAuBinomialAll$lkinlauS$Width)
@@ -1143,7 +1037,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("top", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("top", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Uu
   values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$Width, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$Width, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$Width)
@@ -1164,7 +1058,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # uu
   values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$Width, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$Width, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$Width)
@@ -1185,7 +1079,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("top", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("top", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   ## Bias
   # AA
@@ -1208,7 +1102,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     lines(d, values[,i], col=cols[i])
   }
   abline(h=0, lty=2)
-  legend("bottomleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("bottomleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Au
   values = data.frame(allScores$binnedScoringRulesAuBinomialAll$spdeu$Bias, allScores$binnedScoringRulesAuBinomialAll$lkinlaus$Bias, allScores$binnedScoringRulesAuBinomialAll$lkinlauS$Bias)
@@ -1230,7 +1124,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     lines(d, values[,i], col=cols[i])
   }
   abline(h=0, lty=2)
-  legend("topleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # Uu
   values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$Bias)
@@ -1252,7 +1146,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     lines(d, values[,i], col=cols[i])
   }
   abline(h=0, lty=2)
-  legend("topleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   # uu
   values = data.frame(allScores$binnedScoringRulesuuBinomialAll$spdeu$Bias, allScores$binnedScoringRulesuuBinomialAll$lkinlaus$Bias, allScores$binnedScoringRulesuuBinomialAll$lkinlauS$Bias)
@@ -1274,7 +1168,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     lines(d, values[,i], col=cols[i])
   }
   abline(h=0, lty=2)
-  legend("bottomleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("bottomleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   
   
@@ -1298,7 +1192,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     
     lines(d, values[,i], col=cols[i])
   }
-  legend("topright", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topright", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
   values = data.frame(allScores$binnedScoringRulesUuBinomialAll$spdeu$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlaus$Bias, allScores$binnedScoringRulesUuBinomialAll$lkinlauS$Bias)
   ns = allScores$binnedScoringRulesUuBinomialAll$spdeu$nPerBin
@@ -1319,7 +1213,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
     lines(d, values[,i], col=cols[i])
   }
   abline(h=0, lty= 2)
-  legend("topleft", c(expression("SPDE"[u]), expression("LK-INLA"[ui]), expression("LK-INLA"[uI])), col=cols, lty=1, pch=1)
+  legend("topleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
 }
 
