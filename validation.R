@@ -372,7 +372,7 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   
   # first load the validation results
   out = load(fileName)
-  browser()
+  
   # remove the three layer model
   threeLayerModel = grepl("lkinlaus", rownames(allScores$scoresLeaveOutRegionBinomial)) | grepl("lkinlaUs", rownames(allScores$scoresLeaveOutRegionBinomial))
   allScores$scoresLeaveOutRegionBinomial = allScores$scoresLeaveOutRegionBinomial[!threeLayerModel,]
@@ -389,6 +389,7 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   }
   rownames(allScores$scoresLeaveOutRegionBinomial) = modelNames
   allScores$scoresLeaveOutRegionBinomial$Coverage = allScores$scoresLeaveOutRegionBinomial$Coverage * 100
+  allScores$scoresLeaveOutRegionBinomial$Time.elapsed = allScores$scoresLeaveOutRegionBinomial$Time.elapsed / 60
   
   ## print out the scoring rule tables
   print("")
@@ -430,7 +431,7 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   #   tab[,i] = as.numeric(round(unlist(tab[,i]) * colScale[i], digits=colDigits[i]))
   #   colnames(tab)[i] = paste0(colnames(tab)[i], colUnits[i])
   # }
-  colnames(tab) = gsub(".", " ", colnames(tab), fixed=TRUE)
+  
   # colnames(tab) = gsub("Urban", "Urb", colnames(tab), fixed=TRUE)
   # colnames(tab) = gsub("Rural", "Rur", colnames(tab), fixed=TRUE)
   # print(xtable(tab, digits=c(1,colDigits), display=display), 
@@ -446,9 +447,6 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   #       sanitize.text.function=function(x){x}, 
   #       scalebox=0.5)
   # tab = t(tab)
-  colnames(tab) = gsub("SPDE ", "", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("BYM2 ", "", colnames(tab), fixed=TRUE)
-  colnames(tab) = gsub("Smoothed Direct", " ", colnames(tab), fixed=TRUE)
   # temp = xtable2kable(xtable(tab), 
   #                     include.colnames=TRUE,
   #                     hline.after=0, 
@@ -458,13 +456,17 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   
   # remove the smoothed direct results
   subsets = tab[,1]
-  tab = tab[,-1]
+  tab = tab[,-c(1, 2, 4)]
+  tab = tab[,c(2,1,3:ncol(tab))]
   
-  cbind(Bias=round(tab$Bias, digits=3), format(tab[,c()], digits=3))
+  temp = cbind(round(tab$RMSE, digits=3), round(tab$Var, digits=3), round(tab$CRPS, digits=3), round(tab$Coverage, digits=0), round(tab$Width, digits=2), round(tab$Time.elapsed, digits=1))
+  rownames(temp) = rownames(tab)
+  colnames(temp) = colnames(tab)
+  tab = data.frame(temp)
+  colnames(tab) = gsub(".", " ", colnames(tab), fixed=TRUE)
   
   # bold the best entries of each row, italicize worst entries of each row
-  centers = c(rep(0, ncol(tab)))
-  centers[6] = 80
+  centers = c(rep(0, 3), 80, 0, 0)
   colWorst = apply(abs(sweep(tab, 2, centers, "-")), 2, max, na.rm=TRUE)
   colBest = apply(abs(sweep(tab, 2, centers, "-")), 2, min, na.rm=TRUE)
   boldFun = function(i) {
@@ -494,28 +496,26 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   # revert the column names to their true values
   colnames(test) = colnames(tab)
   scoreVariations = c("Avg", "Urban", "Rural")
-  scoreVariations = c(rep(scoreVariations, 3), "Avg", "Avg")
+  scoreVariations = rep(scoreVariations, 4)
   test = cbind(" "=scoreVariations, test)
   rownames(test)=NULL
+  
+  uniqueModelNames = modelNames[seq(1, length(modelNames), by=3)]
   
   # group the rows by urbanicity
   fullTab = test %>%
     kable("latex", escape = F, booktabs = T, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
           align=c("l", rep("r", ncol(test) - 1))) %>% kable_styling()
-  uniqueScoreTypes = c("MSE", "Var", "Bias", "CPO", "CRPS")
-  uniqueColUnits = colUnits[c(1, 4, 7, 10:11)]
-  for(i in 1:length(uniqueScoreTypes)) {
-    uniqueScoreTypes[i] = paste0(uniqueScoreTypes[i], uniqueColUnits[i])
-  }
-  scoreTypeGroups = c(rep(uniqueScoreTypes[1:3], each=3), uniqueScoreTypes[4:5])
   
-  for(i in 1:length(uniqueScoreTypes)) {
-    startR = match(TRUE, scoreTypeGroups == uniqueScoreTypes[i])
-    endR = nrow(tab) - match(TRUE, rev(scoreTypeGroups == uniqueScoreTypes[i])) + 1
-    fullTab = fullTab %>% pack_rows(uniqueScoreTypes[i], startR, endR, latex_gap_space = "0.3em", escape=FALSE)
+  for(i in 1:length(uniqueModelNames)) {
+    startR = 1 + (i-1) * 3
+    endR = 3 * i
+    fullTab = fullTab %>% pack_rows(uniqueModelNames[i], startR, endR, latex_gap_space = "0.3em", escape=FALSE)
   }
-  print(add_header_above(fullTab, c(" " = 1, "BYM2"=4, "SPDE"=4), italic=TRUE, bold=TRUE, escape=FALSE))
+  # print(add_header_above(fullTab, c(" " = 1, "BYM2"=4, "SPDE"=4), italic=TRUE, bold=TRUE, escape=FALSE))
   
+  print(fullTab)
+  browser()
   print("")
   print("Leave out cluster results:")
   colScale = colScaleCPO

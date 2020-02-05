@@ -1762,7 +1762,7 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
   
   if(produceFigures) {
     # compare all five
-    pdf(paste0("figures/biasbyregion", runId, ".pdf"), width=20, height=12)
+    pdf(paste0("figures/biasbyregion", runId, "_nSamples", nSamples, ".pdf"), width=20, height=12)
     par(mar=c(10,4,2,1), las=2, cex.lab=2, cex.axis=1.4, cex.main=2)
     boxplot(bias~region, data=scoresDirect, at=seq(-1, 275, by=6), 
             col="yellow", xlim=c(0,279), names=FALSE, xaxt="n")
@@ -1777,7 +1777,7 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
     abline(h=0, lwd=2, col=2)
     dev.off()
     
-    pdf(paste0("figures/crpsbyregion", runId, ".pdf"), width=20, height=12)
+    pdf(paste0("figures/crpsbyregion", runId, "_nSamples", nSamples, ".pdf"), width=20, height=12)
     par(mar=c(10,4,2,1), las=2, cex.lab=2, cex.axis=1.4, cex.main=2)
     boxplot(crps~region, data=scoresDirect, at=seq(-1, 275, by=6), 
             col="yellow", xlim=c(0,279), names=FALSE, xaxt="n")
@@ -1798,7 +1798,7 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
   list(tab=tab, parTab=parTab, unroundedTab=unroundedTab)
 }
 
-compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
+compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   nu = 1
   thetas = c(0.08, 0.8) / 2.3
   nTest = n * 0.1
@@ -1818,34 +1818,34 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   ysTest = c(simulationData$zTest[,1], simulationData$zTestRural[,1], simulationData$zTestUrban[,1], simulationData$zGrid[,1])
   
   # Plot example simulation
-  pdf("Figures/finalMixture/exampleSimulation.pdf", width=5, height=5)
+  pdf(paste0("Figures/finalMixture/exampleSimulation", nSamples, ".pdf"), width=5, height=5)
   quilt.plot(cbind(simulationData$xGrid, simulationData$yGrid), simulationData$zGrid[,1], 
-             nx=70, ny=70, main="Example Simulation")
+             nx=70, ny=70, main="")
   points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
   abline(h=c(-1 / 3, 1 / 3), lty=2)
   abline(v=c(-1 / 3, 1 / 3), lty=2)
   dev.off()
   
   # Plot true covariance
-  pdf("Figures/finalMixture/trueCorrelation.pdf", width=5, height=5)
+  pdf(paste0("Figures/finalMixture/trueCorrelation", nSamples, ".pdf"), width=5, height=5)
   ds = seq(0, 1, l=200)
   spatialCorFun = function(x) {0.5 * stationary.cov(x, theta=thetas[1], Covariance="Matern", smoothness=nu, distMat=x) + 
       0.5 * stationary.cov(x, theta=thetas[2], Covariance="Matern", smoothness=nu, distMat=x)}
-  plot(ds, spatialCorFun(ds) / (1+0.1^2), type="l", main="True correlation function", 
+  plot(ds, spatialCorFun(ds) / (1+0.1^2), type="l", main="", 
        xlab="Distance", ylab="Correlation", col="blue", ylim=c(0, 1))
   points(0, 1, pch=19, col="blue", cex=.2)
   dev.off()
   
   plotNamePrefix = "Figures/finalMixture/finalMixture"
-  plotNameSuffix = paste0("_nugV", round(sigma2, 2), "_n", n, ".pdf")
+  plotNameSuffix = paste0("_nugV", round(sigma2, 2), "_n", n, "_nSamples", nSamples, ".pdf")
   
   # get the file names of the results from the simulations
-  SPDEname = paste0("mixtureSPDEAll_nsim10_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
+  SPDEname = paste0("mixtureSPDEAll_nsim", nSamples, "_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
                                    "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKname = paste0("mixtureLKAll_nsim10.RData")
-  LKINLA3name = paste0("mixtureLKINLAAll_nsim10_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
+  LKname = paste0("mixtureLKAll_nsim", nSamples, ".RData")
+  LKINLA3name = paste0("mixtureLKINLAAll_nsim", nSamples, "_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKINLA2name = paste0("mixtureLKINLAAll_nsim10_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
+  LKINLA2name = paste0("mixtureLKINLAAll_nsim", nSamples, "_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
                        round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
   
   # load the simulation results
@@ -1961,7 +1961,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   predsGridLKINLA2 = allPredsLKINLA2[gridIndices]
   zlim = range(c(predsGridSPDE, predsGridLK, predsGridLKINLA3, predsGridLKINLA2))
   
-  png("Figures/finalMixture/exampleMixturePredictions.png", width=1000, height=1000)
+  png(paste0("Figures/finalMixture/exampleMixturePredictions", nSamples, ".png"), width=1000, height=1000)
   par(mfrow=c(2,2))
   
   quilt.plot(gridCoords, predsGridSPDE, main="SPDE Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
@@ -1992,7 +1992,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   sigmasGridLKINLA2 = allSigmasLKINLA2[gridIndices]
   zlim = range(c(sigmasGridSPDE, sigmasGridLK, sigmasGridLKINLA3, sigmasGridLKINLA2))
   
-  png("Figures/finalMixture/exampleMixturePredictiveSDs.png", width=1000, height=1000)
+  png(paste0("Figures/finalMixture/exampleMixturePredictiveSDs", nSamples, ".png"), width=1000, height=1000)
   par(mfrow=c(2,2))
   
   quilt.plot(gridCoords, sigmasGridSPDE, main="SPDE Predictive SDs", nx=70, ny=70, zlim=zlim, cex.main=2)
@@ -2052,7 +2052,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   
   pdf(paste0(plotNamePrefix, "CorrelationNoCIs", plotNameSuffix), width=5, height=5)
   plot(covInfoSPDE$d, covInfoSPDE$corMean, col="blue", 
-       main="Correlation functions", ylab="Correlation", xlab="Distance", type="l")
+       main="", ylab="Correlation", xlab="Distance", type="l")
   
   lines(covInfoLK$d, covInfoLK$corMean, col="black")
   
@@ -2082,7 +2082,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   gridIndicesSample = sample(gridIndicesAll, maxPoints, replace=FALSE)
   
   # plot prediction standard deviations
-  pdf("Figures/finalMixture/pairSigmas.pdf", width=8, height=8)
+  pdf(paste0("Figures/finalMixture/pairSigmas", nSamples, ".pdf"), width=8, height=8)
   my_line <- function(x,y,...){
     # if(diff(range(x)) >= .04)
       xlim = zlim
@@ -2302,7 +2302,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   ##### binned results versus distance
   ns = binnedScoringRulesGridSPDE$nPerBin
   cex = 5/sqrt(ns)
-  pdf("Figures/finalMixture/binnedMSE.pdf", width=5, height=5)
+  pdf(paste0("Figures/finalMixture/binnedMSE", nSamples, ".pdf"), width=5, height=5)
   values = data.frame(binnedScoringRulesGridSPDE$MSE, binnedScoringRulesGridLK$MSE, binnedScoringRulesGridLKINLA3$MSE, binnedScoringRulesGridLKINLA2$MSE)
   zlim = range(c(as.matrix(values)))
   plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
@@ -2317,7 +2317,8 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), lty=1, pch=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
-  pdf("Figures/finalMixture/binnedCRPS.pdf", width=5, height=5)
+  ##### TODO: fix plot titles?
+  pdf(paste0("Figures/finalMixture/binnedCRPS", nSamples, ".pdf"), width=5, height=5)
   values = data.frame(binnedScoringRulesGridSPDE$CRPS, binnedScoringRulesGridLK$CRPS, binnedScoringRulesGridLKINLA3$CRPS, binnedScoringRulesGridLKINLA2$CRPS)
   zlim = range(c(as.matrix(values)))
   plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
@@ -2332,7 +2333,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
-  pdf("Figures/finalMixture/binnedCoverage.pdf", width=5, height=5)
+  pdf(paste0("Figures/finalMixture/binnedCoverage", nSamples, ".pdf"), width=5, height=5)
   values = data.frame(binnedScoringRulesGridSPDE$Coverage, binnedScoringRulesGridLK$Coverage, binnedScoringRulesGridLKINLA3$Coverage, binnedScoringRulesGridLKINLA2$Coverage)
   zlim = range(c(as.matrix(values)))
   plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
@@ -2348,7 +2349,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=10) {
   legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
-  pdf("Figures/finalMixture/binnedWidth.pdf", width=5, height=5)
+  pdf(paste0("Figures/finalMixture/binnedWidth", nSamples, ".pdf"), width=5, height=5)
   values = data.frame(binnedScoringRulesGridSPDE$Width, binnedScoringRulesGridLK$Width, binnedScoringRulesGridLKINLA3$Width, binnedScoringRulesGridLKINLA2$Width)
   zlim = range(c(as.matrix(values)))
   plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 

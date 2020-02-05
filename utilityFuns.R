@@ -1590,8 +1590,8 @@ setThresholds = function() {
 # ...: arguments to polygon function
 plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, cols=tim.colors(), 
                       legend.mar=7, new=FALSE, plotArgs=NULL, main=NULL, xlim=NULL, xlab=NULL, scaleFun = function(x) {x}, scaleFunInverse = function(x) {x}, 
-                      ylim=NULL, ylab=NULL, n.ticks=5, min.n=5, ticks=NULL, tickLabels=NULL, asp=1, legend.width=1.2, mapDat = NULL, 
-                      ...) {
+                      ylim=NULL, ylab=NULL, n.ticks=5, min.n=5, ticks=NULL, tickLabels=NULL, asp=1, legend.width=1.2, mapDat = NULL, addColorBar=TRUE, 
+                      legendArgs=list(), leaveRoomForLegend=TRUE, ...) {
   # load necessary data
   if(is.null(mapDat)) {
     if(length(plotVar) == 47) {
@@ -1650,30 +1650,38 @@ plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, 
     if(currPar$mar[4] != newMar[4])
       suppressWarnings({par(newPar)})
     
+    if(project) {
+      if(is.null(xlab))
+        xlab = "East (km)"
+      if(is.null(xlim))
+        xlim = eastLim
+      if(is.null(ylab))
+        ylab = "North (km)"
+      if(is.null(ylim))
+        ylim = northLim
+    }
+    else {
+      if(is.null(xlab))
+        xlab = "Longitude"
+      if(is.null(xlim))
+        xlim = kenyaLonRange
+      if(is.null(ylab))
+        ylab = "Latitude"
+      if(is.null(ylim))
+        ylim = kenyaLatRange
+    }
+    if(is.null(main))
+      main = ""
+    
     if(is.null(plotArgs)) {
-      if(project) {
-        if(is.null(xlab))
-          xlab = "East (km)"
-        if(is.null(xlim))
-          xlim = eastLim
-        if(is.null(ylab))
-          ylab = "North (km)"
-        if(is.null(ylim))
-          ylim = northLim
-      }
-      else {
-        if(is.null(xlab))
-          xlab = "Longitude"
-        if(is.null(xlim))
-          xlim = kenyaLonRange
-        if(is.null(ylab))
-          ylab = "Latitude"
-        if(is.null(ylim))
-          ylim = kenyaLatRange
-      }
-      if(is.null(main))
-        main = ""
       plotArgs = list(main=main, xlab=xlab, ylab=ylab, xlim=xlim, ylim=ylim, asp=asp)
+    } else {
+      plotArgs$main = main
+      plotArgs$xlab = xlab
+      plotArgs$ylab = ylab
+      plotArgs$xlim = xlim
+      plotArgs$ylim = ylim
+      plotArgs$asp = asp
     }
     # par( oma=c( 0,0,0,6)) # leave room for the legend
     do.call("plot", c(list(1, 2, type="n"), plotArgs))
@@ -1709,7 +1717,7 @@ plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, 
   }
   sapply(1:length(polys), plotCounty)
   
-  if(!is.null(plotVar)) {
+  if(!is.null(plotVar) && addColorBar) {
     # add legend
     # par( oma=c(0,0,0,2))
     if(is.null(ticks))
@@ -1718,10 +1726,25 @@ plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, 
       ticks = scaleFun(ticks)
     if(is.null(tickLabels))
       tickLabels = scaleFunInverse(ticks)
+    
     # par( oma=c( 0,0,0,3))
-    image.plot(zlim=zlim, nlevel=length(cols), legend.only=TRUE, horizontal=FALSE,
-               col=cols, add = TRUE, axis.args=list(at=ticks, labels=tickLabels), 
-               legend.mar=legend.mar, legend.width=legend.width)
+    
+    # set list of arguments to image.plot
+    legendArgs$zlim=zlim
+    legendArgs$nlevel=length(cols)
+    legendArgs$legend.only=TRUE
+    legendArgs$horizontal=FALSE
+    legendArgs$col=cols
+    legendArgs$add = TRUE
+    if(is.null(legendArgs$axis.args))
+      legendArgs$axis.args=list(at=ticks, labels=tickLabels)
+    else {
+      legendArgs$axis.args$at=ticks
+      legendArgs$axis.args$labels=tickLabels
+    }
+    legendArgs$legend.mar=legend.mar
+    legendArgs$legend.width=legend.width
+    do.call("image.plot", legendArgs)
     
     # image.plot(zlim=zlim, nlevel=length(cols), legend.only=TRUE, horizontal=FALSE, 
     #            col=cols, add = TRUE)
@@ -1736,6 +1759,10 @@ makeInterpPopGrid = function(kmRes=5, adjustPopSurface=FALSE, targetPop=c("child
   
   # pop = raster("Kenya2014Pop/worldpop_total_1y_2014_00_00.tif", values= TRUE)
   load("../U5MR/Kenya2014Pop/pop.RData")
+  load("../U5MR/lims.RData")
+  out = load("../U5MR/adminMapData.RData")
+  kenyaMap = adm0
+  countyMap = adm1
   
   # get a rectangular grid
   eastGrid = seq(eastLim[1], eastLim[2], by=kmRes)
@@ -1756,11 +1783,11 @@ makeInterpPopGrid = function(kmRes=5, adjustPopSurface=FALSE, targetPop=c("child
   interpPopVals = extract(pop, SpatialPoints(lonLatGrid),method="bilinear")
   
   # compute counties associated with locations
-  counties = getRegion(lonLatGrid, adm1)$regionNames
+  counties = getRegion(lonLatGrid)$regionNames
   
   # determine which points are urban
   newPop = data.frame(list(lon=lonLatGrid[,1], lat=lonLatGrid[,2], popOrig=interpPopVals, admin1=counties))
-  threshes = setThresholds2()
+  threshes = setThresholds()
   popThreshes = sapply(1:nrow(newPop), function(i) {threshes$threshes[threshes$counties == newPop$admin1[i]]})
   urban = newPop$popOrig > popThreshes
   newPop$urban = urban
