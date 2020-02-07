@@ -674,7 +674,8 @@ LKINLA.cov = function(x1, x2, latticeInfo, kappa, alphas, rho=1, normalize=TRUE,
     A2 = matrix(as.matrix(A2)[,includeI], nrow=nrow(A2))
     Q = Q[includeI,includeI]
   }
-  A1 %*% solve(Q, t(A2))
+  # use A1 %*% inla.qsolve(Q, t(A2)) instead?
+  A1 %*% inla.qsolve(Q, t(A2))
 }
 
 LK.cov = function(x1, x2, LKinfo, a.wght, alphas, lambda, sigma, rho) {
@@ -762,24 +763,39 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
   minStep = minRange / 10
   ThisNP = 2 * maxRadius / minStep
   xlim <- latticeInfo[[1]]$xRangeDat
+  ylim <- latticeInfo[[1]]$yRangeDat
+  # centerX = mean(xlim)
+  # widthX = xlim[2] - centerX
+  # deltaX = min(widthX, maxRadius)
+  # xlim = c(centerX - deltaX, centerX + deltaX)
+  # ux <- seq(xlim[1], xlim[2], , NP)
+  # ylim <- latticeInfo[[1]]$yRangeDat
+  # centerY = mean(ylim)
+  # widthY = ylim[2] - centerY
+  # deltaY = min(widthY, maxRadius)
+  # ylim = c(centerY - deltaY, centerY + deltaY)
+  # uy <- seq(ylim[1], ylim[2], , NP)
+  # center <- rbind(c(ux[NP/2], uy[NP/2]))
   centerX = mean(xlim)
   widthX = xlim[2] - centerX
   deltaX = min(widthX, maxRadius)
-  xlim = c(centerX - deltaX, centerX + deltaX)
-  ux <- seq(xlim[1], xlim[2], , NP)
-  ylim <- latticeInfo[[1]]$yRangeDat
   centerY = mean(ylim)
   widthY = ylim[2] - centerY
   deltaY = min(widthY, maxRadius)
-  ylim = c(centerY - deltaY, centerY + deltaY)
-  uy <- seq(ylim[1], ylim[2], , NP)
-  center <- rbind(c(ux[NP/2], uy[NP/2]))
+  delta = min(deltaX, deltaY)
+  xlim = c(centerX - delta, centerX + delta)
+  # ux <- seq(xlim[1], xlim[2], , NP)
+  ux <- c(seq(xlim[1], centerX-minRange/100, l=NP/2), centerX, seq(centerX+minRange/100, xlim[2], l=NP/2))
+  ylim = c(centerY - delta, centerY + delta)
+  # uy <- seq(ylim[1], ylim[2], , NP)
+  uy <- c(seq(ylim[1], centerY-minRange/100, l=NP/2), centerY, seq(centerY+minRange/100, ylim[2], l=NP/2))
+  center <- rbind(c(centerX, centerY))
   
   # precompute relevant matrices
   Qprecomputations = precomputationsQ2(latticeInfo)
   Acenter = makeA(center, latticeInfo)
-  Ax = makeA(cbind(ux, uy[NP/2]), latticeInfo)
-  Ay = makeA(cbind(ux[NP/2], uy), latticeInfo)
+  Ax = makeA(cbind(ux, center[2]), latticeInfo)
+  Ay = makeA(cbind(center[1], uy), latticeInfo)
   
   # make method for calculating individual covariance function
   getOneCovariance = function(parameters) {
@@ -797,27 +813,32 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
     }
     
     # calculate covariances
-    x1 <- cbind(ux, rep(center[2], NP))
+    x1 <- cbind(ux, rep(center[2], NP+1))
     x2 <- rbind(center)
     d <- c(rdist(x1, x2))
     y <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
                                Qprecomputations, Ax, Acenter, precomputationsFileNameRoot=precomputationsFileNameRoot))
-    y[NP/2] = y[NP/2] + nuggetVar
-    x1 <- cbind(rep(center[1], NP), uy)
+    y[NP/2+1] = y[NP/2+1] + nuggetVar
+    x1 <- cbind(rep(center[1], NP+1), uy)
     d2 <- c(rdist(x1, x2))
     y2 <- as.numeric(LKINLA.cov(x1, x2, latticeInfo, kappa, alphas, rho, normalize, fastNormalize, 
                                 Qprecomputations, Ay, Acenter, precomputationsFileNameRoot=precomputationsFileNameRoot))
-    y2[NP/2] = y2[NP/2] + nuggetVar
+    y2[NP/2+1] = y2[NP/2+1] + nuggetVar
     
     # average x and y covariances
+    # sortXI = sort(d, index.return=TRUE)$ix
+    # d = d[sortXI]
+    # y = y[sortXI]
+    # sortYI = sort(d2, index.return=TRUE)$ix
+    # d2 = d2[sortYI]
+    # y2 = y2[sortYI]
+    # d = rowMeans(cbind(d, d2))
+    # y = rowMeans(cbind(y, y2))
+    d = c(0, rowMeans(cbind(rev(d[1:(NP/2)]),  d[(NP/2+2):length(d)],  rev(d2[1:(NP/2)]),  d2[(NP/2+2):length(d2)])))
+    y = c(mean(y[NP/2+1], y2[NP/2+1]), rowMeans(cbind(rev(y[1:(NP/2)]),  y[(NP/2+2):length(y)],  rev(y2[1:(NP/2)]),  y2[(NP/2+2):length(y2)])))
     sortXI = sort(d, index.return=TRUE)$ix
     d = d[sortXI]
     y = y[sortXI]
-    sortYI = sort(d2, index.return=TRUE)$ix
-    d2 = d2[sortYI]
-    y2 = y2[sortYI]
-    d = rowMeans(cbind(d, d2))
-    y = rowMeans(cbind(y, y2))
     return(cbind(d=d, cov=y, cor=y * (1 / max(y))))
   }
   
@@ -828,9 +849,9 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
     parameterMat = cbind(t(kappaVals), rhoVals, nuggetVarVals, t(alphaMat))
   # browser()
   out = apply(parameterMat, 1, getOneCovariance)
-  d = out[1:NP,1]
-  covMat = out[(NP+1):(2*NP),]
-  corMat = out[(2*NP+1):(3*NP),]
+  d = out[1:(NP/2+1),1]
+  covMat = out[(NP/2+2):(2*(NP/2+1)),]
+  corMat = out[(2*(NP/2+1)+1):(3*(NP/2+1)),]
   
   # calculate summary statistics
   meanCov = rowMeans(covMat)
@@ -978,19 +999,22 @@ covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(
   centerX = mean(xlim)
   widthX = xlim[2] - centerX
   deltaX = min(widthX, maxRadius)
-  xlim = c(centerX - deltaX, centerX + deltaX)
-  ux <- seq(xlim[1], xlim[2], , NP)
   centerY = mean(ylim)
   widthY = ylim[2] - centerY
   deltaY = min(widthY, maxRadius)
-  ylim = c(centerY - deltaY, centerY + deltaY)
-  uy <- seq(ylim[1], ylim[2], , NP)
-  center <- rbind(c(ux[NP/2], uy[NP/2]))
+  delta = min(deltaX, deltaY)
+  xlim = c(centerX - delta, centerX + delta)
+  # ux <- seq(xlim[1], xlim[2], , NP)
+  ux <- c(seq(xlim[1], centerX-minRange/100, l=NP/2), centerX, seq(centerX+minRange/100, xlim[2], l=NP/2))
+  ylim = c(centerY - delta, centerY + delta)
+  # uy <- seq(ylim[1], ylim[2], , NP)
+  uy <- c(seq(ylim[1], centerY-minRange/100, l=NP/2), centerY, seq(centerY+minRange/100, ylim[2], l=NP/2))
+  center <- rbind(c(centerX, centerY))
   
   # precompute relevant matrices
   Acenter = inla.spde.make.A(mesh, center)
-  Ax = inla.spde.make.A(mesh, cbind(ux, uy[NP/2]))
-  Ay = inla.spde.make.A(mesh, cbind(ux[NP/2], uy))
+  Ax = inla.spde.make.A(mesh, cbind(ux, center[2]))
+  Ay = inla.spde.make.A(mesh, cbind(center[1], uy))
   
   # make method for calculating individual covariance function
   getOneCovariance = function(parameters) {
@@ -1002,26 +1026,33 @@ covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(
     print(paste0("Calculating covariances for iteration ", i, "/", length(rhoVals)))
     
     # calculate covariances
-    x1 <- cbind(ux, rep(center[2], NP))
+    x1 <- cbind(ux, rep(center[2], NP+1))
     x2 <- rbind(center)
     d <- c(rdist(x1, x2))
     Q = makeQSPDE(mesh, effectiveRange, rho)
     y = as.numeric(Acenter %*% inla.qsolve(Q, t(Ax)))
-    y[NP/2] = y[NP/2] + nuggetVar
-    x1 <- cbind(rep(center[1], NP), uy)
+    y[NP/2+1] = y[NP/2+1] + nuggetVar
+    x1 <- cbind(rep(center[1], NP+1), uy)
     d2 <- c(rdist(x1, x2))
     y2 = as.numeric(Acenter %*% inla.qsolve(Q, t(Ay)))
-    y2[NP/2] = y2[NP/2] + nuggetVar
+    y2[NP/2+1] = y2[NP/2+1] + nuggetVar
     
     # average x and y covariances
+    # sortXI = sort(d, index.return=TRUE)$ix
+    # d = d[sortXI]
+    # y = y[sortXI]
+    # sortYI = sort(d2, index.return=TRUE)$ix
+    # d2 = d2[sortYI]
+    # y2 = y2[sortYI]
+    # d = rowMeans(cbind(d, d2))
+    # y = rowMeans(cbind(y, y2))
+    # spatialCov = y[NP/2+1]
+    # return(cbind(d=d, cov=y, cor=y * (1 / max(y))))
+    d = c(0, rowMeans(cbind(rev(d[1:(NP/2)]),  d[(NP/2+2):length(d)],  rev(d2[1:(NP/2)]),  d2[(NP/2+2):length(d2)])))
+    y = c(mean(y[NP/2+1], y2[NP/2+1]), rowMeans(cbind(rev(y[1:(NP/2)]),  y[(NP/2+2):length(y)],  rev(y2[1:(NP/2)]),  y2[(NP/2+2):length(y2)])))
     sortXI = sort(d, index.return=TRUE)$ix
     d = d[sortXI]
     y = y[sortXI]
-    sortYI = sort(d2, index.return=TRUE)$ix
-    d2 = d2[sortYI]
-    y2 = y2[sortYI]
-    d = rowMeans(cbind(d, d2))
-    y = rowMeans(cbind(y, y2))
     return(cbind(d=d, cov=y, cor=y * (1 / max(y))))
   }
   
@@ -1029,9 +1060,9 @@ covarianceDistributionSPDE = function(effectiveRangeVals, rhoVals=rep(1, length(
   parameterMat = cbind(effectiveRangeVals, rhoVals, nuggetVarVals, 1:length(rhoVals))
   # browser()
   out = apply(parameterMat, 1, getOneCovariance)
-  d = out[1:200,1]
-  covMat = out[201:400,]
-  corMat = out[401:600,]
+  d = out[1:(NP/2+1),1]
+  covMat = out[(NP/2+2):(2*(NP/2+1)),]
+  corMat = out[(2*(NP/2+1)+1):(3*(NP/2+1)),]
   
   # calculate summary statistics
   meanCov = rowMeans(covMat)

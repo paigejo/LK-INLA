@@ -1798,7 +1798,7 @@ runCompareModels2 = function(test=FALSE, tausq=.1^2, margVar=.15^2, gamma=-1,
   list(tab=tab, parTab=parTab, unroundedTab=unroundedTab)
 }
 
-compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
+compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work=FALSE) {
   nu = 1
   thetas = c(0.08, 0.8) / 2.3
   nTest = n * 0.1
@@ -1840,13 +1840,23 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   plotNameSuffix = paste0("_nugV", round(sigma2, 2), "_n", n, "_nSamples", nSamples, ".pdf")
   
   # get the file names of the results from the simulations
-  SPDEname = paste0("mixtureSPDEAll_nsim", nSamples, "_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
-                                   "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKname = paste0("mixtureLKAll_nsim", nSamples, ".RData")
-  LKINLA3name = paste0("mixtureLKINLAAll_nsim", nSamples, "_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
-                        round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
-  LKINLA2name = paste0("mixtureLKINLAAll_nsim", nSamples, "_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
-                       round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  if(!work) {
+    SPDEname = paste0("savedOutput/simulations/mixtureSPDEAll_nsim", nSamples, "_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
+                      "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+    LKname = paste0("savedOutput/simulations/mixtureLKAll_nsim", nSamples, ".RData")
+    LKINLA3name = paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, "_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
+                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+    LKINLA2name = paste0("savedOutput/simulations/mixtureLKINLAAll_nsim", nSamples, "_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
+                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  } else {
+    SPDEname = paste0("/work/johnpai/simulations/mixtureSPDEAll_nsim", nSamples, "_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", FALSE, 
+                      "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+    LKname = paste0("/work/johnpai/simulations/mixtureLKAll_nsim", nSamples, ".RData")
+    LKINLA3name = paste0("/work/johnpai/simulations/mixtureLKINLAAll_nsim", nSamples, "_L", 3, "_NC14", "_sepRange", FALSE, "_n", n, "_nu", nu, "_nugV", 
+                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+    LKINLA2name = paste0("/work/johnpai/simulations/mixtureLKINLAAll_nsim", nSamples, "_L", 2, "_NC14_126", "_sepRange", TRUE, "_n", n, "_nu", nu, "_nugV", 
+                         round(sigma2, 2), "_Kenya", FALSE, "_noInt", TRUE, "_urbOversamp", round(0, 4), ".RData")
+  }
   
   # load the simulation results
   # allScoringRules
@@ -1870,9 +1880,10 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   ## leftOutScores
   ## leftInScores
   ## aggregatedScores
-  out = load(paste0("savedOutput/simulations/", SPDEname))
+  out = load(paste0(SPDEname))
   allPredsSPDE = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasSPDE = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  timingsSPDE = sapply(allFits, function(x) {x$timings$totalTime})
   binnedScoringRulesGridSPDE = binnedScoringRulesGrid
   pooledScoringRulesGridSPDE = pooledScoringRulesGrid
   pooledScoringRulesLeftOutSPDE = pooledScoringRulesLeftOut
@@ -1887,9 +1898,10 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   leftInScoresSPDE = leftInScores
   aggregatedScoresSPDE = aggregatedScores
   
-  out = load(paste0("savedOutput/simulations/", LKname))
+  out = load(paste0(LKname))
   allPredsLK = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLK = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  timingsLK = sapply(allFits, function(x) {x$timings$totalTime})
   binnedScoringRulesGridLK = binnedScoringRulesGrid
   pooledScoringRulesGridLK = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLK = pooledScoringRulesLeftOut
@@ -1904,9 +1916,10 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   leftInScoresLK = leftInScores
   aggregatedScoresLK = aggregatedScores
   
-  out = load(paste0("savedOutput/simulations/", LKINLA3name))
+  out = load(paste0(LKINLA3name))
   allPredsLKINLA3 = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLKINLA3 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  timingsLKINLA3 = sapply(allFits, function(x) {x$timings$totalTime})
   binnedScoringRulesGridLKINLA3 = binnedScoringRulesGrid
   pooledScoringRulesGridLKINLA3 = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLKINLA3 = pooledScoringRulesLeftOut
@@ -1921,9 +1934,10 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   leftInScoresLKINLA3 = leftInScores
   aggregatedScoresLKINLA3 = aggregatedScores
   
-  out = load(paste0("savedOutput/simulations/", LKINLA2name))
+  out = load(paste0(LKINLA2name))
   allPredsLKINLA2 = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLKINLA2 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  timingsLKINLA2 = sapply(allFits, function(x) {x$timings$totalTime})
   binnedScoringRulesGridLKINLA2 = binnedScoringRulesGrid
   pooledScoringRulesGridLKINLA2 = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLKINLA2 = pooledScoringRulesLeftOut
@@ -1939,8 +1953,9 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   aggregatedScoresLKINLA2 = aggregatedScores
   
   browser()
-  modelNames = c("SPDE", "LK", "LK-INLA (3 Layer)", "LK-INLA (2 Layer)")
+  # modelNames = c("SPDE", "LK", "LK-INLA (3 Layer)", "LK-INLA (2 Layer)")
   # modelNames = c("SPDE", "LK-INLA (3 Layer)", "LK-INLA (2 Layer)")
+  modelNames = c("SPDE", "LK", "ELK (3 Layer)", "ELK (2 Layer)")
   
   totalLength = length(allFits[[1]]$preds)
   testIndices = (length(allFits[[1]]$preds) - length(ysTest) + 1):length(allFits[[1]]$preds)
@@ -2171,21 +2186,53 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   rownames(allLeftInAggregatedScores) = modelNames
   rownames(allAggregatedScores) = modelNames
   
+  allLeftOutAggregatedScores$Coverage = allLeftOutAggregatedScores$Coverage * 100
+  allLeftInAggregatedScores$Coverage = allLeftInAggregatedScores$Coverage * 100
+  allAggregatedScores$Coverage = allAggregatedScores$Coverage * 100
+  
   print("Left out aggregated scores:")
-  print(xtable(format(allLeftOutAggregatedScores[,-3], digits=2)))
+  print(xtable(format(allLeftOutAggregatedScores[,-3], digits=3)))
+  # temp = allLeftOutAggregatedScores[,-3]
+  # theseNames = dimnames(temp)
+  # temp = matrix(unlist(temp), ncol=ncol(temp))
+  # dimnames(temp) = theseNames
+  # temp = cbind(round(temp[,1:2], digits=4), round(temp[,3:4], digits=4), Coverage=round(temp[,5], digits=0), Width=round(temp[,6], digits=3))
+  # mode(temp) = "character"
+  # print(xtable(temp))
+  
   print("Left in aggregated scores:")
   print(xtable(format(allLeftInAggregatedScores[,-3], digits=2)))
+  
   print("All aggregated scores:")
   print(xtable(format(allAggregatedScores[,-3], digits=2)))
   
-  # computation times
+  # computation times for the ENTIRE simulation study, not just fitting the models.  This includes model fitting, predictions, uncertainty calculations, aggregation, and covariance calculations:
+  # -rw------- 1 johnpai posixgroup 123956328 Jan 23 03:27 mixtureLKINLAsim1_L2_NC14_126_sepRangeTRUE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup 123047142 Jan 23 01:45 mixtureLKINLAsim1_L3_NC14_sepRangeFALSE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup 124691837 Jan 23 00:31 mixtureSPDEsim1_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup   116011406 Jan 29 13:33 mixtureLKsim1.RData
+  
+  # -rw------- 1 johnpai posixgroup   123880261 Jan 28 15:57 mixtureLKINLAsim100_L2_NC14_126_sepRangeTRUE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup   122967029 Jan 27 17:36 mixtureLKINLAsim100_L3_NC14_sepRangeFALSE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup   124621949 Jan 24 08:31 mixtureSPDEsim100_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
+  # -rw------- 1 johnpai posixgroup   115944856 Feb  3 12:11 mixtureLKsim100.RData
+  totalTimeSPDE = 60 * 24 * (24 - 23) + 60 * (8 - 0) + 1 * (31 - 31)
+  totalTimeLK = 60 * 24 * (5) + 60 * (12 - 13) + 1 * (11 - 33)
+  totalTimeLKINLA3 = 60 * 24 * (27 - 23) + 60 * (17 - 1) + 1 * (36 - 45)
+  totalTimeLKINLA2 = 60 * 24 * (28 - 23) + 60 * (15 - 3) + 1 * (57 - 27)
+  averageTimeSPDE = totalTimeSPDE / 99
+  averageTimeLK = totalTimeLK / 99
+  averageTimeLKINLA3 = totalTimeLKINLA3 / 99
+  averageTimeLKINLA2 = totalTimeLKINLA2 / 99
   pooledScores = rbind(pooledScoringRulesGridSPDE, pooledScoringRulesGridLK, 
                        pooledScoringRulesGridLKINLA3, pooledScoringRulesGridLKINLA2)
-  pooledScores = pooledScores[,-c(1, 2, 5)]
+  pooledScores = cbind(pooledScores[,-c(1, 2, 5)], "Time elapsed (min.)"=c(averageTimeSPDE, averageTimeLK, averageTimeLKINLA3, averageTimeLKINLA2))
   rownames(pooledScores) = modelNames
+  pooledScores$Coverage = pooledScores$Coverage * 100
   
   print("All pointwise scores:")
   print(xtable(format(round(pooledScores, digits=3), scientific=FALSE)))
+  print(xtable(format(round(pooledScores[,-c(1, 2)], digits=3), scientific=FALSE)))
   # binned scoring rules
   
   my_line <- function(x,y,...){
@@ -2301,67 +2348,83 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100) {
   
   ##### binned results versus distance
   ns = binnedScoringRulesGridSPDE$nPerBin
+  includeBins = 1:(length(ns)-2)
   cex = 5/sqrt(ns)
   pdf(paste0("Figures/finalMixture/binnedMSE", nSamples, ".pdf"), width=5, height=5)
-  values = data.frame(binnedScoringRulesGridSPDE$MSE, binnedScoringRulesGridLK$MSE, binnedScoringRulesGridLKINLA3$MSE, binnedScoringRulesGridLKINLA2$MSE)
+  values = data.frame(binnedScoringRulesGridSPDE$MSE, binnedScoringRulesGridLK$MSE, binnedScoringRulesGridLKINLA3$MSE, binnedScoringRulesGridLKINLA2$MSE)[includeBins,]
   zlim = range(c(as.matrix(values)))
-  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist[includedBins], values[[1]][includedBins], ylim=zlim, col="blue", 
        main="MSE vs Distance to Observation", xlab="Distance to Observation", ylab="MSE")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), lty=1, pch=1, col=c("blue", "black", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "ELK (3 Layers)", "ELK (2 Layers)"), lty=1, pch=1, col=c("blue", "black", "purple", "red"))
+  dev.off()
+  
+  pdf(paste0("Figures/finalMixture/binnedRMSE", nSamples, ".pdf"), width=5, height=5)
+  values = data.frame(binnedScoringRulesGridSPDE$RMSE, binnedScoringRulesGridLK$RMSE, binnedScoringRulesGridLKINLA3$RMSE, binnedScoringRulesGridLKINLA2$RMSE)[includeBins,]
+  zlim = range(c(as.matrix(values)))
+  plot(binnedScoringRulesGridSPDE$NNDist[includedBins], values[[1]][includedBins], ylim=zlim, col="blue", 
+       main="RMSE vs Distance to Observation", xlab="Distance to Observation", ylab="RMSE")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "ELK (3 Layers)", "ELK (2 Layers)"), lty=1, pch=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
   ##### TODO: fix plot titles?
   pdf(paste0("Figures/finalMixture/binnedCRPS", nSamples, ".pdf"), width=5, height=5)
-  values = data.frame(binnedScoringRulesGridSPDE$CRPS, binnedScoringRulesGridLK$CRPS, binnedScoringRulesGridLKINLA3$CRPS, binnedScoringRulesGridLKINLA2$CRPS)
+  values = data.frame(binnedScoringRulesGridSPDE$CRPS, binnedScoringRulesGridLK$CRPS, binnedScoringRulesGridLKINLA3$CRPS, binnedScoringRulesGridLKINLA2$CRPS)[includeBins,]
   zlim = range(c(as.matrix(values)))
-  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], ylim=zlim, col="blue", 
        main="CRPS vs Distance to Observation", xlab="Distance to Observation", ylab="CRPS")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "ELK (3 Layers)", "ELK (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
   pdf(paste0("Figures/finalMixture/binnedCoverage", nSamples, ".pdf"), width=5, height=5)
-  values = data.frame(binnedScoringRulesGridSPDE$Coverage, binnedScoringRulesGridLK$Coverage, binnedScoringRulesGridLKINLA3$Coverage, binnedScoringRulesGridLKINLA2$Coverage)
+  values = data.frame(binnedScoringRulesGridSPDE$Coverage, binnedScoringRulesGridLK$Coverage, binnedScoringRulesGridLKINLA3$Coverage, binnedScoringRulesGridLKINLA2$Coverage)[includeBins,]
   zlim = range(c(as.matrix(values)))
-  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], ylim=zlim, col="blue", 
        main="80% Coverage vs Distance to Observation", xlab="Distance to Observation", ylab="Coverage")
   abline(h=.8, lty=2)
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "ELK (3 Layers)", "ELK (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
   dev.off()
   
   pdf(paste0("Figures/finalMixture/binnedWidth", nSamples, ".pdf"), width=5, height=5)
-  values = data.frame(binnedScoringRulesGridSPDE$Width, binnedScoringRulesGridLK$Width, binnedScoringRulesGridLKINLA3$Width, binnedScoringRulesGridLKINLA2$Width)
+  values = data.frame(binnedScoringRulesGridSPDE$Width, binnedScoringRulesGridLK$Width, binnedScoringRulesGridLKINLA3$Width, binnedScoringRulesGridLKINLA2$Width)[includeBins,]
   zlim = range(c(as.matrix(values)))
-  plot(binnedScoringRulesGridSPDE$NNDist, values[[1]], ylim=zlim, col="blue", 
+  plot(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], ylim=zlim, col="blue", 
        main="80% CI Width vs Distance to Observation", xlab="Distance to Observation", ylab="80% CI Width")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[1]], col="blue")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[2]], col="black")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[3]], col="purple")
-  points(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  lines(binnedScoringRulesGridSPDE$NNDist, values[[4]], col="red")
-  legend("bottomright", c("SPDE", "LK", "LK-INLA (3 Layers)", "LK-INLA (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[1]], col="blue")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[2]], col="black")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col="purple")
+  points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col="red")
+  legend("bottomright", c("SPDE", "LK", "ELK (3 Layers)", "ELK (2 Layers)"), pch=1, lty=1, col=c("blue", "black", "purple", "red"))
   dev.off()
 }
 

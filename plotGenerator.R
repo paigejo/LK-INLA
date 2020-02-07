@@ -5,13 +5,14 @@ library(mgcv)
 makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses, modelVariations, 
                         areaLevels=c("Region", "County", "Pixel", "Cluster"), 
                         meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
+                        relWidthRange, relWidthTicks, relWidthTickLabels, 
                         plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
                         widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
                         ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
                         plotUrbanMap=FALSE, kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), 
                         makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE, 
                         loadResults=FALSE, saveResults=!loadResults, singleColorBar=TRUE, doModelClassPlots=FALSE, 
-                        col=col, lty=lty) {
+                        col=NULL, lty=NULL, pch=NULL) {
   plotNameRootLower = tolower(plotNameRoot)
   resultNameRootLower = tolower(resultNameRoot)
   
@@ -44,6 +45,7 @@ makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses,
   if(makeModelPredictions) {
     plotModelPredictions(dat, resultFilenames, modelClasses, modelVariations, areaLevels, 
                          meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
+                         relWidthRange, relWidthTicks, relWidthTickLabels, 
                          varName, plotNameRoot, resultNameRoot, meanCols, widthCols, 
                          kenyaLatRange, kenyaLonRange, singleColorBar, doModelClassPlots)
   }
@@ -52,7 +54,7 @@ makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses,
     plotCovariograms(dat, resultFilenames, modelClasses, modelVariations, 
                      varName, plotNameRoot, resultNameRoot, 
                      cgramList=NULL, loadResults=loadResults, saveResults=saveResults, doModelClassPlots=doModelClassPlots, 
-                     col=col, lty=lty)
+                     col=col, lty=lty, pch=pch)
   }
   
   if(makePairPlots) {
@@ -198,6 +200,7 @@ makeUrbanMap = function(popGrid=NULL, kmres=2.5, savePlot=FALSE, fileName=ifelse
 plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariations, 
                                 areaLevels=c("Region", "County", "Pixel", "Cluster"), 
                                 meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
+                                relWidthRange, relWidthTicks, relWidthTickLabels, 
                                 varName="education", plotNameRoot="Education", resultNameRoot="Ed", 
                                 meanCols=makeRedBlueDivergingColors(64), 
                                 widthCols=makeBlueYellowSequentialColors(64), 
@@ -223,6 +226,7 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       thisModelVariations = modelVariations[thisI]
       plotModelPredictions(dat, thisResultFilenames, thisModelClasses, thisModelVariations, areaLevels, 
                            meanRange, meanTicks, meanTickLabels, widthRange, widthTicks, widthTickLabels, 
+                           relWidthRange, relWidthTicks, relWidthTickLabels, 
                            varName, plotNameRoot, resultNameRoot, meanCols, widthCols, 
                            kenyaLatRange, kenyaLonRange, singleColorBar)
     }
@@ -358,7 +362,109 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       }
       
       if(j == 1)
-        mtext(side = 2, "80% CI Widths", line = 8, cex=2)
+        mtext(side = 2, "80% CI Width", line = 8, cex=2)
+    }
+    dev.off()
+    
+    ##### Do the same thing but with relative credible interval widths
+    png(file=paste0("Figures/", resultNameRoot, "/predsRelativeWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=1000)
+    
+    if(thisArea %in% c("Region", "County"))
+      par(mfrow=c(2,numberModels), oma=c( 0,6,0,7), mar=c(5.1, 5.1, 4.1, 2.5))
+    else
+      par(mfrow=c(2,numberModels), oma=c( 0,6,0,7), mar=c(5.1, 5.1, 4.1, 2.5))
+    
+    # first load in the predictions
+    predictionList = list()
+    widthList = list()
+    for(j in 1:numberModels) {
+      modelName = bquote(.(modelClasses[j])[.(modelVariations[j])])
+      
+      # load this model and plot results in the given column
+      out = load(resultFilenames[j])
+      theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
+      predictionList = c(predictionList, list(theseResults$preds))
+      widthList = c(widthList, list((theseResults$Q90 - theseResults$Q10)/theseResults$preds))
+    }
+    
+    # plot the predictions
+    for(j in 1:numberModels) {
+      modelName = bquote(.(modelClasses[j])[.(modelVariations[j])])
+      thisAddColorBar = (j == numberModels) | !singleColorBar
+      
+      # load this model and plot results in the given column
+      # out = load(resultFilenames[j])
+      # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
+      
+      if(thisArea %in% c("Region", "County")) {
+        plotMapDat(plotVar=predictionList[[j]], new = TRUE, 
+                   main="", scaleFun=logit, scaleFunInverse=expit, 
+                   cols=meanCols, zlim=logit(meanRange), ticks=meanTicks, tickLabels=meanTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "Pixel"){
+        plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
+             xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
+        quilt.plot(cbind(popGrid$lon, popGrid$lat), logit(predictionList[[j]]), 
+                   nx=150, ny=150, add.legend=FALSE, add=TRUE, col=meanCols, zlim=range(logit(meanRange)))
+        plotMapDat(mapDat=thisMap, lwd=.5)
+        points(dat$lon, dat$lat, pch=".")
+        
+        if(thisAddColorBar) {
+          image.plot(zlim=range(logit(meanRange)), nlevel=length(meanCols), legend.only=TRUE, horizontal=FALSE,
+                     col=meanCols, add = TRUE, axis.args=list(at=logit(meanTicks), labels=meanTickLabels, cex.axis=2, tck=-.7, hadj=-.1), 
+                     legend.mar = 0, legend.cex=2, legend.width=3, smallplot= c(.97,1,.1,.9))
+          
+          # image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=7, col=urbCols, add=TRUE, 
+          #            legend.lab = "Urbanicity", legend.line=3.0, legend.width=1, legend.shrink=.9, 
+          #            legend.cex=2, axis.args=list(cex.axis=1, tck=-1, hadj=-.1))
+        }
+      }
+      
+      mtext(side = 3, as.expression(modelName), line = 1, cex=2)
+      if(j == 1)
+        mtext(side = 2, "Estimates", line = 8, cex=2)
+    }
+    
+    # plot the relative credible interval widths
+    for(j in 1:numberModels) {
+      modelName = bquote(.(modelClasses[j])[.(modelVariations[j])])
+      thisAddColorBar = (j == numberModels) | !singleColorBar
+      
+      # load this model and plot results in the given column
+      # out = load(resultFilenames[j])
+      # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
+      
+      if(thisArea %in% c("Region", "County")) {
+        plotMapDat(plotVar=widthList[[j]], new = TRUE, 
+                   main="", scaleFun=log, scaleFunInverse=exp, 
+                   cols=widthCols, zlim=log(relWidthRange), ticks=relWidthTicks, tickLabels=relWidthTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "Pixel") {
+        
+        plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
+             xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
+        quilt.plot(cbind(popGrid$lon, popGrid$lat), log(widthList[[j]]), 
+                   nx=150, ny=150, add.legend=FALSE, add=TRUE, col=widthCols, zlim=range(log(relWidthRange)))
+        plotMapDat(mapDat=thisMap, lwd=.5)
+        points(dat$lon, dat$lat, pch=".")
+        
+        if(thisAddColorBar) {
+          image.plot(zlim=range(log(relWidthRange)), nlevel=length(widthCols), legend.only=TRUE, horizontal=FALSE,
+                     col=widthCols, add = TRUE, axis.args=list(at=log(relWidthTicks), labels=relWidthTickLabels, cex.axis=2, tck=-.7, hadj=-.1), 
+                     legend.mar = 0, legend.cex=2, legend.width=3, smallplot= c(.97,1,.1,.9))
+          
+          # image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=7, col=urbCols, add=TRUE, 
+          #            legend.lab = "Urbanicity", legend.line=3.0, legend.width=1, legend.shrink=.9, 
+          #            legend.cex=2, axis.args=list(cex.axis=1, tck=-1, hadj=-.1))
+        }
+      }
+      
+      if(j == 1)
+        mtext(side = 2, "Relative 80% CI Width", line = 8, cex=2)
     }
     dev.off()
   }
@@ -631,6 +737,30 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
                  legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
       
+      valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
+      zlim = range(valMat)
+      width = 400 * (numberModels - 1)
+      height = 400
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotRelWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=4, col=urbCols, add=TRUE, 
+                 legend.lab = "Urbanicity", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
       valMat = do.call("cbind", widthsList)
       zlim = range(valMat)
       width = 400 * (numberModels - 1)
@@ -689,6 +819,25 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
       }
       dev.off()
       
+      valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
+      pdf(file=paste0("Figures/", resultNameRoot, "/finalPairPlotRelWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+      
+      zlim = range(valMat)
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, cex=.8)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      dev.off()
+      
       valMat = do.call("cbind", widthsList)
       zlim = range(valMat)
       pdf(file=paste0("Figures/", resultNameRoot, "/finalPairPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
@@ -709,12 +858,12 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
       dev.off()
     }
   }
-  browser()
 }
 
 plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations, 
                             varName="education", plotNameRoot="Education", resultNameRoot="Ed", 
-                            cgramList=NULL, loadResults=FALSE, saveResults=!loadResults, cols=NULL, doModelClassPlots=FALSE, lty=1) {
+                            cgramList=NULL, loadResults=FALSE, saveResults=!loadResults, cols=NULL, 
+                            doModelClassPlots=FALSE, lty=1, pch=19, hNuggetShift=-3) {
   plotNameRootLower = tolower(plotNameRoot)
   resultNameRootLower = tolower(resultNameRoot)
   numberModels = length(resultFilenames)
@@ -820,9 +969,12 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       thisModelVariations = modelVariations[thisI]
       thiscgramList = cgramList[thisI]
       thisColors = cols[thisI]
+      thispch = pch[thisI]
+      thislty = lty[thisI]
       plotCovariograms(dat, thisResultFilenames, thisModelClasses, thisModelVariations, 
                        varName, plotNameRoot, resultNameRoot, thiscgramList, 
-                       loadResults=TRUE, saveResults=FALSE, cols=thisColors, lty=lty)
+                       loadResults=TRUE, saveResults=FALSE, cols=thisColors, lty=thislty, 
+                       pch=thispch, hNuggetShift=hNuggetShift)
     }
   }
   
@@ -908,17 +1060,17 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(0, mean(covMean[d0]), pch=19, cex=.4, main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
+        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
              ylim=yRange, xlim=range(d), col=cols[j])
         lines(d[!d0], covMean[!d0], col=cols[j])
       } else {
-        points(0, mean(covMean[d0]), pch=19, cex=.4, col=cols[j])
+        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, col=cols[j])
         lines(d[!d0], covMean[!d0], col=cols[j])
       }
       
-      points(0, mean(lowerCov[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      points(hNuggetShift, mean(lowerCov[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
       lines(d[!d0], lowerCov[!d0], col=cols[j], lty=2)
-      points(0, mean(upperCov[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      points(hNuggetShift, mean(upperCov[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
       lines(d[!d0], upperCov[!d0], col=cols[j], lty=2)
     } else {
       if(j == 1) {
@@ -962,11 +1114,11 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(0, mean(covMean[d0]), pch=19, cex=.4, main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
+        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
              ylim=yRangeNoCIs, xlim=range(d), col=cols[j], lty=lty[j])
         lines(d[!d0], covMean[!d0], col=cols[j], lty=lty[j])
       } else {
-        points(0, mean(covMean[d0]), pch=19, cex=.4, col=cols[j], lty=lty[j])
+        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, col=cols[j], lty=lty[j])
         lines(d[!d0], covMean[!d0], col=cols[j], lty=lty[j])
         }
     } else {
@@ -1012,17 +1164,17 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(0, mean(corMean[d0]), pch=19, cex=.4, main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
+        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
              ylim=c(0,1), xlim=range(d), col=cols[j])
         lines(d[!d0], corMean[!d0], col=cols[j])
       } else {
-        points(0, mean(corMean[d0]), pch=19, cex=.4, col=cols[j])
+        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, col=cols[j])
         lines(d[!d0], corMean[!d0], col=cols[j])
       }
       
-      points(0, mean(lowerCor[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      points(hNuggetShift, mean(lowerCor[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
       lines(d[!d0], lowerCor[!d0], col=cols[j], lty=2)
-      points(0, mean(upperCor[d0]), pch=19, cex=.2, col=cols[j], lty=2)
+      points(hNuggetShift, mean(upperCor[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
       lines(d[!d0], upperCor[!d0], col=cols[j], lty=2)
     } else {
       if(j == 1) {
@@ -1065,11 +1217,11 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(0, mean(corMean[d0]), pch=19, cex=.4, main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
+        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
              ylim=c(0,1), xlim=range(d), col=cols[j], lty=lty[j])
         lines(d[!d0], corMean[!d0], col=cols[j], lty=lty[j])
       } else {
-        points(0, mean(corMean[d0]), pch=19, cex=.4, col=cols[j], lty=lty[j])
+        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, col=cols[j], lty=lty[j])
         lines(d[!d0], corMean[!d0], col=cols[j], lty=lty[j])
       }
     } else {
@@ -1776,6 +1928,23 @@ plotDiskDistanceDistribution = function() {
   dev.off()
   
   print(ds[which.max(dDiskDist(ds, r))])
+}
+
+generatePlottingSymbols = function() {
+  urbCols = makeGreenBlueSequentialColors(29)
+  pdf('Figures/Illustrations/greenTriangle.pdf', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=17, cex=1, col=urbCols[1])
+  dev.off()
+  
+  pdf('Figures/Illustrations/blueSquare.pdf', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=15, cex=1, col=urbCols[29])
+  dev.off()
 }
 
 

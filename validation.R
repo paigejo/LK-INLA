@@ -329,7 +329,8 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
 }
 
 # print out validation results and plot the PITs
-printValidationResults = function(dat=NULL, targetPop=c("women", "children"), family=c("betabinomial", "binomial"), leaveOutRegion=TRUE, urbanPrior=FALSE) {
+printValidationResults = function(dat=NULL, targetPop=c("women", "children"), family=c("betabinomial", "binomial"), leaveOutRegion=TRUE, urbanPrior=FALSE, 
+                                  doShortenedTable=TRUE) {
   require(stringr)
   require(dplyr)
   require(kableExtra)
@@ -465,6 +466,11 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   tab = data.frame(temp)
   colnames(tab) = gsub(".", " ", colnames(tab), fixed=TRUE)
   
+  if(doShortenedTable) {
+    # shorten the table by removing results stratified by urban and rural
+    tab = tab[seq(1, nrow(tab), by=3),]
+  }
+  
   # bold the best entries of each row, italicize worst entries of each row
   centers = c(rep(0, 3), 80, 0, 0)
   colWorst = apply(abs(sweep(tab, 2, centers, "-")), 2, max, na.rm=TRUE)
@@ -495,22 +501,28 @@ printValidationResults = function(dat=NULL, targetPop=c("women", "children"), fa
   
   # revert the column names to their true values
   colnames(test) = colnames(tab)
-  scoreVariations = c("Avg", "Urban", "Rural")
-  scoreVariations = rep(scoreVariations, 4)
-  test = cbind(" "=scoreVariations, test)
-  rownames(test)=NULL
+  if(!doShortenedTable) {
+    scoreVariations = c("Avg", "Urban", "Rural")
+    scoreVariations = rep(scoreVariations, 4)
+    test = cbind(" "=scoreVariations, test)
+    rownames(test)=NULL
+  } else {
+    rownames(test)=rownames(tab)
+  }
   
   uniqueModelNames = modelNames[seq(1, length(modelNames), by=3)]
-  
+  browser()
   # group the rows by urbanicity
   fullTab = test %>%
     kable("latex", escape = F, booktabs = T, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
           align=c("l", rep("r", ncol(test) - 1))) %>% kable_styling()
   
-  for(i in 1:length(uniqueModelNames)) {
-    startR = 1 + (i-1) * 3
-    endR = 3 * i
-    fullTab = fullTab %>% pack_rows(uniqueModelNames[i], startR, endR, latex_gap_space = "0.3em", escape=FALSE)
+  if(!doShortenedTable) {
+    for(i in 1:length(uniqueModelNames)) {
+      startR = 1 + (i-1) * 3
+      endR = 3 * i
+      fullTab = fullTab %>% pack_rows(uniqueModelNames[i], startR, endR, latex_gap_space = "0.3em", escape=FALSE)
+    }
   }
   # print(add_header_above(fullTab, c(" " = 1, "BYM2"=4, "SPDE"=4), italic=TRUE, bold=TRUE, escape=FALSE))
   
@@ -1250,8 +1262,6 @@ plotValidationSamples = function(dat=NULL, targetPop=c("women", "children")) {
     points(coords[leftOutI,], pch=19, cex=.4, col="red")
   }
 }
-
-
 
 
 

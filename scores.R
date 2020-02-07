@@ -432,6 +432,102 @@ averageBinnedScores = function(tableList) {
   }
 }
 
+aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c("All", "Urban", "Rural"), predictionType=c("All", "Urban", "Rural"), 
+                                     dat=NULL, targetPop=c("women", "children"), distanceBreaksType=c("quantiles", "even")) {
+  # NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA, dataI
+  
+  targetPop = match.arg(targetPop)
+  observationType = match.arg(observationType)
+  predictionType = match.arg(predictionType)
+  distanceBreaksType = match.arg(distanceBreaksType)
+  
+  # subset prediction points by urbanicity if necessary. First determine whether prediction points are urban, then filter
+  if(targetPop == "women") {
+    resultNameRoot="Ed"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaDataEd.RData")
+      dat = ed
+    }
+    load("../U5MR/popGridAdjustedWomen.RData")
+  } else if(targetPop == "children") {
+    resultNameRoot="Mort"
+    if(is.null(dat)) {
+      out = load("../U5MR/kenyaData.RData")
+      dat = mort
+    }
+    load("../U5MR/popGridAdjusted.RData")
+  }
+  predictionUrban = dat$urban[singleScores$dataI]
+  
+  if(predictionType == "Urban") {
+    singleScores = singleScores[predictionUrban,]
+  } else if(predictionType == "Rural") {
+    singleScores = singleScores[!predictionUrban,]
+  }
+  
+  # Now determine distance to which type of point we use
+  distanceType = "A"
+  if(observationType=="Urban") {
+    distanceType = "U"
+  } else if(observationType == "Rural"){
+    distanceType = "u"
+  }
+  distanceVar = paste0("NNDist", distanceType, "A")
+  distances = singleScores[[distanceVar]]
+  
+  # remove distances beyond the maximum of breaks
+  if(length(breaks) != 1) {
+    badDistances = distances >= max(breaks)
+    singleScores = singleScores[!badDistances,]
+    distances = distances[!badDistances]
+  }
+  
+  # sort table by distances
+  sortI = sort(distances, index.return=TRUE)$ix
+  singleScores = singleScores[sortI,]
+  
+  # calculate default breaks for the bin limits if necessary
+  if(length(breaks) == 1) {
+    nBreaks = breaks
+    if(distanceBreaksType == "even") {
+      breaks = seq(0, max(distances), l=nBreaks)
+    } else {
+      nPerBin = ceiling(nrow(singleScores)/nBreaks)
+      
+      # get endpoints of the bins, average their values when calculating breaks
+      startI = seq(nPerBin+1, nrow(singleScores), by=nPerBin)
+      endI = startI - 1
+      breaks = c(0, c(rowMeans(cbind(distances[startI], distances[endI]))), distances[length(distances)]+1e-6)
+    }
+  }
+  
+  # construct the distance bins with which to group the data and compute scores within
+  binsI = cut(distances, breaks, labels=1:(length(breaks)-1), include.lowest=TRUE)
+  centers = breaks[1:(length(breaks)-1)] + diff(breaks)/2
+  uniqueBinsI = sort(unique(binsI))
+  
+  # determine the number of observations per bin
+  nPerBin = as.numeric(table(binsI))
+  
+  # helper function to compute the scoring rules for a given bin
+  getSubScores = function(uniqueBinI) {
+    thisDatI = binsI == uniqueBinI
+    
+    # thisSingleScoresBinomial = data.frame(c(list(Region=thisRegion, dataI=which(thisSampleI), NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA), getScores(truth, est, vars, lower, upper, estMatBinomial, getAverage=FALSE), Time=time[3]))
+    colMeans(singleScores[thisDatI,-c(1, 2)])
+  }
+  
+  # calculate scores for each bin individually
+  binnedScores = t(sapply(uniqueBinsI, getSubScores))
+  
+  # make sure each variable in binnedScores is a numeric, not a list...
+  temp = matrix(unlist(binnedScores), nrow=length(uniqueBinsI))
+  theseNames = colnames(binnedScores)
+  binnedScores = data.frame(temp)
+  names(binnedScores) = theseNames
+  as.data.frame(cbind(NNDist=centers[uniqueBinsI], nPerBin=nPerBin[uniqueBinsI], binnedScores))
+}
+
 
 
 
