@@ -41,7 +41,8 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       print(paste0("Aggregating SPDE model with urbanEffect=", urbanEffect, "..."))
       aggregatedSPDEresults = aggregateModelResultsKenya(spdeResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
-      browser()
+      
+      spdeResults$mlik = spdeResults$mod$mlik
       spdeResults$mod = NULL # make sure saved file isn't too large
       results = list(fit=spdeResults, aggregatedResults=aggregatedSPDEresults)
       save(results, file=fileName)
@@ -74,7 +75,8 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       print(paste0("Aggregating LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
       aggregatedLKINLAresults = aggregateModelResultsKenya(lkinlaResults, clusterLevel=TRUE, pixelLevel=TRUE, 
                                                          countyLevel=TRUE, regionLevel=TRUE, targetPop=targetPop)
-      browser()
+      
+      lkinlaResults$mlik = lkinlaResults$mod$mlik
       lkinlaResults$mod = NULL # make sure saved file isn't too large
       results = list(fit=lkinlaResults, aggregatedResults=aggregatedLKINLAresults)
       save(results, file=fileName)
