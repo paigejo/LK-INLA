@@ -1118,10 +1118,17 @@ makeLatGrids = function(xRangeDat=c(0,1), yRangeDat=c(0,1), NC=5, nBuffer=5, nLa
   for(thisLayer in 1:nLayer) {
     i = thisLayer
     
+    # set layer parameters
     if(length(NC) == 1)
       layerNC = (NC-1)*2^(i-1) + 1
     else
       layerNC = NC[i]
+    
+    if(length(nBuffer) == 1)
+      thisBuffer = nBuffer
+    else
+      thisBuffer = nBuffer[i]
+    
     grids = c(grids, list(makeLatGrid(xRangeDat, yRangeDat, layerNC, nBuffer)))
   }
   
@@ -1130,7 +1137,7 @@ makeLatGrids = function(xRangeDat=c(0,1), yRangeDat=c(0,1), NC=5, nBuffer=5, nLa
 
 # generate lattice points for all layers for Kenya datasets
 # NOTE: if any of the possibly NULL input variables are NULL, they are all set to the default
-makeLatGridsKenya = function(nLayer=1, NC=5, nBuffer=5) {
+makeLatGridsKenya = function(nLayer=1, NC=15, nBuffer=5) {
   out = load(paste0("dataPointsKenya.RData"))
   xRange = dataPointsKenya$xRange
   yRange = dataPointsKenya$yRange

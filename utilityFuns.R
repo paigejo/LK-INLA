@@ -2170,6 +2170,42 @@ getMeanRadius = function(areaLevel=c("Region", "County")) {
   radii
 }
 
+getPredictionDistance = function(doLog=TRUE, dataType=c("ed", "mort")) {
+  # load the pixel/prediction grid
+  out = load("../U5MR/popGrid.RData")
+  predictionPoints = cbind(popGrid$east, popGrid$north)
+  
+  # load the dataset
+  dataType = match.arg(dataType)
+  if(dataType == "mort") {
+    out = load("../U5MR/kenyaData.RData")
+    dat = mort
+  }
+  else {
+    out = load("../U5MR/kenyaDataEd.RData")
+    dat = ed
+  }
+  observationPoints = cbind(dat$east, dat$north)
+  
+  # calculate distance of nearest observation to each prediction point
+  distances = rdist(observationPoints, predictionPoints)
+  distances = apply(distances, 2, min)
+  
+  if(doLog)
+    log(distances)
+  else
+    distances
+}
+
+getPredictionDistanceTicks = function(dataType=c("ed", "mort")) {
+  dataType = match.arg(dataType)
+  
+  if(dataType != "ed")
+    stop("Only education dataset currently supported")
+  
+  c(.1, 1, 5, 10, 20, 40, 80)
+}
+
 
 
 

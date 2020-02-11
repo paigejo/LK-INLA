@@ -1056,7 +1056,7 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
     zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
     
     if(thisArea %in% c("Region", "County")) {
-      # determine colorings by area and radius
+      # determine colorings by area, radius, and sparsity
       theseAreas = getArea(thisArea)
       theseRadii = getRadius(thisArea)
       theseSparsities = getAreaPerObservation(thisArea)
@@ -1362,7 +1362,24 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
                  legend.cex=1.5, axis.args=list(at=sparsityTicks, labels=sparsityTickLabels, cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
     } else {
-      thesePointTypes = sapply(theseResults$urban, function(x) {ifelse(x, 15, 17)})
+      urbanPointTypes = sapply(theseResults$urban, function(x) {ifelse(x, 15, 17)})
+      thesePointTypes = urbanPointTypes
+      
+      # determine colorings by distance to observation
+      if(thisArea == "Pixel") {
+        theseDistances = getPredictionDistance(doLog=FALSE)
+        
+        colI = cut(theseDistances, breaks=seq(min(theseDistances) - .0001, max(theseDistances) + .0001, l=length(areaColors)+1), labels=FALSE)
+        theseDistanceColors = areaColors[colI]
+        theseUrbanColors = theseCols
+        distanceTicks = getPredictionDistanceTicks()
+        distanceTickLabels = as.character(distanceTicks)
+        distanceTicks = distanceTicks
+        distancePointTypes = 19
+        cex = 0.1
+      } else if(thisArea == "Cluster") {
+        cex = 0.8
+      }
       
       my_line <- function(x,y,...){
         if(diff(range(x)) >= .04)
@@ -1392,11 +1409,39 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
              ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
         if(i == 1)
           mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
-        my_line(x, y, lwd=1, cex=.8)
+        my_line(x, y, lwd=1, cex=cex)
         mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
       }
       dev.off()
       
+      if(thisArea == "Pixel") {
+        thesePointTypes = distancePointTypes
+        theseCols = theseDistanceColors
+        pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotDistCol", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+        par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+        
+        zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+        for(i in 1:(numberModels-1)) {
+          x = valMat[,i]
+          y = valMat[,numberModels]
+          y = 100 * (x-y)/y
+          ylab = ""
+          
+          plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+               ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+          if(i == 1)
+            mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+          my_line(x, y, lwd=1, cex=cex)
+          mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+        }
+        image.plot(legend.only = TRUE, zlim=range(theseDistances), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                   legend.lab = "Distance to Observation (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                   legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+        dev.off()
+      }
+      
+      thesePointTypes = urbanPointTypes
+      theseCols = theseUrbanColors
       valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
       pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
       par(mfrow=c(1, 3), oma=c(0,4,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
@@ -1412,11 +1457,40 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
              ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
         if(i == 1)
           mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
-        my_line(x, y, lwd=1, cex=.8)
+        my_line(x, y, lwd=1, cex=cex)
         mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
       }
       dev.off()
       
+      if(thisArea == "Pixel") {
+        thesePointTypes = distancePointTypes
+        theseCols = theseDistanceColors
+        valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
+        pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidthsDistCol", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+        par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+        
+        zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+        for(i in 1:(numberModels-1)) {
+          x = valMat[,i]
+          y = valMat[,numberModels]
+          y = 100 * (x-y)/y
+          ylab = ""
+          
+          plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+               ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+          if(i == 1)
+            mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+          my_line(x, y, lwd=1, cex=cex)
+          mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+        }
+        image.plot(legend.only = TRUE, zlim=range(theseDistances), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                   legend.lab = "Distance to Observation (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                   legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+        dev.off()
+      }
+      
+      thesePointTypes = urbanPointTypes
+      theseCols = theseUrbanColors
       valMat = do.call("cbind", widthsList)
       zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
       pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
@@ -1432,10 +1506,35 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
              ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
         if(i == 1)
           mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
-        my_line(x, y, lwd=1, cex=.8)
+        my_line(x, y, lwd=1, cex=cex)
         mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
       }
       dev.off()
+      
+      if(thisArea == "Pixel") {
+        thesePointTypes = distancePointTypes
+        theseCols = theseDistanceColors
+        pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidthsDistCol", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+        par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+        
+        for(i in 1:(numberModels-1)) {
+          x = valMat[,i]
+          y = valMat[,numberModels]
+          y = 100 * (x-y)/y
+          ylab = ""
+          
+          plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+               ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+          if(i == 1)
+            mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+          my_line(x, y, lwd=1, cex=cex)
+          mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+        }
+        image.plot(legend.only = TRUE, zlim=range(theseDistances), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                   legend.lab = "Distance to Observation (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                   legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+        dev.off()
+      }
     }
   }
 }

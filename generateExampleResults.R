@@ -2,7 +2,8 @@
 
 # first name elements of ed to be the same as the corresponding elements of the simulated datasets
 
-generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, endI=Inf, family=c("betabinomial", "binomial"), urbanPrior=TRUE) {
+generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, endI=Inf, family=c("betabinomial", "binomial"), 
+                                  urbanPrior=TRUE, nBuffer=15, skipThreeLayer=TRUE) {
   family = match.arg(family)
   targetPop = match.arg(targetPop)
   if(targetPop == "women") {
@@ -54,13 +55,18 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect, useUrbanPrior=urbanPrior)
+  otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect, 
+                        useUrbanPrior=urbanPrior, nBuffer=nBuffer)
   
   for(i in 1:length(argList)) {
     if(startI <= i + 2 && i + 2 <= endI) {
       args = argList[[i]]
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
+      
+      if(skipThreeLayer && !separateRanges) {
+        next
+      }
       
       urbanPriorText = ""
       if(!urbanPrior && separateRanges)
