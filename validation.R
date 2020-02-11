@@ -837,7 +837,7 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
   plotMapDat(mapDat=countyMap, lwd=.5)
   dev.off()
   
-  ##### Binned scoring rules versus distance
+  ##### Binned scoring rules versus distance (overall)
   ## RMSE
   # AA
   values = data.frame(allScores$binnedScoringRulesAABinomialAll$spdeu$RMSE, allScores$binnedScoringRulesAABinomialAll$lkinlaus$RMSE, allScores$binnedScoringRulesAABinomialAll$lkinlauS$RMSE)
@@ -1227,6 +1227,500 @@ plotValidationResults = function(dat=NULL, targetPop=c("women", "children"), lea
   abline(h=0, lty= 2)
   legend("topleft", c(expression("SPDE"[u]), expression("ELK"[ui]), expression("ELK"[uI])), col=cols, lty=1, pch=1)
   
+  
+  
+  
+  
+  ##### binned scoring rules (short distances)
+  # recalculate distance bins for the scoring rules
+  binnedScoringRulesAABinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50)
+  ## RMSE
+  # AA
+  values = data.frame(binnedScoringRulesAABinomialAll$spdeu$RMSE, binnedScoringRulesAABinomialAll$spdeU$RMSE, binnedScoringRulesAABinomialAll$lkinlaUS$RMSE)
+  ns = binnedScoringRulesAABinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAABinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Observation", xlab="Distance (km)", ylab="RMSE", ylim=zlim, log="x")
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Au
+  binnedScoringRulesAuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="All", predictionType="Rural")
+  values = data.frame(binnedScoringRulesAuBinomialAll$spdeu$RMSE, binnedScoringRulesAuBinomialAll$spdeU$RMSE, binnedScoringRulesAuBinomialAll$lkinlaUS$RMSE)
+  ns = binnedScoringRulesAuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Observation to Rural Pt.", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Uu
+  binnedScoringRulesUuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="Urban", predictionType="Rural")
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$RMSE, binnedScoringRulesUuBinomialAll$spdeU$RMSE, binnedScoringRulesUuBinomialAll$lkinlaUS$RMSE)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDistU
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Urban to Rural Pt.", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # uu
+  binnedScoringRulesuuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="Rural", predictionType="Rural")
+  values = data.frame(binnedScoringRulesuuBinomialAll$spdeu$RMSE, binnedScoringRulesuuBinomialAll$spdeU$RMSE, binnedScoringRulesuuBinomialAll$lkinlaUS$RMSE)
+  ns = binnedScoringRulesuuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesuuBinomialAll$spdeu$NNDistu
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="RMSE vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="RMSE", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  ## CRPS
+  # AA
+  values = data.frame(binnedScoringRulesAABinomialAll$spdeu$CRPS, binnedScoringRulesAABinomialAll$spdeU$CRPS, binnedScoringRulesAABinomialAll$lkinlaUS$CRPS)
+  ns = binnedScoringRulesAABinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAABinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Observation", xlab="Distance (km)", ylab="CRPS", ylim=zlim, log="x")
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Au
+  values = data.frame(binnedScoringRulesAuBinomialAll$spdeu$CRPS, binnedScoringRulesAuBinomialAll$spdeU$CRPS, binnedScoringRulesAuBinomialAll$lkinlaUS$CRPS)
+  ns = binnedScoringRulesAuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Observation to Rural Pt.", xlab="Distance (km)", ylab="CRPS", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Uu
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$CRPS, binnedScoringRulesUuBinomialAll$spdeU$CRPS, binnedScoringRulesUuBinomialAll$lkinlaUS$CRPS)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDistU
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Urban to Rural Pt.", xlab="Distance (km)", ylab="CRPS", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # uu
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$CRPS, binnedScoringRulesUuBinomialAll$spdeU$CRPS, binnedScoringRulesUuBinomialAll$lkinlaUS$CRPS)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="CRPS", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  ## Coverage
+  # AA
+  values = data.frame(binnedScoringRulesAABinomialAll$spdeu$Coverage, binnedScoringRulesAABinomialAll$spdeU$Coverage, binnedScoringRulesAABinomialAll$lkinlaUS$Coverage)
+  ns = binnedScoringRulesAABinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAABinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Coverage vs. Distance From Observation", xlab="Distance (km)", ylab="Coverage", ylim=zlim, log="x")
+      abline(h=0.8, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Au
+  binnedScoringRulesAuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="All", predictionType="Rural")
+  values = data.frame(binnedScoringRulesAuBinomialAll$spdeu$Coverage, binnedScoringRulesAuBinomialAll$spdeU$Coverage, binnedScoringRulesAuBinomialAll$lkinlaUS$Coverage)
+  ns = binnedScoringRulesAuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Coverage vs. Distance From Observation to Rural Pt.", xlab="Distance (km)", ylab="Coverage", ylim=zlim)
+      abline(h=0.8, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Uu
+  binnedScoringRulesUuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="Urban", predictionType="Rural")
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$Coverage, binnedScoringRulesUuBinomialAll$spdeU$Coverage, binnedScoringRulesUuBinomialAll$lkinlaUS$Coverage)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDistU
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Coverage vs. Distance From Urban to Rural Pt.", xlab="Distance (km)", ylab="Coverage", ylim=zlim)
+      abline(h=0.8, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # uu
+  binnedScoringRulesuuBinomialAll = lapply(allScores$singleScoresBinomialAll, aggregateScoresByDistance, nPerBin=50, observationType="Rural", predictionType="Rural")
+  values = data.frame(binnedScoringRulesuuBinomialAll$spdeu$Coverage, binnedScoringRulesuuBinomialAll$spdeU$Coverage, binnedScoringRulesuuBinomialAll$lkinlaUS$Coverage)
+  ns = binnedScoringRulesuuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesuuBinomialAll$spdeu$NNDistu
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Coverage vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="Coverage", ylim=zlim)
+      abline(h=0.8, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  ## Width
+  # AA
+  values = data.frame(binnedScoringRulesAABinomialAll$spdeu$Width, binnedScoringRulesAABinomialAll$spdeU$Width, binnedScoringRulesAABinomialAll$lkinlaUS$Width)
+  ns = binnedScoringRulesAABinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAABinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Width vs. Distance From Observation", xlab="Distance (km)", ylab="Width", ylim=zlim, log="x")
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Au
+  values = data.frame(binnedScoringRulesAuBinomialAll$spdeu$Width, binnedScoringRulesAuBinomialAll$spdeU$Width, binnedScoringRulesAuBinomialAll$lkinlaUS$Width)
+  ns = binnedScoringRulesAuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Width vs. Distance From Observation to Rural Pt.", xlab="Distance (km)", ylab="Width", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("top", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Uu
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$Width, binnedScoringRulesUuBinomialAll$spdeU$Width, binnedScoringRulesUuBinomialAll$lkinlaUS$Width)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Width vs. Distance From Urban to Rural Pt.", xlab="Distance (km)", ylab="Width", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # uu
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$Width, binnedScoringRulesUuBinomialAll$spdeU$Width, binnedScoringRulesUuBinomialAll$lkinlaUS$Width)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Width vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="Width", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("top", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  ## Bias
+  # AA
+  values = data.frame(binnedScoringRulesAABinomialAll$spdeu$Bias, binnedScoringRulesAABinomialAll$spdeU$Bias, binnedScoringRulesAABinomialAll$lkinlaUS$Bias)
+  ns = binnedScoringRulesAABinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAABinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Observation", xlab="Distance (km)", ylab="Bias", ylim=zlim, log="x")
+      abline(h=00, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty=2)
+  legend("bottomleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Au
+  values = data.frame(binnedScoringRulesAuBinomialAll$spdeu$Bias, binnedScoringRulesAuBinomialAll$spdeU$Bias, binnedScoringRulesAuBinomialAll$lkinlaUS$Bias)
+  ns = binnedScoringRulesAuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesAuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Observation to Rural Pt.", xlab="Distance (km)", ylab="Bias", ylim=zlim)
+      abline(h=00, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty=2)
+  legend("topleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # Uu
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$Bias, binnedScoringRulesUuBinomialAll$spdeU$Bias, binnedScoringRulesUuBinomialAll$lkinlaUS$Bias)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDistU
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Urban to Rural Pt.", xlab="Distance (km)", ylab="Bias", ylim=zlim)
+      abline(h=00, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty=2)
+  legend("topleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  # uu
+  values = data.frame(binnedScoringRulesuuBinomialAll$spdeu$Bias, binnedScoringRulesuuBinomialAll$spdeU$Bias, binnedScoringRulesuuBinomialAll$lkinlaUS$Bias)
+  ns = binnedScoringRulesuuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesuuBinomialAll$spdeu$NNDistu
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="Bias", ylim=zlim)
+      abline(h=00, lty=2)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty=2)
+  legend("bottomleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  
+  
+  
+  
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$CRPS, binnedScoringRulesUuBinomialAll$spdeU$CRPS, binnedScoringRulesUuBinomialAll$lkinlaUS$CRPS)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="CRPS vs. Distance From Rural to Rural", xlab="Distance (km)", ylab="CRPS", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  legend("topright", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
+  
+  values = data.frame(binnedScoringRulesUuBinomialAll$spdeu$Bias, binnedScoringRulesUuBinomialAll$spdeU$Bias, binnedScoringRulesUuBinomialAll$lkinlaUS$Bias)
+  ns = binnedScoringRulesUuBinomialAll$spdeu$nPerBin
+  sizes = sqrt(ns) / 5
+  zlim = range(c(as.matrix(values)))
+  cols = rainbow(3)
+  d = binnedScoringRulesUuBinomialAll$spdeu$NNDist
+  
+  for(i in 1:ncol(values)) {
+    if(i == 1) {
+      plot(d, 
+           values[,i], 
+           cex = 1/sizes, col=cols[i], 
+           main="Bias vs. Distance From Urban", xlab="Distance (km)", ylab="Bias", ylim=zlim)
+    } else
+      points(d, values[,i], col=cols[i], cex = 1/sizes)
+    
+    lines(d, values[,i], col=cols[i])
+  }
+  abline(h=0, lty= 2)
+  legend("topleft", c(expression("SPDE"[u]), expression("SPDE"[U]), expression("ELK"[UI])), col=cols, lty=1, pch=1)
 }
 
 plotValidationSamples = function(dat=NULL, targetPop=c("women", "children")) {

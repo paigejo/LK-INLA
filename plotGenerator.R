@@ -58,6 +58,11 @@ makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses,
   }
   
   if(makePairPlots) {
+    makeFinalPercentResidualPlot(dat, resultFilenames, modelClasses, modelVariations, 
+                                 areaLevels, meanRange, meanTicks, meanTickLabels, 
+                                 plotNameRoot=plotNameRoot, resultNameRoot, 
+                                 meanCols, ncols, urbCols, kenyaLatRange, kenyaLonRange, doModelClassPlots)
+    browser()
     makeFinalPairPlot(dat, resultFilenames, modelClasses, modelVariations, 
                       areaLevels, meanRange, meanTicks, meanTickLabels, 
                       plotNameRoot=plotNameRoot, resultNameRoot, 
@@ -477,7 +482,8 @@ makePairPlots = function(dat, resultFilenames, modelClasses, modelVariations,
                          meanRange, meanTicks, meanTickLabels, 
                          plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
                          ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
-                         kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), doModelClassPlots=FALSE) {
+                         kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), doModelClassPlots=FALSE, 
+                         areaMat=NULL, radiiMat=NULL) {
   plotNameRootLower = tolower(plotNameRoot)
   resultNameRootLower = tolower(resultNameRoot)
   numberModels = length(resultFilenames)
@@ -660,7 +666,8 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
                          meanRange, meanTicks, meanTickLabels, 
                          plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
                          ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
-                         kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), doModelClassPlots=FALSE) {
+                         kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), doModelClassPlots=FALSE, 
+                         areaMat=NULL, radiiMat=NULL, areaColors=makePurpleYellowSequentialColors(ncols)) {
   plotNameRootLower = tolower(plotNameRoot)
   resultNameRootLower = tolower(resultNameRoot)
   numberModels = length(resultFilenames)
@@ -701,8 +708,20 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
     zlim = range(valMat)
     
     if(thisArea %in% c("Region", "County")) {
+      # determine colorings by area and radius
+      theseAreas = getArea(thisArea)
+      theseRadii = getRadius(thisArea)
+      colI = cut(theseAreas, breaks=seq(min(theseAreas) - .0001, max(theseAreas) + .0001, l=length(areaColors)+1), labels=FALSE)
+      theseAreaColors = areaColors[colI]
+      colI = cut(theseRadii, breaks=seq(min(theseRadii) - .0001, max(theseRadii) + .0001, l=length(areaColors)+1), labels=FALSE)
+      theseRadiusColors = areaColors[colI]
+      theseUrbanColors = theseCols
       
       # valMat = rbind(1:5, valMat)
+      if(thisArea == "Region")
+        cex = 2.5
+      else
+        cex = 1
       my_line <- function(x,y,...){
         if(diff(range(x)) >= .04)
           xlim = zlim
@@ -711,7 +730,7 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
         if(diff(range(y)) >= .04)
           ylim = zlim
         
-        points(x,y,..., col=theseCols)
+        points(x,y,..., col=theseCols,cex=cex)
         abline(a = 0,b = 1,...)
       }
       
@@ -737,6 +756,49 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
                  legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
       
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      theseCols = theseAreaColors
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      theseCols = theseRadiusColors
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseUrbanColors
       valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
       zlim = range(valMat)
       width = 400 * (numberModels - 1)
@@ -761,10 +823,53 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
                  legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
       
+      theseCols = theseAreaColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotRelWidthsAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseRadiusColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotRelWidthsRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
       valMat = do.call("cbind", widthsList)
       zlim = range(valMat)
       width = 400 * (numberModels - 1)
       height = 400
+      theseCols = theseUrbanColors
       png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
       par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
       
@@ -782,6 +887,48 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
       }
       image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=4, col=urbCols, add=TRUE, 
                  legend.lab = "Urbanicity", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseAreaColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotWidthsAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseRadiusColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPairPlotWidthsRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab="", ylab="", 
+             ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
+        if(i == 1)
+          mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
                  legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
     } else {
@@ -852,6 +999,439 @@ makeFinalPairPlot = function(dat, resultFilenames, modelClasses, modelVariations
              ylim=zlim, xlim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1)
         if(i == 1)
           mtext(side = 2, as.expression(modelNames[[numberModels]]), line = 4, cex=2)
+        my_line(x, y, lwd=1, cex=.8)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      dev.off()
+    }
+  }
+}
+
+# this function plots central estimates and credible interval widths over a map of Kenya 
+# 4 plots are made by default: one for each area level
+makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, modelVariations, 
+                                        areaLevels=c("Region", "County", "Pixel"), 
+                                        meanRange, meanTicks, meanTickLabels, 
+                                        plotNameRoot="Education", resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+                                        ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
+                                        kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), doModelClassPlots=FALSE, 
+                                        areaMat=NULL, radiiMat=NULL, areaColors=makePurpleYellowSequentialColors(ncols)) {
+  plotNameRootLower = tolower(plotNameRoot)
+  resultNameRootLower = tolower(resultNameRoot)
+  numberModels = length(resultFilenames)
+  uniqueModelClasses = unique(modelClasses)
+  
+  ##### central estimates and credible interval widths
+  
+  for(i in 1:length(areaLevels)) {
+    thisArea = areaLevels[i]
+    
+    if(length(uniqueModelClasses) == 1)
+      extraPlotNameRoot = uniqueModelClasses[1]
+    else
+      extraPlotNameRoot = ""
+    
+    # collect predictions and proportion urban per area/point
+    predsList = list()
+    widthsList = list()
+    # modelNames = c()
+    modelNames = list()
+    for(j in 1:numberModels) {
+      # modelNames = c(modelNames, paste(modelClasses[j], modelVariations[j]))
+      modelNames = c(modelNames, bquote(.(modelClasses[j])[.(modelVariations[j])]))
+      
+      # load this model and put results in the given column
+      out = load(resultFilenames[j])
+      theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
+      
+      # get proportion urban (will be the same for each model)
+      colI = cut(as.numeric(theseResults$urban), breaks=seq(0 - .0001, 1 + .0001, l=ncols+1), labels=FALSE)
+      theseCols = urbCols[colI]
+      
+      predsList = c(predsList, list(theseResults$preds))
+      widthsList = c(widthsList, list(theseResults$Q90 - theseResults$Q10))
+    }
+    
+    valMat = do.call("cbind", predsList)
+    zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+    
+    if(thisArea %in% c("Region", "County")) {
+      # determine colorings by area and radius
+      theseAreas = getArea(thisArea)
+      theseRadii = getRadius(thisArea)
+      theseSparsities = getAreaPerObservation(thisArea)
+      
+      colI = cut(theseAreas, breaks=seq(min(theseAreas) - .0001, max(theseAreas) + .0001, l=length(areaColors)+1), labels=FALSE)
+      theseAreaColors = areaColors[colI]
+      colI = cut(theseRadii, breaks=seq(min(theseRadii) - .0001, max(theseRadii) + .0001, l=length(areaColors)+1), labels=FALSE)
+      theseRadiusColors = areaColors[colI]
+      colI = cut(theseSparsities, breaks=seq(min(theseSparsities) - .0001, max(theseSparsities) + .0001, l=length(areaColors)+1), labels=FALSE)
+      theseSparsityColors = areaColors[colI]
+      theseUrbanColors = theseCols
+      sparsityTicks = getAreaPerObservationTicks(thisArea)
+      sparsityTickLabels = as.character(sparsityTicks)
+      sparsityTicks = log(sparsityTicks)
+      
+      # valMat = rbind(1:5, valMat)
+      if(thisArea == "Region")
+        cex = 2.5
+      else
+        cex = 1
+      my_line <- function(x,y,...){
+        if(diff(range(x)) >= .04)
+          xlim = zlim
+        # else
+        #   xlim = zlim2
+        if(diff(range(y)) >= .04)
+          ylim = zlim
+        
+        points(x,y,..., col=theseCols,cex=cex)
+        abline(h=0, lty=2,...)
+      }
+      
+      width = 400 * (numberModels - 1)
+      height = 400
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        y = valMat[,i]
+        x = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=4, col=urbCols, add=TRUE, 
+                 legend.lab = "Urbanicity", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      theseCols = theseAreaColors
+      
+      for(i in 1:(numberModels-1)) {
+        y = valMat[,i]
+        x = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      theseCols = theseRadiusColors
+      
+      for(i in 1:(numberModels-1)) {
+        y = valMat[,i]
+        x = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      browser()
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotSparsityCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      theseCols = theseSparsityColors
+      
+      for(i in 1:(numberModels-1)) {
+        y = valMat[,i]
+        x = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseSparsities), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = expression("Sparsity (km"^2 ~" Per Cluster)"), legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(at=sparsityTicks, labels=sparsityTickLabels, cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseUrbanColors
+      valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
+      zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+      width = 400 * (numberModels - 1)
+      height = 400
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=4, col=urbCols, add=TRUE, 
+                 legend.lab = "Urbanicity", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseAreaColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidthsAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseRadiusColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidthsRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseSparsityColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidthsSparsityCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseSparsities), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = expression("Sparsity (km"^2 ~" Per Cluster)"), legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(at=sparsityTicks, labels=sparsityTickLabels, cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      valMat = do.call("cbind", widthsList)
+      zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+      width = 400 * (numberModels - 1)
+      height = 400
+      theseCols = theseUrbanColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=c(0,1), nlevel=ncols, legend.mar=4, col=urbCols, add=TRUE, 
+                 legend.lab = "Urbanicity", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseAreaColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidthsAreaCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseAreas), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Area (sq. km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseRadiusColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidthsRadiusCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseRadii), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+      
+      theseCols = theseSparsityColors
+      png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidthsSparsityCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, pch=19)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      image.plot(legend.only = TRUE, zlim=range(theseSparsities), nlevel=ncols, legend.mar=4, col=areaColors, add=TRUE, 
+                 legend.lab = expression("Sparsity (km"^2 ~" Per Cluster)"), legend.line=5.0, legend.width=3, legend.shrink=.9, 
+                 legend.cex=1.5, axis.args=list(at=sparsityTicks, labels=sparsityTickLabels, cex.axis=1.5, tck=-1, hadj=-.1))
+      dev.off()
+    } else {
+      thesePointTypes = sapply(theseResults$urban, function(x) {ifelse(x, 15, 17)})
+      
+      my_line <- function(x,y,...){
+        if(diff(range(x)) >= .04)
+          xlim = zlim
+        
+        if(diff(range(y)) >= .04)
+          ylim = zlim
+        
+        # abline(a = 0,b = 1, col=rgb(.4, .4, .4),...)
+        points(x,y,..., col=theseCols, pch=thesePointTypes)
+        abline(h=0, lty=2, ...)
+      }
+      
+      width = 4 * (numberModels - 1)
+      height = 4
+      pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlot", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+      
+      zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Estimates"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, cex=.8)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      dev.off()
+      
+      valMat = do.call("cbind", lapply(1:length(widthsList), function(x) {widthsList[[x]] / predsList[[x]]}))
+      pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotRelWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+      
+      zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Rel. Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
+        my_line(x, y, lwd=1, cex=.8)
+        mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
+      }
+      dev.off()
+      
+      valMat = do.call("cbind", widthsList)
+      zlim = range(sweep(valMat[,-ncol(valMat)], 1, valMat[,ncol(valMat)], function(x,y) {100*(x-y)/y}))
+      pdf(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotWidths", plotNameRoot, extraPlotNameRoot, thisArea, ".pdf"), width=width, height=height)
+      par(mfrow=c(1, 3), oma=c(0,4,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+      
+      for(i in 1:(numberModels-1)) {
+        x = valMat[,i]
+        y = valMat[,numberModels]
+        y = 100 * (x-y)/y
+        ylab = ""
+        
+        plot(x, y, main="", type="n", xlab=bquote(.(modelNames[[numberModels]]) ~ " Width"), ylab="", 
+             ylim=zlim, cex.lab=2, cex.main=2, cex.axis=2, asp=1, log="x")
+        if(i == 1)
+          mtext(side = 2, bquote("Pct. Diff. from " ~ .(modelNames[[numberModels]])), line = 4, cex=2)
         my_line(x, y, lwd=1, cex=.8)
         mtext(side = 3, as.expression(modelNames[[i]]), line = 1, cex=2)
       }
@@ -1244,40 +1824,41 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   
 }
 
-printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="Ed", areaLevels=c("Region", "County"), 
-                                      nDigitsPredictions=3, nDigitsParameters=3, byRow=FALSE) {
-  resultNameRootLower = tolower(resultNameRoot)
+printModelPredictionTables = function(dataType=c("ed", "mort"), resultFilenames=NULL, modelClasses=c("SPDE", "ELK"), modelVariations=c("U", "U"), 
+                                      nDigitsPredictions=3, nDigitsParameters=3, byRow=FALSE, areaLevels=c("Region", "County")) {
   
   dataType = match.arg(dataType)
   if(dataType == "mort") {
     out = load("../U5MR/kenyaData.RData")
     dat = mort
+    resultNameRoot = "Mort"
   }
   else {
     out = load("../U5MR/kenyaDataEd.RData")
     dat = ed
+    resultNameRoot = "Ed"
+  }
+  resultNameRootLower = tolower(resultNameRoot)
+  
+  if(is.null(resultFilenames)) {
+    resultFilenames = c(
+      paste0("savedOutput/", resultNameRoot, "/resultsSPDE", resultNameRootLower, "_urbanEffectTRUE_LgtN.RData"), 
+      paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRangesTRUE_urbanEffectTRUE_LgtN_noUrbanPrior.RData")
+    )
   }
   
-  ##### SPDE estimates
+  ##### load estimates
+  # construct a list of all estimates. First list index is model class, second index is model variation, 
+  # third is aggregation level and parameters
   print("getting SPDE estimates...")
-  
-  includeUrban = TRUE
-  includeCluster = TRUE
-  nameRoot = paste0("SPDE", resultNameRootLower, "_clusterEffect", includeCluster, 
-                    "_urbanEffect", includeUrban)
-  out = load(paste0("savedOutput/results", nameRoot, '.RData'))
+  out = load(resultFilenames[1])
   spdeResultsRegion = results$aggregatedResults$predictions$regionPredictions
   spdeResultsCounty = results$aggregatedResults$predictions$countyPredictions
   spdeParameterTable = results$aggregatedResults$parameterSummary
   
   ##### ELK estimates
   print("getting ELK estimates...")
-  
-  includeUrban = TRUE
-  includeCluster = TRUE
-  nameRoot = paste0("LKINLA", resultNameRootLower, "_clusterEffect", includeCluster, 
-                    "_urbanEffect", includeUrban)
-  out = load(paste0("savedOutput/results", nameRoot, '.RData'))
+  out = load(resultFilenames[2])
   lkinlaResultsRegion = results$aggregatedResults$predictions$regionPredictions
   lkinlaResultsCounty = results$aggregatedResults$predictions$countyPredictions
   lkinlaParameterTable = results$aggregatedResults$parameterSummary
@@ -1305,18 +1886,19 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
     rownames(tab) = NULL
     
     # print out relevant summary statistics about the predictions
-    print(paste0("SPDE UC range of predictions: ", diff(range(as.numeric(tab[,2])))))
-    print(paste0("SPDE UC median 80% CI width: ", median(as.numeric(tab[,4])-as.numeric(tab[,3]))))
-    print(paste0("ELK UC range of predictions: ", diff(range(as.numeric(tab[,5])))))
-    print(paste0("ELK UC median 80% CI width: ", median(as.numeric(tab[,7])-as.numeric(tab[,6]))))
+    print(paste0("SPDE U range of ", thisArea, " predictions: ", diff(range(as.numeric(tab[,2])))))
+    print(paste0("SPDE U median ", thisArea, " 80% CI width: ", median(as.numeric(tab[,4])-as.numeric(tab[,3]))))
+    print(paste0("ELK U range of ", thisArea, " predictions: ", diff(range(as.numeric(tab[,5])))))
+    print(paste0("ELK U median 80% ", thisArea, " CI width: ", median(as.numeric(tab[,7])-as.numeric(tab[,6]))))
     
     # print out the reformatted table
     require(kableExtra)
+    print(paste0("Predictions at ", tolower(thisArea), " level:"))
     fullTab = tab %>%
       kable("latex", escape = F, booktabs = TRUE, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
-            align=c("l", rep("r", ncol(tab) - 1)), longtable=TRUE, caption = "Longtable") %>% 
+            align=c("l", rep("r", ncol(tab) - 1)), longtable=thisArea == "County", caption = thisArea) %>% 
       kable_styling(latex_options =c("repeat_header", "scale_down"))
-    numberColumns = c(" "=1, "SPDE UC"=3, "ELK UC"=3)
+    numberColumns = c(" "=1, "SPDE U"=3, "ELK U"=3)
     print(add_header_above(fullTab, numberColumns, italic=TRUE, bold=TRUE, escape=FALSE, line=TRUE))
   }
   
@@ -1332,7 +1914,8 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   # modify the row names do not include the word "Summary"
   allNames = rownames(parameters)
   # rownames(parameters) = unlist(sapply(allNames, strsplit, split="Summary"))
-  
+  browser()
+  byRow = FALSE
   if(byRow == FALSE)
     nonRangePar = format(parameters[-nrow(parameters),], digits=nDigitsParameters, scientific=FALSE)
   else
@@ -1358,12 +1941,12 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   # rownames(parameters) = unlist(sapply(allNames, strsplit, split="Summary"))
   
   if(byRow == FALSE)
-    nonRangePar = format(parameters[-9,], digits=nDigitsParameters, scientific=FALSE)
+    nonRangePar = format(parameters[-(9:10),], digits=nDigitsParameters, scientific=FALSE)
   else
-    nonRangePar = t(apply(parameters[-9,], 1, format, digits=2, scientific=FALSE))
-  formattedParameters = rbind(nonRangePar[1:8,], format(parameters[3,], digits=0), nonRangePar[9:nrow(nonRangePar),])
-  rownames(formattedParameters) = c("Intercept", "Urban", "Total Var", "Spatial Var", "Cluster Var", "Total SD", "Spatial SD", "Cluster SD", "Range", 
-                                    "alpha1", "alpha2", "alpha3")
+    nonRangePar = t(apply(parameters[-(9:10),], 1, format, digits=2, scientific=FALSE))
+  formattedParameters = rbind(nonRangePar[1:8,], format(parameters[9:10,], digits=0), nonRangePar[9:nrow(nonRangePar),])
+  rownames(formattedParameters) = c("Intercept", "Urban", "Total Var", "Spatial Var", "Cluster Var", "Total SD", "Spatial SD", "Cluster SD", "Range1", "Range2", 
+                                    "alpha1", "alpha2")
   
   # rename the columns
   colnames(formattedParameters) = c("Est", "SD", "Q10", "Q50", "Q90")
@@ -1378,12 +1961,12 @@ printModelPredictionTables = function(dataType=c("mort", "ed"), resultNameRoot="
   parTable = rbind(parTable, formattedParameters)
   
   fullTab = kable(parTable, "latex", booktabs = T, escape=FALSE, format.args=list(drop0trailing=FALSE, scientific=FALSE), 
-                  align=c("l", rep("r", ncol(parTable) - 1)), longtable=TRUE, caption = "Longtable") %>% 
+                  align=c("l", rep("r", ncol(parTable) - 1)), longtable=FALSE, caption = "Parameter") %>% 
     kable_styling(latex_options="repeat_header")
-  nrow(parTable)
+  
   fullTab = fullTab %>% 
-    pack_rows("SPDE UC", 1, 9, escape=FALSE, bold=TRUE, italic=TRUE) %>% 
-    pack_rows("ELK UC", 10, nrow(parTable), escape=FALSE, bold=TRUE, italic=TRUE)
+    pack_rows("SPDE U", 1, 9, escape=FALSE, bold=TRUE, italic=TRUE) %>% 
+    pack_rows("ELK U", 10, nrow(parTable), escape=FALSE, bold=TRUE, italic=TRUE)
   print(fullTab)
 }
 
@@ -1574,6 +2157,12 @@ makeGreenBlueSequentialColors = function(n) {
   # library("colorspace")
   # pal <-choose_palette()
   sequential_hcl(n, h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2)
+}
+
+makePurpleYellowSequentialColors = function(n) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  sequential_hcl(n, h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9)
 }
 
 makeRedBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE) {

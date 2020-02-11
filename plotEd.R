@@ -231,7 +231,9 @@ meanTickLabels = c("0.01", meanTickLabels)
 plotNameRoot = paste0("Education", familyText, urbanPriorText)
 
 # first plot data visualizations
-plotDataVisualizations(plotUrbanMap=FALSE)
+if(FALSE) {
+  plotDataVisualizations(plotUrbanMap=FALSE)
+}
 
 # rather than plot everything with the same color scales, we should use a different color scale for each areal level
 # makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 

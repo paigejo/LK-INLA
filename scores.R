@@ -433,7 +433,7 @@ averageBinnedScores = function(tableList) {
 }
 
 aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c("All", "Urban", "Rural"), predictionType=c("All", "Urban", "Rural"), 
-                                     dat=NULL, targetPop=c("women", "children"), distanceBreaksType=c("quantiles", "even")) {
+                                     dat=NULL, targetPop=c("women", "children"), distanceBreaksType=c("quantiles", "even"), nPerBin=NULL, maxDist=Inf) {
   # NNDist=nndistsAA, NNDistU=nndistsUA, NNDistu=nndistsuA, dataI
   
   targetPop = match.arg(targetPop)
@@ -466,33 +466,36 @@ aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c(
   }
   
   # Now determine distance to which type of point we use
-  distanceType = "A"
+  distanceType = ""
   if(observationType=="Urban") {
     distanceType = "U"
   } else if(observationType == "Rural"){
     distanceType = "u"
   }
-  distanceVar = paste0("NNDist", distanceType, "A")
+  distanceVar = paste0("NNDist", distanceType)
   distances = singleScores[[distanceVar]]
   
   # remove distances beyond the maximum of breaks
   if(length(breaks) != 1) {
-    badDistances = distances >= max(breaks)
-    singleScores = singleScores[!badDistances,]
-    distances = distances[!badDistances]
+    maxDist = min(maxDist, max(breaks))
   }
+  badDistances = distances >= maxDist
+  singleScores = singleScores[!badDistances,]
+  distances = distances[!badDistances]
   
   # sort table by distances
   sortI = sort(distances, index.return=TRUE)$ix
   singleScores = singleScores[sortI,]
+  distances = distances[sortI]
   
   # calculate default breaks for the bin limits if necessary
   if(length(breaks) == 1) {
     nBreaks = breaks
-    if(distanceBreaksType == "even") {
+    if(distanceBreaksType == "even" && is.null(nPerBin)) {
       breaks = seq(0, max(distances), l=nBreaks)
     } else {
-      nPerBin = ceiling(nrow(singleScores)/nBreaks)
+      if(is.null(nPerBin))
+        nPerBin = ceiling(nrow(singleScores)/nBreaks)
       
       # get endpoints of the bins, average their values when calculating breaks
       startI = seq(nPerBin+1, nrow(singleScores), by=nPerBin)
@@ -525,7 +528,9 @@ aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c(
   theseNames = colnames(binnedScores)
   binnedScores = data.frame(temp)
   names(binnedScores) = theseNames
-  as.data.frame(cbind(NNDist=centers[uniqueBinsI], nPerBin=nPerBin[uniqueBinsI], binnedScores))
+  out = as.data.frame(cbind(nPerBin=nPerBin[uniqueBinsI], binnedScores))
+  out[[distanceVar]] = centers[uniqueBinsI]
+  out
 }
 
 
