@@ -4570,14 +4570,16 @@ fixLKModelMixtureCovariance = function(seed=1, nSamples=100, gscratch=TRUE, ...)
     lowerCor=out$lowerCor[sortI]
     corMat=out$corMat[sortI,]
     corMatNoNugget=out$corMatNoNugget[sortI,]
-    covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+    covInfoNew = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
                    corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
     
     # save results
+    covInfoOld = covInfo
+    covInfo = covInfoNew
     if(!gscratch)
-      save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", i, ".RData"))
+      save(scoringRules, fit, covInfo, covInfoOld, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", i, ".RData"))
     else
-      save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", i, ".RData"))
+      save(scoringRules, fit, covInfo, covInfoOld, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", i, ".RData"))
   }
 }
 
