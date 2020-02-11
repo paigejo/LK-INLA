@@ -867,7 +867,7 @@ covarianceDistributionLKINLA = function(latticeInfo, kappaVals, rhoVals=rep(1, l
        cor=meanCor, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
 }
 
-covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVals, rhoVals, nuggetVarVals=rep(0, length(kappaVals)), 
+covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVals, rhoVals, 
                                     maxSamples=100, significanceCI=.8, normalize=TRUE, seed=NULL) {
   NP = 200
   if(!is.null(seed))
@@ -878,11 +878,13 @@ covarianceDistributionLK = function(latticeInfo, alphaVals, lambdaVals, a.wghtVa
   a.wghtVals = matrix(a.wghtVals, ncol=length(lambdaVals))
   
   # get hyperparameter samples
+  nuggetVarVals = rhoVals * lambdaVals
   sampleI = sample(1:length(rhoVals), maxSamples)
   alphaMat = alphaVals[,sampleI]
   lambdaVals = lambdaVals[sampleI]
   a.wghtVals = matrix(a.wghtVals[,sampleI], ncol=maxSamples)
-  nuggetVarVals = rhoVals * lambdaVals
+  nuggetVarVals = nuggetVarVals[sampleI]
+  rhoVals = rhoVals[sampleI]
   
   # generate test locations based on code from LKrig.cov.plot
   xlim <- latticeInfo$latticeInfo$rangeLocations[,1]
