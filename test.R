@@ -4211,7 +4211,7 @@ testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeM
   mixtureCorFun = function(x) { mixtureCovFun(x) * (1 / (1 + sigma2)) }
   
   # compute the covariance function for many different hyperparameter samples
-  out = covarianceDistributionLK(mod$LKinfo, alphaVals, lambdaVals, a.wghtVals, rhoVals, nuggetVarVals)
+  out = covarianceDistributionLK(mod$LKinfo, alphaVals, lambdaVals, a.wghtVals, rhoVals)
   d = out$d
   sortI = sort(d, index.return=TRUE)$ix
   d = d[sortI]
@@ -4421,7 +4421,7 @@ testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeM
 # printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
 # plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / sqrt(8), 
 # testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot
-testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) {
+testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadResults=FALSE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -4432,7 +4432,8 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) 
     thisPlotNameRoot = paste0("sim", i)
     do.call("testLKModelMixture", c(list(seed = allSeeds[i], plotNameRoot=thisPlotNameRoot, gscratch=gscratch), list(...)))
   }
-  sapply(1:nSamples, temp)
+  if(!loadResults)
+    sapply(1:nSamples, temp)
   
   # load in the results
   allScoringRulesGrid = list()
@@ -4537,6 +4538,46 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, ...) 
          leftInScores, 
          aggregatedScores, 
          file=paste0("/work/johnpai/mixtureLKAll_nsim", nSamples, ".RData"))
+  }
+}
+
+# recalculate covariances for the LatticeKrig model
+fixLKModelMixtureCovariance = function(seed=1, nSamples=100, gscratch=TRUE, ...) {
+  # set random seeds for each simulation
+  set.seed(seed)
+  allSeeds = sample(1:1000000, nSamples, replace = FALSE)
+  
+  # load in the results
+  for(i in 1:nSamples) {
+    set.seed(allSeeds[i])
+    print(paste0("Recalculating covariance for simulation ", i, "/", nSamples))
+    if(!gscratch)
+      out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
+    else
+      out = load(paste0("/work/johnpai/mixtureLKsim", i, ".RData"))
+    
+    # calculate covariance
+    out = covarianceDistributionLK(fit$LKinfo, fit$alphaVals, fit$lambdaVals, fit$a.wghtVals, fit$rhoVals)
+    d = out$d
+    sortI = sort(d, index.return=TRUE)$ix
+    d = d[sortI]
+    covMean = out$cov[sortI]
+    upperCov=out$upperCov[sortI]
+    lowerCov=out$lowerCov[sortI]
+    covMat=out$covMat[sortI,]
+    corMean = out$cor[sortI]
+    upperCor=out$upperCor[sortI]
+    lowerCor=out$lowerCor[sortI]
+    corMat=out$corMat[sortI,]
+    corMatNoNugget=out$corMatNoNugget[sortI,]
+    covInfo = list(d=d, covMean=covMean, upperCov=upperCov, lowerCov=lowerCov, covMat=covMat, 
+                   corMean=corMean, upperCor=upperCor, lowerCor=lowerCor, corMat=corMat)
+    
+    # save results
+    if(!gscratch)
+      save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", i, ".RData"))
+    else
+      save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", i, ".RData"))
   }
 }
 
