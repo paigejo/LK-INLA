@@ -4436,7 +4436,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
     sapply(startI:endI, temp)
   
   if(startI != 1 || endI != nSamples)
-    invisible(NULL)
+    return(invisible(NULL))
   
   # load in the results
   allScoringRulesGrid = list()
