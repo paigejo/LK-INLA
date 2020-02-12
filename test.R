@@ -4421,7 +4421,7 @@ testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeM
 # printVerboseTimings=FALSE, n=900, separatea.wght=FALSE, 
 # plotNameRoot="", doMatern=FALSE, fixNu=FALSE, thetas=c(.08, .8) / sqrt(8), 
 # testfrac=.1, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot
-testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadResults=FALSE, ...) {
+testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadResults=FALSE, startI=1, endI=nSamples, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -4433,7 +4433,10 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
     do.call("testLKModelMixture", c(list(seed = allSeeds[i], plotNameRoot=thisPlotNameRoot, gscratch=gscratch), list(...)))
   }
   if(!loadResults)
-    sapply(1:nSamples, temp)
+    sapply(startI:endI, temp)
+  
+  if(startI != 1 || endI != nSamples)
+    invisible(NULL)
   
   # load in the results
   allScoringRulesGrid = list()
@@ -4542,13 +4545,13 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
 }
 
 # recalculate covariances for the LatticeKrig model
-fixLKModelMixtureCovariance = function(seed=1, nSamples=100, gscratch=TRUE, ...) {
+fixLKModelMixtureCovariance = function(seed=1, nSamples=100, gscratch=TRUE, startI=1, endI=nSamples, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
   
   # load in the results
-  for(i in 1:nSamples) {
+  for(i in startI:endI) {
     set.seed(allSeeds[i])
     print(paste0("Recalculating covariance for simulation ", i, "/", nSamples))
     if(!gscratch)
