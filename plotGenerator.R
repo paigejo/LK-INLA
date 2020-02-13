@@ -62,7 +62,7 @@ makeAllPlots = function(dataType=c("ed", "mort"), resultFilenames, modelClasses,
                                  areaLevels, meanRange, meanTicks, meanTickLabels, 
                                  plotNameRoot=plotNameRoot, resultNameRoot, 
                                  meanCols, ncols, urbCols, kenyaLatRange, kenyaLonRange, doModelClassPlots)
-    browser()
+    
     makeFinalPairPlot(dat, resultFilenames, modelClasses, modelVariations, 
                       areaLevels, meanRange, meanTicks, meanTickLabels, 
                       plotNameRoot=plotNameRoot, resultNameRoot, 

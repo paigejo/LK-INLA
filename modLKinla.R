@@ -735,7 +735,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
 # region out validation, and prediction at cluster level
 validateLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"), 
                                   nu=1.5, seed=1, nLayer=3, NC=14,
-                                  nBuffer=5, priorPar=NULL, 
+                                  nBuffer=15, priorPar=NULL, 
                                   normalize=TRUE, fastNormalize=TRUE, latInfo=NULL, 
                                   intStrategy="ccd", strategy="gaussian", 
                                   significanceCI=.8, printVerboseTimings=FALSE, nPostSamples=1000, 
