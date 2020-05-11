@@ -87,7 +87,7 @@ precomputationsQ2 = function(latticeInfo) {
   Bxys = lapply(out, function(x) {x$Bxy})
   Ais = lapply(out, function(x) {x$Ai})
   Bxy = bdiag(Bxys)
-  mBxymBxyT = -Bxy - t(Bxy) # Bxy - t(Bxy)
+  mBxymBxyT = -Bxy - t(Bxy) # - Bxy - t(Bxy)
   BxyTBxy = t(Bxy) %*% Bxy # t(Bxy) %*% Bxy
   A = bdiag(Ais)
   At = t(A)
@@ -622,6 +622,7 @@ meanSegmentLength = function(mesh, filterLargerThan=NULL) {
   mean(dists)
 }
 # meanSegmentLength(getSPDEMeshKenya(), 50)
+# meanSegmentLength(getSPDEMesh(), 0.01+1e-6)
 
 LKINLA.cov = function(x1, x2, latticeInfo, kappa, alphas, rho=1, normalize=TRUE, 
                       fastNormalize=TRUE, 
@@ -1633,7 +1634,9 @@ plotMapDat = function(plotVar=NULL, varCounties=NULL, zlim=NULL, project=FALSE, 
     } else if(length(plotVar) == 8) {
       # shape file found at: https://jlinden.carto.com/tables/kenya_region_shapefile/public
       require(maptools)
-      mapDat = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+      # mapDat = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+      out = load("regionMap.RData")
+      mapDat = regionMap
     } else {
       out = load("../U5MR/adminMapData.RData")
       mapDat = adm0
@@ -1968,7 +1971,9 @@ getArea = function(areaLevel=c("Region", "County")) {
   # load shape files
   require(maptools)
   if(areaLevel == "Region"){
-    thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    # thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    out = load("regionMap.RData")
+    thisMap = regionMap
   } else if(areaLevel == "County"){
     out = load("../U5MR/adminMapData.RData")
     thisMap = adm1
@@ -2005,7 +2010,11 @@ getArea = function(areaLevel=c("Region", "County")) {
   
   # sort results by area name
   if(areaLevel == "Region") {
-    areaNames = as.character(thisMap@data$name)
+    if(!is.null(thisMap@data$name)) {
+      areaNames = as.character(thisMap@data$name)
+    } else {
+      areaNames = as.character(thisMap@data$NAME_1)
+    }
   } else if(areaLevel == "County") {
     areaNames = as.character(thisMap@data$NAME_1)
   }
@@ -2077,7 +2086,9 @@ getRadius = function(areaLevel=c("Region", "County")) {
   # load shape files
   require(maptools)
   if(areaLevel == "Region"){
-    thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    # thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    out = load("regionMap.RData")
+    thisMap = regionMap
   } else if(areaLevel == "County"){
     out = load("../U5MR/adminMapData.RData")
     thisMap = adm1
@@ -2115,7 +2126,11 @@ getRadius = function(areaLevel=c("Region", "County")) {
   
   # sort results by area name
   if(areaLevel == "Region") {
-    areaNames = as.character(thisMap@data$name)
+    if(!is.null(thisMap@data$name)) {
+      areaNames = as.character(thisMap@data$name)
+    } else {
+      areaNames = as.character(thisMap@data$NAME_1)
+    }
   } else if(areaLevel == "County") {
     areaNames = as.character(thisMap@data$NAME_1)
   }
@@ -2133,7 +2148,9 @@ getMeanRadius = function(areaLevel=c("Region", "County")) {
   # load shape files
   require(maptools)
   if(areaLevel == "Region"){
-    thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    # thisMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+    out = load("regionMap.RData")
+    thisMap = regionMap
   } else if(areaLevel == "County"){
     out = load("../U5MR/adminMapData.RData")
     thisMap = adm1
@@ -2205,6 +2222,47 @@ getPredictionDistanceTicks = function(dataType=c("ed", "mort")) {
   
   c(.1, 1, 5, 10, 20, 40, 80)
 }
+
+# combine relevant county polygons into regions (provinces)
+constructRegions = function() {
+  # load relevant packages
+  libs <- c("rgdal", "maptools", "gridExtra")
+  lapply(libs, require, character.only = TRUE)
+  
+  # this is the original map. Not sure why the north western region has been cut off partially
+  # regionMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", 
+  #                           delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+  
+  # load the county map
+  out = load("../U5MR/adminMapData.RData")
+  countyMap = adm1
+  
+  # load the county and province names
+  out = load("../U5MR/kenyaDataEd.RData")
+  dat = ed
+  countyNames = sort(unique(as.character(dat$admin1))) # this is in the same order as in countyMap
+  regionNames = sort(unique(as.character(dat$region))) # this is in the same order as in countyMap
+  
+  # load which counties go to which regions
+  ctp = read.csv("../U5MR/mapData/kenya-prov-county-map.csv")
+  regionIs = match(as.character(countyNames), as.character(ctp[,1]))
+  correspondingRegions = as.character(ctp[regionIs,2])
+  countyToRegion = match(correspondingRegions, regionNames)
+  
+  # combine the spatial polygons for counties to regions
+  zeroBufferCountyMap = rgeos::gBuffer(countyMap, byid=TRUE, width=0) # not sure why this line is necessary, but it prevents this error:
+  # Error in rgeos::gUnaryUnion(spgeom = SpP, id = IDs) : 
+  #   TopologyException: Input geom 1 is invalid: Ring Self-intersection at or near point 37.307811739999998 -0.14557032 at 37.307811739999998 -0.14557032
+  regionMap = unionSpatialPolygons(test, zeroBufferCountyMap)
+  
+  # set the region names
+  regionAttributes = attributes(regionMap)
+  regionAttributes$data = list(NAME_1 = regionNames)
+  attributes(regionMap) = regionAttributes
+  regionMap
+}
+# regionMap = constructRegions()
+# save(regionMap, file="regionMap.RData")
 
 
 

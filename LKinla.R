@@ -49,7 +49,7 @@ makeQPrecomputed = function(precomputedMatrices, kappa=1, rho=1, latticeInfo, al
   if(nLayer == 1 && is.null(alphas))
     alphas = 1
   
-  mBxymBxyT = precomputedMatrices$mBxymBxyT # Bxy - t(Bxy)
+  mBxymBxyT = precomputedMatrices$mBxymBxyT # - Bxy - t(Bxy)
   BxyTBxy = precomputedMatrices$BxyTBxy # t(Bxy) %*% Bxy
   ms = precomputedMatrices$ms
   
@@ -194,7 +194,7 @@ makeA = function(predPts=NULL, latticeInfo, thisLayer=1, theta=NULL, maxLayer=le
 }
 # out = makeQ(nLayer=3, nx=15, ny=15, nu=1, normalized=TRUE, newnormalize= TRUE)})
 
-# makes alpha vector based on theoretical relationship in Nychka 2015 paper Cor 4.2
+# makes alpha vector based on theoretical relationship in Nychka 2015 paper Cor 1 in 4.1
 # NOTE: used to be based on ?LKrig, but it doesn't match the paper or 
 #       what the package actually does (in LKrigSetupAlpha.default)
 getAlphas = function(nLayer=3, nu=.5) {

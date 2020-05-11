@@ -12,7 +12,7 @@ if(family == "binomial")
 
 # modelClasses = c(rep("SPDE", 2), rep("ELK", 4))
 # modelVariations = c("u", "U", "ui", "uI", "Ui", "UI")
-modelClasses = c(rep("SPDE", 2), rep("ELK", 2))
+modelClasses = c(rep("SPDE", 2), rep("ELK-T", 2))
 modelVariations = rep(c("u", "U"), 2)
 # groupPlot = rep(c(FALSE, TRUE), 4)
 
@@ -234,6 +234,7 @@ plotNameRoot = paste0("Education", familyText, urbanPriorText)
 if(FALSE) {
   plotDataVisualizations(plotUrbanMap=FALSE)
 }
+ncols = 29
 
 # rather than plot everything with the same color scales, we should use a different color scale for each areal level
 # makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
@@ -243,48 +244,49 @@ if(FALSE) {
 #              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
 #              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), 
 #              plotUrbanMap=FALSE, makeModelPredictions=TRUE)
-ncols = 29
-makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
-             "Region", 
-             regionPredRange, meanTicks, meanTickLabels, regionWidthRange, regionWidthTicks, regionWidthTickLabels, 
-             regionRelWidthRange, regionRelWidthTicks, regionRelWidthTickLabels, 
-             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
-             widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
-             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE)
 
-makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
-             "County", 
-             countyPredRange, meanTicks, meanTickLabels, countyWidthRange, countyWidthTicks, countyWidthTickLabels, 
-             countyRelWidthRange, countyRelWidthTicks, countyRelWidthTickLabels, 
-             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
-             widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
-             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
-
-makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
-             "Pixel", 
-             pixelPredRange, meanTicks, meanTickLabels, pixelWidthRange, widthTicks, widthTickLabels, 
-             pixelRelWidthRange, relWidthTicks, relWidthTickLabels, 
-             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
-             widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
-             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
-
-makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
-             "Cluster", 
-             clusterPredRange, meanTicks, meanTickLabels, clusterWidthRange, widthTicks, widthTickLabels, 
-             clusterRelWidthRange, relWidthTicks, relWidthTickLabels, 
-             plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
-             widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
-             ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
-             plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
+# makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
+#              "Region", 
+#              regionPredRange, meanTicks, meanTickLabels, regionWidthRange, regionWidthTicks, regionWidthTickLabels, 
+#              regionRelWidthRange, regionRelWidthTicks, regionRelWidthTickLabels, 
+#              plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+#              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
+#              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=TRUE, 
+#              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=TRUE, makePairPlots=TRUE)
+# 
+# makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
+#              "County", 
+#              countyPredRange, meanTicks, meanTickLabels, countyWidthRange, countyWidthTicks, countyWidthTickLabels, 
+#              countyRelWidthRange, countyRelWidthTicks, countyRelWidthTickLabels, 
+#              plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+#              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
+#              ncols=29, urbCols=makeGreenBlueSequentialColors(ncols), loadResults=TRUE, saveResults=FALSE, 
+#              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
+# 
+# makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
+#              "Pixel", 
+#              pixelPredRange, meanTicks, meanTickLabels, pixelWidthRange, widthTicks, widthTickLabels, 
+#              pixelRelWidthRange, relWidthTicks, relWidthTickLabels, 
+#              plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+#              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
+#              ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
+#              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
+# 
+# makeAllPlots(dataType="ed", filenames, modelClasses, modelVariations, 
+#              "Cluster", 
+#              clusterPredRange, meanTicks, meanTickLabels, clusterWidthRange, widthTicks, widthTickLabels, 
+#              clusterRelWidthRange, relWidthTicks, relWidthTickLabels, 
+#              plotNameRoot=plotNameRoot, resultNameRoot="Ed", meanCols=makeRedBlueDivergingColors(64), 
+#              widthCols=makeBlueYellowSequentialColors(64), popCols=makeBlueSequentialColors(64), 
+#              ncols=29, urbCols=makeGreenBlueSequentialColors(29), loadResults=TRUE, saveResults=FALSE, 
+#              plotUrbanMap=FALSE, makeModelPredictions=TRUE, makeCovariograms=FALSE, makePairPlots=TRUE)
 
 # show reduction in oversmoothing
 group = c(1, 3, 2, 4)
 groupPlotName = paste0(plotNameRoot, "oversmoothing")
 lty = c(2, 2, 1, 1)
-col = c(do.call("rgb", as.list(rep(.6, 3))), "black", do.call("rgb", as.list(rep(.6, 3))), "black")
+# col = c(do.call("rgb", as.list(rep(.6, 3))), "black", do.call("rgb", as.list(rep(.6, 3))), "black")
+col = c(rep("skyblue", 2), rep("darkgreen", 2))[group]
 pch = c(1, 1, 19, 19)
 makeAllPlots(dataType="ed", filenames[group], modelClasses[group], modelVariations[group], 
              "Region", 

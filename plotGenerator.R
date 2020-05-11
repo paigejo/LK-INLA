@@ -101,11 +101,11 @@ plotDataVisualizations = function(dataType=c("ed", "mort"), dat=NULL,
   print("generating data visualizations...")
   
   # plot the actual data
-  png(file=paste0("Figures/", resultNameRoot, "/clustersUrban", plotNameRoot, ".png"), width=500, height=500)
-  par(oma=c( 0,0,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+  png(file=paste0("Figures/", resultNameRoot, "/clustersUrban", plotNameRoot, ".png"), width=800, height=800)
+  par(oma=c( 0,0,0,0), mar=c(5.5, 6.1, 3.5, 6))
   urban = dat$urban
   plot(dat$lon[!urban], dat$lat[!urban], pch=19, col="green", main=paste0("Urban vs. rural clusters"), xlim=kenyaLonRange, 
-       ylim=kenyaLatRange, xlab="Longitude", ylab="Latitude", cex=.2, asp=1)
+       ylim=kenyaLatRange, xlab="Longitude", ylab="Latitude", cex=.2, asp=1, cex.axis=2, cex.lab=2, tck=-.03, mgp=c(4, 2, 0), cex.main=2)
   points(dat$lon[urban], dat$lat[urban], pch=19, col="blue", cex=.2)
   # world(add=TRUE)
   plotMapDat(mapDat=adm1, lwd=.5)
@@ -116,14 +116,14 @@ plotDataVisualizations = function(dataType=c("ed", "mort"), dat=NULL,
     # inside this if statement since it takes around ten minutes to run
     makeUrbanMap(kmres=1, savePlot=TRUE, lonLim=kenyaLonRange, latLim=kenyaLatRange, main="")
   }
-  
-  png(file=paste0("Figures/", resultNameRoot, "/empirical", plotNameRoot, ".png"), width=500, height=500)
-  par(oma=c( 0,0,0,2), mar=c(5.1, 4.1, 4.1, 6))
+  browser()
+  png(file=paste0("Figures/", resultNameRoot, "/empirical", plotNameRoot, ".png"), width=800, height=800)
+  par(oma=c( 0,0,0,0), mar=c(5.5, 6.1, 3.5, 6))
   # plot(cbind(dat$lon, dat$lat), type="n", ylim=kenyaLatRange, xlim=kenyaLonRange, 
   #      xlab="Longitude", ylab="Latitude", main=paste0("Empirical ", varName), asp=1)
   plot(cbind(dat$lon, dat$lat), type="n", ylim=kenyaLatRange, xlim=kenyaLonRange, 
-       xlab="Longitude", ylab="Latitude", main="", asp=1)
-  quilt.plot(dat$lon, dat$lat, dat$y / dat$n, nx=100, ny=100, col=meanCols, add=TRUE)
+       xlab="Longitude", ylab="Latitude", main="", asp=1, cex.axis=2, cex.lab=2, tck=-.03, mgp=c(4, 2, 0))
+  quilt.plot(dat$lon, dat$lat, dat$y / dat$n, nx=100, ny=100, col=meanCols, add=TRUE, axis.args=list(cex.axis=2, tck=-.7, hadj=-.1))
   # world(add=TRUE)
   plotMapDat(mapDat=adm1, lwd=.5)
   dev.off()
@@ -161,8 +161,8 @@ plotDataVisualizations = function(dataType=c("ed", "mort"), dat=NULL,
   dev.off()
 }
 
-makeUrbanMap = function(popGrid=NULL, kmres=2.5, savePlot=FALSE, fileName=ifelse(whiteRural, "Figures/UrbanMapWhiteRural.png", "Figures/urbanMap.png"), 
-                        nx=850, ny=1050, width=500, height=500, kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), 
+makeUrbanMap = function(popGrid=NULL, kmres=1, savePlot=FALSE, fileName=ifelse(whiteRural, "Figures/UrbanMapWhiteRural.png", "Figures/urbanMap.png"), 
+                        nx=850, ny=1050, width=800, height=800, kenyaLatRange=c(-4.6, 5), kenyaLonRange=c(33.5, 42.0), 
                         lonLim=kenyaLonRange, latLim=kenyaLatRange, whiteRural=TRUE, main="") {
   # get prediction locations from population grid
   if(is.null(popGrid)) {
@@ -182,9 +182,10 @@ makeUrbanMap = function(popGrid=NULL, kmres=2.5, savePlot=FALSE, fileName=ifelse
   
   if(savePlot) {
     png(file=fileName, width=width, height=height)
-    par(oma=c( 0,0,0,0), mar=c(5.1, 4.1, 4.1, 4.1))
+    par(oma=c( 0,0,0,0), mar=c(5.5, 6.1, 3.5, 6))
   }
-  plot(popGrid$lon, popGrid$lat, xlab="Longitude", ylab="Latitude", main=main, xlim=lonLim, ylim=latLim, asp=1, type="n")
+  plot(popGrid$lon, popGrid$lat, xlab="Longitude", ylab="Latitude", main=main, xlim=lonLim, ylim=latLim, asp=1, type="n", 
+       cex.axis=2, cex.lab=2, tck=-.03, mgp=c(4, 2, 0))
   # quilt.plot(popGrid$lon, popGrid$lat, urban, col=c("green", "blue"), nx=850, ny=1050, add.legend = FALSE, 
   #            xlab="Longitude", ylab="Latitude", main=TeX("Urbanicity"), xlim=lonLim, ylim=latLim, asp=1)
   if(whiteRural)
@@ -198,6 +199,7 @@ makeUrbanMap = function(popGrid=NULL, kmres=2.5, savePlot=FALSE, fileName=ifelse
   if(savePlot) {
     dev.off()
   }
+  browser()
 }
 
 # this function plots central estimates and credible interval widths over a map of Kenya 
@@ -243,7 +245,8 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
   
   # load shape files for plotting
   require(maptools)
-  regionMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+  # regionMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+  out = load("regionMap.RData")
   out = load("../U5MR/adminMapData.RData")
   kenyaMap = adm0
   countyMap = adm1
@@ -299,19 +302,28 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       # out = load(resultFilenames[j])
       # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
       
-      if(thisArea %in% c("Region", "County")) {
+      if(thisArea == "Region") {
         plotMapDat(plotVar=predictionList[[j]], new = TRUE, 
                    main="", scaleFun=logit, scaleFunInverse=expit, 
                    cols=meanCols, zlim=logit(meanRange), ticks=meanTicks, tickLabels=meanTickLabels, 
                    xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
                    legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
                    plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "County") {
+        plotMapDat(plotVar=predictionList[[j]], new = TRUE, 
+                   main="", scaleFun=logit, scaleFunInverse=expit, 
+                   cols=meanCols, zlim=logit(meanRange), ticks=meanTicks, tickLabels=meanTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
       } else if(thisArea == "Pixel"){
         plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
              xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
         quilt.plot(cbind(popGrid$lon, popGrid$lat), logit(predictionList[[j]]), 
                    nx=150, ny=150, add.legend=FALSE, add=TRUE, col=meanCols, zlim=range(logit(meanRange)))
-        plotMapDat(mapDat=thisMap, lwd=.5)
+        plotMapDat(mapDat=countyMap, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
         points(dat$lon, dat$lat, pch=".")
         
         if(thisAddColorBar) {
@@ -339,20 +351,28 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       # out = load(resultFilenames[j])
       # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
       
-      if(thisArea %in% c("Region", "County")) {
+      if(thisArea == "Region") {
         plotMapDat(plotVar=widthList[[j]], new = TRUE, 
                    main="", scaleFun=log, scaleFunInverse=exp, 
                    cols=widthCols, zlim=log(widthRange), ticks=widthTicks, tickLabels=widthTickLabels, 
                    xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
                    legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
                    plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "County") {
+        plotMapDat(plotVar=widthList[[j]], new = TRUE, 
+                   main="", scaleFun=log, scaleFunInverse=exp, 
+                   cols=widthCols, zlim=log(widthRange), ticks=widthTicks, tickLabels=widthTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
       } else if(thisArea == "Pixel") {
-        
         plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
              xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
         quilt.plot(cbind(popGrid$lon, popGrid$lat), log(widthList[[j]]), 
                    nx=150, ny=150, add.legend=FALSE, add=TRUE, col=widthCols, zlim=range(log(widthRange)))
-        plotMapDat(mapDat=thisMap, lwd=.5)
+        plotMapDat(mapDat=countyMap, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
         points(dat$lon, dat$lat, pch=".")
         
         if(thisAddColorBar) {
@@ -401,19 +421,28 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       # out = load(resultFilenames[j])
       # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
       
-      if(thisArea %in% c("Region", "County")) {
+      if(thisArea == "Region") {
         plotMapDat(plotVar=predictionList[[j]], new = TRUE, 
                    main="", scaleFun=logit, scaleFunInverse=expit, 
                    cols=meanCols, zlim=logit(meanRange), ticks=meanTicks, tickLabels=meanTickLabels, 
                    xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
                    legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
                    plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "County") {
+        plotMapDat(plotVar=predictionList[[j]], new = TRUE, 
+                   main="", scaleFun=logit, scaleFunInverse=expit, 
+                   cols=meanCols, zlim=logit(meanRange), ticks=meanTicks, tickLabels=meanTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
       } else if(thisArea == "Pixel"){
         plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
              xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
         quilt.plot(cbind(popGrid$lon, popGrid$lat), logit(predictionList[[j]]), 
                    nx=150, ny=150, add.legend=FALSE, add=TRUE, col=meanCols, zlim=range(logit(meanRange)))
-        plotMapDat(mapDat=thisMap, lwd=.5)
+        plotMapDat(mapDat=countyMap, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
         points(dat$lon, dat$lat, pch=".")
         
         if(thisAddColorBar) {
@@ -441,20 +470,28 @@ plotModelPredictions = function(dat, resultFilenames, modelClasses, modelVariati
       # out = load(resultFilenames[j])
       # theseResults = results$aggregatedResults$predictions[[paste0(tolower(thisArea), "Predictions")]]
       
-      if(thisArea %in% c("Region", "County")) {
+      if(thisArea == "Region") {
         plotMapDat(plotVar=widthList[[j]], new = TRUE, 
                    main="", scaleFun=log, scaleFunInverse=exp, 
                    cols=widthCols, zlim=log(relWidthRange), ticks=relWidthTicks, tickLabels=relWidthTickLabels, 
                    xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
                    legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
                    plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0)
+      } else if(thisArea == "County") {
+        plotMapDat(plotVar=widthList[[j]], new = TRUE, 
+                   main="", scaleFun=log, scaleFunInverse=exp, 
+                   cols=widthCols, zlim=log(relWidthRange), ticks=relWidthTicks, tickLabels=relWidthTickLabels, 
+                   xlim=kenyaLonRange, ylim=kenyaLatRange, addColorBar = thisAddColorBar, 
+                   legendArgs=list(axis.args=list(cex.axis=2, tck=-.7, hadj=-.1), legend.cex=2, smallplot= c(.97,1,.1,.9)), legend.width=3, 
+                   plotArgs=list(cex.main=3, cex.axis=2, cex.lab=2), legend.mar=0, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
       } else if(thisArea == "Pixel") {
-        
         plot(cbind(popGrid$lon, popGrid$lat), type="n", main="", ylim=kenyaLatRange, 
              xlim=kenyaLonRange, xlab="Longitude", ylab="Latitude", asp=1, cex.main=3, cex.axis=2, cex.lab=2)
         quilt.plot(cbind(popGrid$lon, popGrid$lat), log(widthList[[j]]), 
                    nx=150, ny=150, add.legend=FALSE, add=TRUE, col=widthCols, zlim=range(log(relWidthRange)))
-        plotMapDat(mapDat=thisMap, lwd=.5)
+        plotMapDat(mapDat=countyMap, lwd=.5, border=rgb(.4,.4,.4))
+        plotMapDat(mapDat=regionMap, lwd=2.5)
         points(dat$lon, dat$lat, pch=".")
         
         if(thisAddColorBar) {
@@ -1155,7 +1192,7 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
                  legend.lab = "Radius (km)", legend.line=5.0, legend.width=3, legend.shrink=.9, 
                  legend.cex=1.5, axis.args=list(cex.axis=1.5, tck=-1, hadj=-.1))
       dev.off()
-      browser()
+      
       png(file=paste0("Figures/", resultNameRoot, "/finalPercentResidualPlotSparsityCol", plotNameRoot, extraPlotNameRoot, thisArea, ".png"), width=width, height=height)
       par(mfrow=c(1, 3), oma=c(0,4,0,5), mar=c(5.1, 4.1, 4.1, 6))
       theseCols = theseSparsityColors
@@ -1364,6 +1401,7 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
     } else {
       urbanPointTypes = sapply(theseResults$urban, function(x) {ifelse(x, 15, 17)})
       thesePointTypes = urbanPointTypes
+      theseUrbanColors = theseCols
       
       # determine colorings by distance to observation
       if(thisArea == "Pixel") {
@@ -1541,15 +1579,15 @@ makeFinalPercentResidualPlot = function(dat, resultFilenames, modelClasses, mode
 
 plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations, 
                             varName="education", plotNameRoot="Education", resultNameRoot="Ed", 
-                            cgramList=NULL, loadResults=FALSE, saveResults=!loadResults, cols=NULL, 
+                            cgramList=NULL, loadResults=FALSE, saveResults=!loadResults, col=NULL, 
                             doModelClassPlots=FALSE, lty=1, pch=19, hNuggetShift=-3) {
   plotNameRootLower = tolower(plotNameRoot)
   resultNameRootLower = tolower(resultNameRoot)
   numberModels = length(resultFilenames)
   uniqueModelClasses = unique(modelClasses)
   
-  if(is.null(cols))
-    cols = rainbow(length(modelClasses))
+  if(is.null(col))
+    col = rainbow(length(modelClasses))
   
   binomialFamily = grepl("LgtN", resultFilenames[1])
   
@@ -1647,12 +1685,12 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
       thisModelClasses = modelClasses[thisI]
       thisModelVariations = modelVariations[thisI]
       thiscgramList = cgramList[thisI]
-      thisColors = cols[thisI]
+      thisColors = col[thisI]
       thispch = pch[thisI]
       thislty = lty[thisI]
       plotCovariograms(dat, thisResultFilenames, thisModelClasses, thisModelVariations, 
                        varName, plotNameRoot, resultNameRoot, thiscgramList, 
-                       loadResults=TRUE, saveResults=FALSE, cols=thisColors, lty=thislty, 
+                       loadResults=TRUE, saveResults=FALSE, col=thisColors, lty=thislty, 
                        pch=thispch, hNuggetShift=hNuggetShift)
     }
   }
@@ -1712,7 +1750,7 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
   
   ##### Plot everything
   print("Plotting covariograms...")
-  # cols = rainbow(numberModels)
+  # col = rainbow(numberModels)
   # width = 4 * ceiling(numberModels/2)
   
   pdf(file=paste0("Figures/", resultNameRoot, "/covariogramsAll", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
@@ -1739,35 +1777,35 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
-             ylim=yRange, xlim=range(d), col=cols[j])
-        lines(d[!d0], covMean[!d0], col=cols[j])
+        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, main="", xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRange, xlim=range(d), col=col[j])
+        lines(d[!d0], covMean[!d0], col=col[j], lwd=2)
       } else {
-        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, col=cols[j])
-        lines(d[!d0], covMean[!d0], col=cols[j])
+        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, col=col[j])
+        lines(d[!d0], covMean[!d0], col=col[j], lwd=2)
       }
       
-      points(hNuggetShift, mean(lowerCov[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
-      lines(d[!d0], lowerCov[!d0], col=cols[j], lty=2)
-      points(hNuggetShift, mean(upperCov[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
-      lines(d[!d0], upperCov[!d0], col=cols[j], lty=2)
+      points(hNuggetShift, mean(lowerCov[d0]), pch=pch[j], cex=.2, col=col[j], lty=2)
+      lines(d[!d0], lowerCov[!d0], col=col[j], lty=2, lwd=2)
+      points(hNuggetShift, mean(upperCov[d0]), pch=pch[j], cex=.2, col=col[j], lty=2)
+      lines(d[!d0], upperCov[!d0], col=col[j], lty=2, lwd=2)
     } else {
       if(j == 1) {
-        plot(d, covMean, type="l", main=paste0("Covariance estimates and 80% CIs"), xlab="Distance (km)", ylab="Covariance", 
-             ylim=yRange, col=cols[j])
+        plot(d, covMean, type="l", main="", xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRange, col=col[j], lwd=2)
       } else {
-        lines(d, covMean, col=cols[j])
+        lines(d, covMean, col=col[j], lwd=2)
       }
       
-      lines(d, lowerCov, lty=2, col=cols[j])
-      lines(d, upperCov, lty=2, col=cols[j])
+      lines(d, lowerCov, lty=2, col=col[j], lwd=2)
+      lines(d, upperCov, lty=2, col=col[j], lwd=2)
     }
     
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
   }
-  legend("topright", as.expression(allModelNames), lty=1, col=cols, cex=ifelse(numberModels >= 5, .7, 1))
+  legend("topright", as.expression(allModelNames), lty=1, col=col, cex=ifelse(numberModels >= 5, .7, 1))
   dev.off()
   
   pdf(file=paste0("Figures/", resultNameRoot, "/covariogramsAllNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
@@ -1793,29 +1831,29 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
-             ylim=yRangeNoCIs, xlim=range(d), col=cols[j], lty=lty[j])
-        lines(d[!d0], covMean[!d0], col=cols[j], lty=lty[j])
+        plot(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.8, main="", xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRangeNoCIs, xlim=range(d), col=col[j], lty=lty[j])
+        lines(d[!d0], covMean[!d0], col=col[j], lty=lty[j], lwd=2)
       } else {
-        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.4, col=cols[j], lty=lty[j])
-        lines(d[!d0], covMean[!d0], col=cols[j], lty=lty[j])
+        points(hNuggetShift, mean(covMean[d0]), pch=pch[j], cex=.8, col=col[j], lty=lty[j])
+        lines(d[!d0], covMean[!d0], col=col[j], lty=lty[j], lwd=2)
         }
     } else {
       if(j == 1) {
-        plot(d, covMean, type="l", main=paste0("Covariance estimates"), xlab="Distance (km)", ylab="Covariance", 
-             ylim=yRangeNoCIs, col=cols[j], lty=lty[j])
+        plot(d, covMean, type="l", main="", xlab="Distance (km)", ylab="Covariance", 
+             ylim=yRangeNoCIs, col=col[j], lty=lty[j], lwd=2)
       } else {
-        lines(d, covMean, col=cols[j], lty=lty[j])
+        lines(d, covMean, col=col[j], lty=lty[j], lwd=2)
       }
     }
     
-    # lines(d, lowerCov, lty=2, col=cols[j])
-    # lines(d, upperCov, lty=2, col=cols[j])
+    # lines(d, lowerCov, lty=2, col=col[j])
+    # lines(d, upperCov, lty=2, col=col[j])
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
   }
-  legend("topright", as.expression(allModelNames), lty=lty, col=cols, cex=ifelse(numberModels >= 5, .5, 1))
+  legend("topright", as.expression(allModelNames), lty=lty, col=col, cex=ifelse(numberModels >= 5, .5, 1))
   dev.off()
   
   print("Plotting correlograms...")
@@ -1843,34 +1881,34 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
-             ylim=c(0,1), xlim=range(d), col=cols[j])
-        lines(d[!d0], corMean[!d0], col=cols[j])
+        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, main="", xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), xlim=range(d), col=col[j])
+        lines(d[!d0], corMean[!d0], col=col[j], lwd=2)
       } else {
-        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, col=cols[j])
-        lines(d[!d0], corMean[!d0], col=cols[j])
+        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, col=col[j])
+        lines(d[!d0], corMean[!d0], col=col[j], lwd=2)
       }
       
-      points(hNuggetShift, mean(lowerCor[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
-      lines(d[!d0], lowerCor[!d0], col=cols[j], lty=2)
-      points(hNuggetShift, mean(upperCor[d0]), pch=pch[j], cex=.2, col=cols[j], lty=2)
-      lines(d[!d0], upperCor[!d0], col=cols[j], lty=2)
+      points(hNuggetShift, mean(lowerCor[d0]), pch=pch[j], cex=.2, col=col[j], lty=2)
+      lines(d[!d0], lowerCor[!d0], col=col[j], lty=2, lwd=2)
+      points(hNuggetShift, mean(upperCor[d0]), pch=pch[j], cex=.2, col=col[j], lty=2)
+      lines(d[!d0], upperCor[!d0], col=col[j], lty=2, lwd=2)
     } else {
       if(j == 1) {
-        plot(d, corMean, type="l", main=paste0("Correlation estimates and 80% CIs"), xlab="Distance (km)", ylab="Correlation", 
-             ylim=c(0,1), col=cols[j])
+        plot(d, corMean, type="l", main="", xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), col=col[j], lwd=2)
       } else {
-        lines(d, corMean, col=cols[j])
+        lines(d, corMean, col=col[j], lwd=2)
       }
       
-      lines(d, lowerCor, lty=2, col=cols[j])
-      lines(d, upperCor, lty=2, col=cols[j])
+      lines(d, lowerCor, lty=2, col=col[j], lwd=2)
+      lines(d, upperCor, lty=2, col=col[j], lwd=2)
     }
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
   }
-  legend("topright", as.expression(allModelNames), lty=1, col=cols, cex=ifelse(numberModels >= 5, .5, 1))
+  legend("topright", as.expression(allModelNames), lty=1, col=col, cex=ifelse(numberModels >= 5, .5, 1))
   dev.off()
   
   pdf(file=paste0("Figures/", resultNameRoot, "/correlogramsAllNoCIs", plotNameRoot, extraPlotNameRoot, ".pdf"), width=5, height=5)
@@ -1896,29 +1934,29 @@ plotCovariograms = function(dat, resultFilenames, modelClasses, modelVariations,
     if(binomialFamily) {
       d0 = d == 0
       if(j == 1) {
-        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
-             ylim=c(0,1), xlim=range(d), col=cols[j], lty=lty[j])
-        lines(d[!d0], corMean[!d0], col=cols[j], lty=lty[j])
+        plot(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.8, main="", xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), xlim=range(d), col=col[j], lty=lty[j])
+        lines(d[!d0], corMean[!d0], col=col[j], lty=lty[j], lwd=2)
       } else {
-        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.4, col=cols[j], lty=lty[j])
-        lines(d[!d0], corMean[!d0], col=cols[j], lty=lty[j])
+        points(hNuggetShift, mean(corMean[d0]), pch=pch[j], cex=.8, col=col[j], lty=lty[j])
+        lines(d[!d0], corMean[!d0], col=col[j], lty=lty[j], lwd=2)
       }
     } else {
       if(j == 1) {
-        plot(d, corMean, type="l", main=paste0("Correlation estimates"), xlab="Distance (km)", ylab="Correlation", 
-             ylim=c(0,1), col=cols[j], lty=lty[j])
+        plot(d, corMean, type="l", main="", xlab="Distance (km)", ylab="Correlation", 
+             ylim=c(0,1), col=col[j], lty=lty[j], lwd=2)
       } else {
-        lines(d, corMean, col=cols[j], lty=lty[j])
+        lines(d, corMean, col=col[j], lty=lty[j], lwd=2)
       }
     }
     
-    # lines(d, lowerCor, lty=2, col=cols[j])
-    # lines(d, upperCor, lty=2, col=cols[j])
+    # lines(d, lowerCor, lty=2, col=col[j])
+    # lines(d, upperCor, lty=2, col=col[j])
     # lines(d, mixtureCovFun(d), col="green")
     # legend("topright", c("Truth", "Estimate", "80% CI"), lty=c(1, 1, 2), col=c("green", "black", "black"))
     
   }
-  legend("topright", as.expression(allModelNames), lty=lty, col=cols, cex=ifelse(numberModels >= 5, .5, 1))
+  legend("topright", as.expression(allModelNames), lty=lty, col=col, cex=ifelse(numberModels >= 5, .5, 1))
   dev.off()
   
 }
@@ -2108,7 +2146,8 @@ plotSingleModelPredictions = function(dat=NULL, results, modelName="", targetPop
   
   # load shape files for plotting
   require(maptools)
-  regionMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+  # regionMap = readShapePoly("../U5MR/mapData/kenya_region_shapefile/kenya_region_shapefile.shp", delete_null_obj=TRUE, force_ring=TRUE, repair=TRUE)
+  out = load("regionMap.RData")
   out = load("../U5MR/adminMapData.RData")
   kenyaMap = adm0
   countyMap = adm1
@@ -2246,85 +2285,130 @@ plotSingleModelPredictions = function(dat=NULL, results, modelName="", targetPop
 
 ##### The rest of the functions in this script are utility functions for plotting
 
-makeRedBlueSequentialColors = function(n) {
+makeRedBlueSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  sequential_hcl(n, h1=10, h2=-115, c1=100, c2=100, l1=44, l2=59, p1=0, p2=2.3)
+  if(!ggplot)
+    sequential_hcl(n, h1=10, h2=-115, c1=100, c2=100, l1=44, l2=59, p1=0, p2=2.3)
+  else
+    scale_colour_continuous_sequential(h1=10, h2=-115, c1=100, c2=100, l1=44, l2=59, p1=0, p2=2.3, n_interp=n)
 }
 
-makeGreenBlueSequentialColors = function(n) {
+makeGreenBlueSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  sequential_hcl(n, h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2)
+  if(!ggplot)
+    sequential_hcl(n, h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2)
+  else
+    scale_colour_continuous_sequential(h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2, n_interp=n)
 }
 
-makePurpleYellowSequentialColors = function(n) {
+makePurpleYellowSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  sequential_hcl(n, h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9)
+  if(!ggplot)
+    sequential_hcl(n, h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9)
+  else
+    scale_colour_continuous_sequential(h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9, n_interp=n)
 }
 
-makeRedBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE) {
+makeRedBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  if(is.null(valRange)  || is.null(center)) {
-    diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, rev=rev)
+  if(is.null(valRange) && is.null(center)) {
+    # diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, p2=0.6)
+    if(!ggplot)
+      diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, rev=rev)
+    else
+      scale_colour_continuous_diverging(h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, rev=rev, n_interp=n)
+  }
+  else {
+    # in this case we want white to be at the center of valRange if center is NULL
+    if(!ggplot) {
+      propUp = (valRange[2] - center) / diff(valRange)
+      propDown = 1 - propUp
+      totalColors = ceiling(2 * max(propUp, propDown) * n)
+      tempColors = makeRedBlueDivergingColors(totalColors, rev=rev)
+      totalMissingColors = totalColors - n
+      
+      if(propUp >= propDown)
+        tempColors[-(1:totalMissingColors)]
+      else
+        tempColors[1:n]
+    } else {
+      if(is.null(center))
+        center = min(valRange) + abs(diff(valRange))/2
+      scale_colour_continuous_diverging(h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, rev=rev, n_interp=n, mid=center)
+    }
+  }
+}
+
+makeRedGrayBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  if(is.null(valRange) && is.null(center)) {
+    if(!ggplot)
+      diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=90, p1=0.9, rev=rev)
+    if(!ggplot)
+      scale_colour_continuous_diverging(n.interp, h1=10, h2=-115, c1=90, l1=40, l2=90, p1=0.9, rev=rev)
     # diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, p2=0.6)
   }
   else {
-    # in this case we want white to be at the center of valRange
-    propUp = (valRange[2] - center) / diff(valRange)
-    propDown = 1 - propUp
-    totalColors = ceiling(2 * max(propUp, propDown) * n)
-    tempColors = makeRedBlueDivergingColors(totalColors, rev=rev)
-    totalMissingColors = totalColors - n
-    
-    if(propUp >= propDown)
-      tempColors[-(1:totalMissingColors)]
-    else
-      tempColors[1:n]
+    # in this case we want white to be at the center of valRange if center is NULL
+    if(!ggplot) {
+      propUp = (valRange[2] - center) / diff(valRange)
+      propDown = 1 - propUp
+      totalColors = ceiling(2 * max(propUp, propDown) * n)
+      tempColors = makeRedGrayBlueDivergingColors(totalColors, rev=rev)
+      totalMissingColors = totalColors - n
+      
+      if(propUp >= propDown)
+        tempColors[-(1:totalMissingColors)]
+      else
+        tempColors[1:n]
+    } else {
+      if(is.null(center))
+        center = min(valRange) + abs(diff(valRange))/2
+      scale_colour_continuous_diverging(n.interp, h1=10, h2=-115, c1=90, l1=40, l2=90, p1=0.9, rev=rev, mid=center)
+    }
   }
 }
 
-makeRedGrayBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE) {
-  # library("colorspace")
-  # pal <-choose_palette()
-  if(is.null(valRange)  || is.null(center)) {
-    diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=90, p1=0.9, rev=rev)
-    # diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, p2=0.6)
-  }
-  else {
-    # in this case we want white to be at the center of valRange
-    propUp = (valRange[2] - center) / diff(valRange)
-    propDown = 1 - propUp
-    totalColors = ceiling(2 * max(propUp, propDown) * n)
-    tempColors = makeRedGrayBlueDivergingColors(totalColors, rev=rev)
-    totalMissingColors = totalColors - n
-    
-    if(propUp >= propDown)
-      tempColors[-(1:totalMissingColors)]
-    else
-      tempColors[1:n]
-  }
-}
-
-makeBlueSequentialColors = function(n) {
+makeBlueSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
   # sequential_hcl(n, h1=260, c1=80, l1=30, l2=90, p1=1.5, rev=TRUE)
-  sequential_hcl(n, h1=245, c1=50, cmax=75, l1=20, l2=98, p1=0.8, rev=TRUE)
+  if(!ggplot)
+    sequential_hcl(n, h1=245, c1=50, cmax=75, l1=20, l2=98, p1=0.8, rev=TRUE)
+  else
+    scale_colour_continuous_sequential(h1=245, c1=50, cmax=75, l1=20, l2=98, p1=0.8, rev=TRUE, n_interp=n)
 }
 
-makeBlueYellowSequentialColors = function(n) {
+makeBlueYellowSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  sequential_hcl(n, h1=300, h2=75, c1=40, c2=95, l1=15, l2=90, p1=1.0, p2=1.1)
+  if(!ggplot)
+    sequential_hcl(n, h1=300, h2=75, c1=40, c2=95, l1=15, l2=90, p1=1.0, p2=1.1)
+  else
+    scale_colour_continuous_sequential(h1=300, h2=75, c1=40, c2=95, l1=15, l2=90, p1=1.0, p2=1.1, n_interp=n)
 }
 
-makeRedGreenDivergingColors = function(n) {
+makeYellowRedSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
-  diverging_hcl(n, h1=265, h2=101, c1=100, l1=50, l2=92, p1=0.6, p2=1.5)
+  if(!ggplot)
+    sequential_hcl(n, h1=15, h2=79, c1=100, c2=52, l1=55, l2=95, p1=1.2)
+  else
+    scale_colour_continuous_sequential(h1=15, h2=79, c1=100, c2=52, l1=55, l2=95, p1=1.2, n_interp=n)
+}
+
+makeRedGreenDivergingColors = function(n, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  if(!ggplot)
+    sequential_hcl(n, h1=265, h2=101, c1=100, l1=50, l2=92, p1=0.6, p2=1.5)
+  else
+    scale_colour_continuous_sequential(h1=265, h2=101, c1=100, l1=50, l2=92, p1=0.6, p2=1.5, n_interp=n)
 }
 
 myPairs = function(x, labels, panel = points, ..., horInd = 1:nc, verInd = 1:nc, 
@@ -2632,6 +2716,34 @@ generatePlottingSymbols = function() {
   plot.new()
   plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
   points(0, -0.5, pch=15, cex=1, col=urbCols[29])
+  dev.off()
+  
+  pdf('Figures/Illustrations/blueDisc.pdf', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=19, cex=1, col="skyblue")
+  dev.off()
+  
+  pdf('Figures/Illustrations/blueCircle', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=1, cex=1, col="skyblue")
+  dev.off()
+  
+  pdf('Figures/Illustrations/greenDisc.pdf', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=19, cex=1, col="darkgreen")
+  dev.off()
+  
+  pdf('Figures/Illustrations/greenCircle', width=.2, height=.2)
+  par(mar=c(0,0,0,0))
+  plot.new()
+  plot.window(xlim=c(-1,1),ylim=c(-1,1), xaxs="i", yaxs="i")
+  points(0, -0.5, pch=1, cex=1, col="darkgreen")
   dev.off()
 }
 

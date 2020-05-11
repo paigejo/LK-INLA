@@ -4540,7 +4540,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
          leftOutScores, 
          leftInScores, 
          aggregatedScores, 
-         file=paste0("/work/johnpai/mixtureLKAll_nsim", nSamples, ".RData"))
+         file=paste0("/work/johnpai/simulations/mixtureLKAll_nsim", nSamples, ".RData"))
   }
 }
 

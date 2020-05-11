@@ -140,8 +140,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                              data =list(y=obsValues, link=1), 
                              tag ="est", 
                              remove.unused=FALSE)
-      stack.pred = inla.stack(A =list(APred, 1), 
-                              effects =list(field=latticeInds, X=xPred), 
+      stack.pred = inla.stack(A =list(matrix(APred[1,], nrow=1), 1), 
+                              effects =list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
                               remove.unused=FALSE)
@@ -151,7 +151,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                              data =list(y=obsValues, link=1), 
                              tag ="est", 
                              remove.unused=FALSE)
-      stack.pred = inla.stack(A =list(APred), 
+      stack.pred = inla.stack(A =list(matrix(APred[1,], nrow=1)), 
                               effects =list(field=latticeInds), 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
@@ -189,15 +189,15 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
       }
     }
     if(!is.null(xObs)) {
-      stack.pred = inla.stack(A =list(APred, 1), 
-                              effects =list(field=latticeInds, X=xPred), 
-                              data =list(y=NA, link=1, Ntrials=rep(1, nrow(APred)), 
+      stack.pred = inla.stack(A =list(matrix(APred[1,], nrow=1), 1), 
+                              effects =list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
+                              data =list(y=NA, link=1, Ntrials=1, 
                                          tag ="pred"), 
                               remove.unused=FALSE)
     } else {
-      stack.pred = inla.stack(A =list(APred), 
+      stack.pred = inla.stack(A =list(matrix(APred[1,], nrow=1)), 
                               effects =list(field=latticeInds), 
-                              data =list(y=NA, link=1, Ntrials=rep(1, nrow(APred)), 
+                              data =list(y=NA, link=1, Ntrials=1, 
                                          tag ="pred"), 
                               remove.unused=FALSE)
     }

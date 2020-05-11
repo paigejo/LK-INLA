@@ -428,7 +428,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   # 
   # parameterDrawTable = apply(rbind(1:nsimConditional, parSim), 2, getMLEs)
   
-  totalVariance = mod$rho.MLE + mod$sigma.MLE
+  totalVariance = mod$rho.MLE + mod$sigma.MLE^2
   
   if(!separatea.wght) {
     if(!doMatern) {
