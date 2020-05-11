@@ -3838,7 +3838,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
 #                                   effRangeRange=NULL, urbanOverSamplefrac=0, 
 #                                   intStrategy="ccd", strategy="gaussian", separateRanges=FALSE, 
 #                                   leaveOutRegion=TRUE) {
-testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
+testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, startI=1, endI=nSamples, loadResults=FALSE, NC=14, nLayer=3, separateRanges=FALSE, n=900, nu=1, sigma2=0.1^2, 
                                           useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, gscratch=TRUE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
@@ -3890,7 +3890,11 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, NC=14, nLayer=3,
                                              loadPrecomputationResults=loadPrecomputationResults, 
                                              precomputationFileNameRoot=precomputationFileNameRoot), list(...)))
   }
-  sapply(1:nSamples, temp)
+  if(!loadResults)
+    sapply(startI:endI, temp)
+  
+  if(startI != 1 || endI != nSamples)
+    return(invisible(NULL))
   
   # save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
   allScoringRulesGrid = list()
