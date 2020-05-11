@@ -3554,7 +3554,7 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   else
     alphaI = 4:(3+nLayer-1)
   zSamples = matrix(out[,alphaI], ncol=length(alphaI))
-  xSamples = t(matrix(apply(zSamples, 1, multivariateExpit), ncol=length(alphaI)))
+  xSamples = matrix(apply(zSamples, 1, multivariateExpit), nrow=length(alphaI))
   xSamples = rbind(xSamples, 1-colSums(xSamples))
   
   for(l in 1:nLayer) {
