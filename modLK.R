@@ -101,6 +101,9 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
                          separatea.wght=FALSE, 
                          doMatern=FALSE, 
                          fixNu=FALSE) {
+  
+  startTime = startTimeSetup = proc.time()[3]
+  
   # if(!simpleMod)
   #   stop("non simple models not yet supported for LatticeKrig prediction function")
   
@@ -247,7 +250,8 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   # Maximum Likelihood
   if(verbose)
     print("Beginning LatticeKrig MLE fit...")
-  
+  endTimeSetup = startTimeFitModel = proc.time()[3]
+  totalTimeSetup = endTimeSetup - startTimeSetup
   result <- try(optim(init,
                       outerFun, 
                       lower=lower, 
@@ -278,27 +282,48 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
                       fixedFunction=fixedFunction, fixedFunctionArgs=fixedFunctionArgs)
   if(is.null(xObs) || is.null(xPred)) {
     mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo)
+    endTimeFitModel = proc.time()[3]
+    totalTimeFitModel = endTimeFitModel - startTimeFitModel
+    
+    startTimePrediction = proc.time()[3]
     preds = predict.LKrig(mod, predCoords)
+    startTimeSEs = endTimePrediction = proc.time()[3]
+    totalTimePrediction = endTimePrediction - startTimePrediction
+    
     if(doSEs)
       predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, M=nsimConditional)
     else
       predSimulations = NULL
   } else {
     mod = LKrig(obsCoords, obsValues, LKinfo=LKinfo, Z=xObs)
+    endTimeFitModel = proc.time()[3]
+    totalTimeFitModel = endTimeFitModel - startTimeFitModel
+    
+    startTimePrediction = proc.time()[3]
     preds = predict.LKrig(mod, predCoords, Znew=xPred)
+    startTimeSEs = endTimePrediction = proc.time()[3]
+    totalTimePrediction = endTimePrediction - startTimePrediction
+    
     if(doSEs)
       predSimulations = LKrig.sim.conditional(mod, x.grid=predCoords, Z.grid=xPred, M=nsimConditional)
     else
       predSimulations=NULL
   }
   
-  # calculate predictive standard errors
-  predSEs = predSimulations$SE
+  # get predictive standard errors
+  predSEsNoNugget = predSimulations$SE
+  predSEs = sqrt(predSimulations$SE^2 + mod$sigma.MLE^2)
   
-  # calculate confidence intervals
+  # calculate prediction confidence intervals
   lower = preds + qnorm((1 - significanceCI) / 2, sd=predSEs)
   medians = preds
   upper = preds + qnorm(1 - (1 - significanceCI) / 2, sd=predSEs)
+  lowerNoNugget = preds + qnorm((1 - significanceCI) / 2, sd=predSEsNoNugget)
+  mediansNoNugget = preds
+  upperNoNugget = preds + qnorm(1 - (1 - significanceCI) / 2, sd=predSEsNoNugget)
+  
+  endTimeSEs = proc.time()[3]
+  totalTimeSEs = endTimeSEs - startTimeSEs
   
   ## now we calculate uncertainty intervals for all parameters
   # intercept
@@ -312,6 +337,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # to calculate summaries for the parameters, must calculate inverse of negative hessian
   print("Calculating hessian...")
+  startTimeCovSEs = proc.time()[3]
   hess = hessian(outerFun, result$par, thisVerbose=FALSE)
   parSigma = solve(-hess)
   
@@ -458,6 +484,22 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   rhoVals = (1 / lambdaVals) * totalVariance / (1 + 1 / lambdaVals)
   nuggetVarVals = lambdaVals * totalVariance / (1 + lambdaVals)
   
+  # calculate timings
+  endTime = endTimeCovSEs = proc.time()[3]
+  totalTimeCovSEs = endTimeCovSEs - startTimeCovSEs
+  
+  totalTime = endTime - startTime
+  timings = data.frame(totalTime=totalTime, 
+                       setupTime=totalTimeSetup, 
+                       modelFitTime=totalTimeFitModel, 
+                       SETime=totalTimeSEs, 
+                       covSETime=totalTimeCovSEs, 
+                       otherTime=totalTime-(setupTime + modelFitTime + SETime + covSETime))
+  timings$setupTimePct = timings$setupTime / timings$totalTime
+  timings$modelFitTimePct = timings$modelFitTime / timings$totalTime
+  timings$SETimePct = timings$SETime / timings$totalTime
+  timings$covSETimePct = timings$covSETime / timings$totalTime
+  timings$otherTimePct = timings$otherTime / timings$totalTime
   
   ## preds
   ## sigmas
@@ -468,9 +510,10 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   ## sdSummary
   ## varSummary
   return(list(mod=mod, preds=preds, sigmas=predSEs, lower=lower, medians=medians, upper=upper, parameterSummaryTable=parameterSummaryTable, LKinfo=LKinfo, 
+              sigmasNoNugget=predSEsNoNugget, lowerNoNugget=lowerNoNugget, mediansNoNugget=mediansNoNugget, upperNoNugget=upperNoNugget, 
               interceptSummary=interceptSummary, rangeSummary=c(), sdSummary=c(), varSummary=c(), parSim=finalParSim, fixHyperpar=is.na(parameterSummaryTable[1,5]), 
               rhoVals=rhoVals, nuggetVarVals=nuggetVarVals, lambdaVals=lambdaVals, alphaVals=alphaVals, nuVals=nuVals, a.wghtVals=a.wghtVals, totalVariance=totalVariance, 
-              predMat=predSimulations$g.draw))
+              predMat=predSimulations$g.draw, timings=timings))
 }
 
 # this function generates results for the simulation study for the LK (standard) model
