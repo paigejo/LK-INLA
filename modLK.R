@@ -494,7 +494,7 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
                        modelFitTime=totalTimeFitModel, 
                        SETime=totalTimeSEs, 
                        covSETime=totalTimeCovSEs, 
-                       otherTime=totalTime-(setupTime + modelFitTime + SETime + covSETime))
+                       otherTime=totalTime-(totalTimeSetup + totalTimeFitModel + totalTimeSEs + totalTimeCovSEs))
   timings$setupTimePct = timings$setupTime / timings$totalTime
   timings$modelFitTimePct = timings$modelFitTime / timings$totalTime
   timings$SETimePct = timings$SETime / timings$totalTime
