@@ -2903,6 +2903,8 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   set.seed(seed)
   clusterEffect=TRUE
   
+  startTime = proc.time()[3]
+  
   if(useKenya)
     distanceBreaks = seq(0, 300, l=20)
   else
@@ -3811,13 +3813,15 @@ testLKINLAModelMixture = function(seed=1, nLayer=3, nx=20, ny=nx, assumeMeanZero
   aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
                                 includedAggregatedScores=includedAggregatedScores)
   
+  analysisTime = proc.time()[3] - startTime
+  
   fit$mod = NULL
   if(!gscratch)
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("savedOutput/simulations/mixtureLKINLA", plotNameRoot, ".RData"))
   else
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLKINLA", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("/work/johnpai/mixtureLKINLA", plotNameRoot, ".RData"))
   
-  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime))
 }
 
 # tests the fitLKINLAStandard function using data simulated from the LK model
@@ -4019,6 +4023,8 @@ testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeM
                               testfrac=1/9, leaveOutRegion=TRUE, sigma2 = 0.1^2, extraPlotName=plotNameRoot, 
                               gscratch=FALSE) {
   set.seed(seed)
+  
+  startTime = proc.time()[3]
   
   # if(useKenya)
   #   distanceBreaks = seq(0, 300, l=20)
@@ -4411,13 +4417,15 @@ testLKModelMixture = function(seed=548676, nLayer=3, nx=20, ny=nx, nu=1, assumeM
   aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
                                 includedAggregatedScores=includedAggregatedScores)
   
+  analysisTime = proc.time()[3] - startTime
+  
   fit$mod = NULL
   if(!gscratch)
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("savedOutput/simulations/mixtureLK", plotNameRoot, ".RData"))
   else
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureLK", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("/work/johnpai/mixtureLK", plotNameRoot, ".RData"))
   
-  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime))
 }
 
 # seed=1, nLayer=3, nx=20, ny=nx, nu=1, assumeMeanZero=TRUE, 
@@ -4609,6 +4617,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
                                 plotNameRoot="", sigma2 = 0.1^2, useKenya=FALSE, 
                                 urbanOverSamplefrac=0, leaveOutRegion=TRUE, gscratch=FALSE) {
   set.seed(seed)
+  startTime = proc.time()[3]
   
   if(useKenya)
     distanceBreaks = seq(0, 300, l=20)
@@ -5145,13 +5154,15 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
   aggregatedScoringRules = list(pooledAggregatedScores=pooledAggregatedScores, leftOutAggregatedScores=leftOutAggregatedScores, 
                                 includedAggregatedScores=includedAggregatedScores)
   
+  analysisTime = proc.time()[3] - startTime
+  
   fit$mod = NULL
   if(!gscratch)
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("savedOutput/simulations/mixtureSPDE", plotNameRoot, ".RData"))
   else
-    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, file=paste0("/work/johnpai/mixtureSPDE", plotNameRoot, ".RData"))
+    save(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime, file=paste0("/work/johnpai/mixtureSPDE", plotNameRoot, ".RData"))
   
-  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules))
+  invisible(list(scoringRules, fit, covInfo, predictionMatrix, aggregatedScoringRules, analysisTime))
 }
 
 # runs the testSPDEModelMixture function for multiple realizations, saves results
