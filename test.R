@@ -4002,7 +4002,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, startI=1, endI=n
          leftOutScores, 
          leftInScores, 
          aggregatedScores, 
-         file=paste0("/work/johnpai/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
+         file=paste0("/work/johnpai/simulations/mixtureLKINLAAll_nsim", nSamples, plotNameRoot, ".RData"))
   }
 }
 
@@ -5288,7 +5288,7 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
          leftOutScores, 
          leftInScores, 
          aggregatedScores, 
-         file=paste0("/work/johnpai/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
+         file=paste0("/work/johnpai/simulations/mixtureSPDEAll_nsim", nSamples, plotNameRoot, ".RData"))
   }
 }
 
