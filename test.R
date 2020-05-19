@@ -3907,6 +3907,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, startI=1, endI=n
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
+  allAnalysisTimes = c()
   for(i in 1:nSamples) {
     if(!gscratch)
       out = load(paste0("savedOutput/simulations/mixtureLKINLAsim", i, plotNameRoot, ".RData"))
@@ -3918,6 +3919,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, startI=1, endI=n
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
     allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
+    allAnalysisTimes = c(allAnalysisTimes, analysisTime)
   }
   
   ##### average results from each simulation
@@ -3963,6 +3965,7 @@ testLKINLAModelMixtureMultiple = function(seed=1, nSamples=100, startI=1, endI=n
          allCovInfo, 
          allPredictionMatrices, 
          allAggregatedScoringRules, 
+         allAnalysisTimes, 
          binnedScoringRulesGrid, 
          pooledScoringRulesGrid, 
          fullPooledScoringRulesLeftOut, 
@@ -4457,6 +4460,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
+  allAnalysisTimes = c()
   for(i in 1:nSamples) {
     if(!gscratch)
       out = load(paste0("savedOutput/simulations/mixtureLKsim", i, ".RData"))
@@ -4468,6 +4472,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
     allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
+    allAnalysisTimes = c(allAnalysisTimes, analysisTime)
   }
   
   ##### average results from each simulation
@@ -4513,6 +4518,7 @@ testLKModelMixtureMultiple = function(seed=1, nSamples=100, gscratch=TRUE, loadR
          allCovInfo, 
          allPredictionMatrices, 
          allAggregatedScoringRules, 
+         allAnalysisTimes, 
          binnedScoringRulesGrid, 
          pooledScoringRulesGrid, 
          fullPooledScoringRulesLeftOut, 
@@ -5193,6 +5199,7 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
   allCovInfo = list()
   allPredictionMatrices = list()
   allAggregatedScoringRules = list()
+  allAnalysisTimes = c()
   for(i in 1:nSamples) {
     if(!gscratch)
       out = load(paste0("savedOutput/simulations/mixtureSPDEsim", i, plotNameRoot, ".RData"))
@@ -5204,6 +5211,7 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
     allCovInfo = c(allCovInfo, list(covInfo))
     allPredictionMatrices = c(allPredictionMatrices, list(predictionMatrix))
     allAggregatedScoringRules = c(allAggregatedScoringRules, list(aggregatedScoringRules))
+    allAnalysisTimes = c(allAnalysisTimes, analysisTime)
   }
   
   ##### average results from each simulation
@@ -5249,6 +5257,7 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
          allCovInfo, 
          allPredictionMatrices, 
          allAggregatedScoringRules, 
+         allAnalysisTimes, 
          binnedScoringRulesGrid, 
          pooledScoringRulesGrid, 
          fullPooledScoringRulesLeftOut, 
