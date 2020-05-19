@@ -5174,7 +5174,7 @@ testSPDEModelMixture = function(seed=1, nx=20, ny=nx, assumeMeanZero=TRUE,
 # runs the testSPDEModelMixture function for multiple realizations, saves results
 testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma2=0.1^2, 
                                         useKenya=FALSE, assumeMeanZero=TRUE, urbanOverSamplefrac=0, 
-                                        gscratch=TRUE, ...) {
+                                        gscratch=TRUE, loadResults=FALSE, ...) {
   # set random seeds for each simulation
   set.seed(seed)
   allSeeds = sample(1:1000000, nSamples, replace = FALSE)
@@ -5186,7 +5186,8 @@ testSPDEModelMixtureMultiple = function(seed=1, nSamples=100, n=900, nu=1, sigma
     do.call("testSPDEModelMixture", c(list(seed = allSeeds[i], n=n, nu=nu, sigma2=sigma2, gscratch=gscratch, 
                                              useKenya=useKenya, urbanOverSamplefrac=urbanOverSamplefrac, assumeMeanZero=assumeMeanZero, plotNameRoot=thisPlotNameRoot), list(...)))
   }
-  sapply(1:nSamples, temp)
+  if(!loadResults)
+    sapply(1:nSamples, temp)
   
   # set plotNameRoot
   plotNameRoot = paste0("_n", n, "_nu", nu, "_nugV", round(sigma2, 2), "_Kenya", useKenya, 
