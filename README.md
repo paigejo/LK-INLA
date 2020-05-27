@@ -1,2 +1,2 @@
 # LK-INLA
-LatticeKrig--but wayyyy more in...la!
+This repository is out of date. See instead: https://github.com/paigejo/ELK
