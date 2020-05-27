@@ -1884,6 +1884,8 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   allPredsSPDE = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasSPDE = do.call("c", lapply(allFits, function(x) {x$sigmas}))
   timingsSPDE = sapply(allFits, function(x) {x$timings$totalTime})
+  allTimingsSPDE = rbind(analysisTime=allAnalysisTimes, sapply(allFits, function(x) {unlist(x$timings)}))
+  analysisTimesSPDE = allAnalysisTimes
   binnedScoringRulesGridSPDE = binnedScoringRulesGrid
   pooledScoringRulesGridSPDE = pooledScoringRulesGrid
   pooledScoringRulesLeftOutSPDE = pooledScoringRulesLeftOut
@@ -1901,7 +1903,13 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   out = load(paste0(LKname))
   allPredsLK = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLK = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  latInfoLK = allFits[[1]]$LKinfo
   timingsLK = sapply(allFits, function(x) {x$timings$totalTime})
+  timingsFitLK = sapply(allFits, function(x) {x$timings$modelFitTime})
+  timingsSELK = sapply(allFits, function(x) {x$timings$SETime})
+  timingsCovSELK = sapply(allFits, function(x) {x$timings$covSETime})
+  allTimingsLK = rbind(analysisTime=allAnalysisTimes, sapply(allFits, function(x) {unlist(x$timings)}))
+  analysisTimesLK = allAnalysisTimes
   binnedScoringRulesGridLK = binnedScoringRulesGrid
   pooledScoringRulesGridLK = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLK = pooledScoringRulesLeftOut
@@ -1919,7 +1927,12 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   out = load(paste0(LKINLA3name))
   allPredsLKINLA3 = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLKINLA3 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
+  latInfoLKINLA3 = allFits[[1]]$latInfo
   timingsLKINLA3 = sapply(allFits, function(x) {x$timings$totalTime})
+  analysisTimesLKINLA3 = allAnalysisTimes
+  timingsLKINLA3 = sapply(allFits, function(x) {x$timings$totalTime})
+  allTimingsLKINLA3 = rbind(analysisTime=allAnalysisTimes, sapply(allFits, function(x) {unlist(x$timings)}))
+  timingsPosteriorSamplingLKINLA3 = sapply(allFits, function(x) {x$timings$posteriorSamplingTime})
   binnedScoringRulesGridLKINLA3 = binnedScoringRulesGrid
   pooledScoringRulesGridLKINLA3 = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLKINLA3 = pooledScoringRulesLeftOut
@@ -1938,6 +1951,8 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   allPredsLKINLA2 = do.call("c", lapply(allFits, function(x) {x$preds}))
   allSigmasLKINLA2 = do.call("c", lapply(allFits, function(x) {x$sigmas}))
   timingsLKINLA2 = sapply(allFits, function(x) {x$timings$totalTime})
+  allTimingsLKINLA2 = rbind(analysisTime=allAnalysisTimes, sapply(allFits, function(x) {unlist(x$timings)}))
+  analysisTimesLKINLA2 = allAnalysisTimes
   binnedScoringRulesGridLKINLA2 = binnedScoringRulesGrid
   pooledScoringRulesGridLKINLA2 = pooledScoringRulesGrid
   pooledScoringRulesLeftOutLKINLA2 = pooledScoringRulesLeftOut
@@ -1982,17 +1997,17 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   quilt.plot(gridCoords, predsGridSPDE, main="SPDE Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
   abline(h=c(-1 / 3, 1 / 3), lty=2)
   abline(v=c(-1 / 3, 1 / 3), lty=2)
-  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.4, pch=19)
   
   quilt.plot(gridCoords, predsGridLK, main="LatticeKrig Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
   abline(h=c(-1 / 3, 1 / 3), lty=2)
   abline(v=c(-1 / 3, 1 / 3), lty=2)
-  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.4, pch=19)
   
   quilt.plot(gridCoords, predsGridLKINLA3, main="LK-INLA (L=3) Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
   abline(h=c(-1 / 3, 1 / 3), lty=2)
   abline(v=c(-1 / 3, 1 / 3), lty=2)
-  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.2, pch=19)
+  points(simulationData$xTrain[,1], simulationData$yTrain[,1], cex=.4, pch=19)
   
   quilt.plot(gridCoords, predsGridLKINLA2, main="LK-INLA (L=2) Predictions", nx=70, ny=70, zlim=zlim, cex.main=2)
   abline(h=c(-1 / 3, 1 / 3), lty=2)
@@ -2221,27 +2236,21 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   print("All aggregated scores:")
   print(xtable(format(allAggregatedScores[,-3], digits=3)))
   
-  # computation times for the ENTIRE simulation study, not just fitting the models.  This includes model fitting, predictions, uncertainty calculations, aggregation, and covariance calculations:
-  # -rw------- 1 johnpai posixgroup 123956328 Jan 23 03:27 mixtureLKINLAsim1_L2_NC14_126_sepRangeTRUE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup 123047142 Jan 23 01:45 mixtureLKINLAsim1_L3_NC14_sepRangeFALSE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup 124691837 Jan 23 00:31 mixtureSPDEsim1_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup   116011406 Jan 29 13:33 mixtureLKsim1.RData
-  
-  # -rw------- 1 johnpai posixgroup   123880261 Jan 28 15:57 mixtureLKINLAsim100_L2_NC14_126_sepRangeTRUE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup   122967029 Jan 27 17:36 mixtureLKINLAsim100_L3_NC14_sepRangeFALSE_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup   124621949 Jan 24 08:31 mixtureSPDEsim100_n900_nu1_nugV0.01_KenyaFALSE_noIntTRUE_urbOversamp0.RData
-  # -rw------- 1 johnpai posixgroup   115944856 Feb  3 12:11 mixtureLKsim100.RData
-  totalTimeSPDE = 60 * 24 * (24 - 23) + 60 * (8 - 0) + 1 * (31 - 31)
-  totalTimeLK = 60 * 24 * (5) + 60 * (12 - 13) + 1 * (11 - 33)
-  totalTimeLKINLA3 = 60 * 24 * (27 - 23) + 60 * (17 - 1) + 1 * (36 - 45)
-  totalTimeLKINLA2 = 60 * 24 * (28 - 23) + 60 * (15 - 3) + 1 * (57 - 27)
-  averageTimeSPDE = totalTimeSPDE / 99
-  averageTimeLK = totalTimeLK / 99
-  averageTimeLKINLA3 = totalTimeLKINLA3 / 99
-  averageTimeLKINLA2 = totalTimeLKINLA2 / 99
+  # Analysis times are computation times for the ENTIRE simulation study, not just fitting the models.  This includes model fitting, predictions, uncertainty calculations, aggregation, and covariance calculations:
+  # Fit times are computations for everything and suffer the covariance calculations (fitting, predictions, uncertainty calculations)
+  analysisTimeSPDE = mean(analysisTimesSPDE) / 60
+  analysisTimeLK = mean(analysisTimesLK) / 60
+  analysisTimeLKINLA3 = mean(analysisTimesLKINLA3) / 60
+  analysisTimeLKINLA2 = mean(analysisTimesLKINLA2) / 60
+  fitTimeSPDE = mean(timingsSPDE) / 60
+  fitTimeLK = mean(timingsLK) / 60
+  fitTimeLKINLA3 = mean(timingsLKINLA3) / 60
+  fitTimeLKINLA2 = mean(timingsLKINLA2) / 60
+  # cbind(c(analysisTimeSPDE, analysisTimeLK, analysisTimeLKINLA3, analysisTimeLKINLA2), 
+  #       c(fitTimeSPDE, fitTimeLK, fitTimeLKINLA3, fitTimeLKINLA2))
   pooledScores = rbind(pooledScoringRulesGridSPDE, pooledScoringRulesGridLK, 
                        pooledScoringRulesGridLKINLA3, pooledScoringRulesGridLKINLA2)
-  pooledScores = cbind(pooledScores[,-c(1, 2, 5)], "Time elapsed (min.)"=c(averageTimeSPDE, averageTimeLK, averageTimeLKINLA3, averageTimeLKINLA2))
+  pooledScores = cbind(pooledScores[,-c(1, 2, 5)], "Time elapsed (min.)"=c(fitTimeSPDE, fitTimeLK, fitTimeLKINLA3, fitTimeLKINLA2))
   rownames(pooledScores) = modelNames
   pooledScores$Coverage = pooledScores$Coverage * 100
   
@@ -2290,7 +2299,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   A = makeNumericalIntegralMat(gridCoords, mx=3, my=3)
   aggregatedTruth = A %*% ysTest[gridIndicesTest]
   
-  sdsSPDE = apply(A %*% fitSPDE$predMat[gridIndices,], 1, sd)
+  sdsSPDE = apply(A %*% allFitsSPDE[[1]]$predMat[gridIndices,], 1, sd)
   # sdsLK = apply(A %*% fitLK$predMat[gridIndices,], 1, sd)
   sdsLKINLA3 = apply(A %*% fitLKINLA3$predMat[gridIndices,], 1, sd)
   sdsLKINLA2 = apply(A %*% fitLKINLA2$predMat[gridIndices,], 1, sd)
@@ -2428,7 +2437,7 @@ compareMixtureModeling = function(sigma2=.1^2, n=900, seed=1, nSamples=100, work
   lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[3]], col=col[3])
   points(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col=col[4])
   lines(binnedScoringRulesGridSPDE$NNDist[includeBins], values[[4]], col=col[4])
-  legend("bottomright", c("SPDE", "LK", "ELK-F", "ELK-T"), pch=1, lty=1, col=col)
+  legend("topright", c("SPDE", "LK", "ELK-F", "ELK-T"), pch=1, lty=1, col=col)
   dev.off()
   
   pdf(paste0("Figures/finalMixture/binnedWidth", nSamples, ".pdf"), width=5, height=5)
