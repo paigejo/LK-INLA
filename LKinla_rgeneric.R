@@ -1200,9 +1200,13 @@ testMakeLatGrid = function(xRange=c(0,1), yRange=c(0,1)) {
 
 # compute number of basis elements per layer.  Returns a list with element at index i 
 # equal to the number of basis elements in layer i.
-getMs = function(xRangeDat=c(0,1), yRangeDat=c(0,1), NC=5, nBuffer=5, nLayer=1) {
+getMs = function(xRangeDat=c(0,1), yRangeDat=c(0,1), NC=5, nBuffer=5, nLayer=1, latInfo=NULL) {
   # makeLatGrids(xRangeDat=xRangeDat, yRangeDat=yRangeDat, NC=NC, nBuffer=nBuffer, nLayer=nLayer)$ms
-  sapply(makeLatGrids(xRangeDat=xRangeDat, yRangeDat=yRangeDat, NC=NC, nBuffer=nBuffer, nLayer=nLayer), function(x) {x$nx*x$ny})
+  if(is.null(latInfo)) {
+    sapply(makeLatGrids(xRangeDat=xRangeDat, yRangeDat=yRangeDat, NC=NC, nBuffer=nBuffer, nLayer=nLayer), function(x) {x$nx*x$ny})
+  } else {
+    sapply(latInfo, function(x) {x$nx*x$ny})
+  }
 }
 
 # convert from explicit grid parameters to LatticeKrig grid parameters

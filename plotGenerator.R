@@ -2294,6 +2294,56 @@ makeRedBlueSequentialColors = function(n, ggplot=FALSE) {
     scale_colour_continuous_sequential(h1=10, h2=-115, c1=100, c2=100, l1=44, l2=59, p1=0, p2=2.3, n_interp=n)
 }
 
+makePurpleRedSequentialColors = function(n, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  if(!ggplot)
+    sequential_hcl(n, h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6)
+  else
+    scale_colour_continuous_sequential(h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6, n_interp=n)
+}
+
+makePurpleRedDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  # if(!ggplot)
+  #   sequential_hcl(n, h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6)
+  # else
+  #   scale_colour_continuous_sequential(h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6, n_interp=n)
+  
+  if(is.null(valRange) && is.null(center)) {
+    # diverging_hcl(n, h1=10, h2=-115, c1=90, l1=40, l2=100, p1=0.9, p2=0.6)
+    if(!ggplot) {
+      divergingx_hcl(n, h1=-87, h3=10, c1=65, c3=79, l1=13, l3=60, p1=3, p2=1.6, h2=0, l2=100, c2=100, p3=3, p4=1.6, rev=rev)
+      # diverging_hcl(n, h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6, rev=rev)
+    }
+    else {
+      stop("ggplot doesn't work with makePurpleRedDivergingColors")
+      scale_colour_continuous_diverging(h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6, rev=rev, n_interp=n)
+    }
+  }
+  else {
+    # in this case we want white to be at the center of valRange if center is NULL
+    if(!ggplot) {
+      propUp = (valRange[2] - center) / diff(valRange)
+      propDown = 1 - propUp
+      totalColors = ceiling(2 * max(propUp, propDown) * n)
+      tempColors = makePurpleRedDivergingColors(totalColors, rev=rev)
+      totalMissingColors = totalColors - n
+      
+      if(propUp >= propDown)
+        tempColors[-(1:totalMissingColors)]
+      else
+        tempColors[1:n]
+    } else {
+      stop("ggplot doesn't work with makePurpleRedDivergingColors")
+      if(is.null(center))
+        center = min(valRange) + abs(diff(valRange))/2
+      scale_colour_continuous_diverging(h1=-87, h2=10, c1=65, c2=79, l1=13, l2=60, p1=3, p2=1.6, rev=rev, n_interp=n, mid=center)
+    }
+  }
+}
+
 makeGreenBlueSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
@@ -2303,13 +2353,48 @@ makeGreenBlueSequentialColors = function(n, ggplot=FALSE) {
     scale_colour_continuous_sequential(h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2, n_interp=n)
 }
 
-makePurpleYellowSequentialColors = function(n, ggplot=FALSE) {
+makeGreenBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE, ggplot=FALSE, p1=1) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  # if(!ggplot)
+  #   sequential_hcl(n, h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2)
+  # else
+  #   scale_colour_continuous_sequential(h1=128, h2=250, c1=117, cmax=74, c2=107, l1=71, l2=55, p1=2, p2=2, n_interp=n)
+  
+  if(is.null(valRange) && is.null(center)) {
+    if(!ggplot)
+      diverging_hcl(n, h1=128, h2=250, c1=100, l1=71, l2=95, p1=p1, rev=rev)
+    else
+      scale_colour_continuous_diverging(h1=128, h2=250, c1=100, l1=71, l2=95, p1=p1, rev=rev, n_interp=n)
+  }
+  else {
+    # in this case we want white to be at the center of valRange if center is NULL
+    if(!ggplot) {
+      propUp = (valRange[2] - center) / diff(valRange)
+      propDown = 1 - propUp
+      totalColors = ceiling(2 * max(propUp, propDown) * n)
+      tempColors = makeGreenBlueDivergingColors(totalColors, rev=rev, p1=p1)
+      totalMissingColors = totalColors - n
+      
+      if(propUp >= propDown)
+        tempColors[-(1:totalMissingColors)]
+      else
+        tempColors[1:n]
+    } else {
+      if(is.null(center))
+        center = min(valRange) + abs(diff(valRange))/2
+      scale_colour_continuous_diverging(h1=128, h2=250, c1=100, l1=71, l2=95, p1=p1, rev=rev, n_interp=n, mid=center)
+    }
+  }
+}
+
+makePurpleYellowSequentialColors = function(n, rev=FALSE, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
   if(!ggplot)
-    sequential_hcl(n, h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9)
+    sequential_hcl(n, h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9, rev=rev)
   else
-    scale_colour_continuous_sequential(h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9, n_interp=n)
+    scale_colour_continuous_sequential(h1=-100, h2=100, c1=60, cmax=74, c2=100, l1=15, l2=95, p1=2, p2=0.9, rev=rev, n_interp=n)
 }
 
 makeRedBlueDivergingColors = function(n, valRange=NULL, center=NULL, rev=FALSE, ggplot=FALSE) {
@@ -2384,7 +2469,27 @@ makeBlueSequentialColors = function(n, ggplot=FALSE) {
     scale_colour_continuous_sequential(h1=245, c1=50, cmax=75, l1=20, l2=98, p1=0.8, rev=TRUE, n_interp=n)
 }
 
-makeBlueYellowSequentialColors = function(n, ggplot=FALSE) {
+makeGreenSequentialColors = function(n, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  # sequential_hcl(n, h1=260, c1=80, l1=30, l2=90, p1=1.5, rev=TRUE)
+  if(!ggplot)
+    sequential_hcl(n, h1=128, c1=100, l1=72, l2=95, p1=1.0, rev=TRUE)
+  else
+    scale_colour_continuous_sequential(h1=128, c1=100, l1=72, l2=95, p1=1.0, rev=TRUE, n_interp=n)
+}
+
+makeYellowSequentialColors = function(n, ggplot=FALSE) {
+  # library("colorspace")
+  # pal <-choose_palette()
+  # sequential_hcl(n, h1=260, c1=80, l1=30, l2=90, p1=1.5, rev=TRUE)
+  if(!ggplot)
+    sequential_hcl(n, h1=86, c1=100, l1=70, l2=95, p1=1.2, rev=TRUE)
+  else
+    scale_colour_continuous_sequential(h1=86, c1=100, l1=70, l2=95, p1=1.2, rev=TRUE, n_interp=n)
+}
+
+makeBlueGreenYellowSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
   if(!ggplot)
@@ -2393,11 +2498,70 @@ makeBlueYellowSequentialColors = function(n, ggplot=FALSE) {
     scale_colour_continuous_sequential(h1=300, h2=75, c1=40, c2=95, l1=15, l2=90, p1=1.0, p2=1.1, n_interp=n)
 }
 
-makeYellowRedSequentialColors = function(n, ggplot=FALSE) {
+makeRedYellowBlueColors = function(n, ggplot=FALSE) {
+  if(!ggplot)
+    divergingx_hcl(n, palette="RdYlBu")
+  else
+    scale_colour_continuous_sequential(palette="RdYlBu", n_interp=n)
+}
+
+makeRedYellowBlueColorsMod = function(n, ggplot=FALSE) {
+  # Original parameters:
+  # h1 h2  h3  c1 c2 c3 l1 l2 l3  p1
+  # 10 85 260 105 45 70 35 98 35 1.5
+  if(!ggplot) {
+    divergingx_hcl(n,
+                   h1=10, h2=85, h3=260,
+                   c1=105, c2=45, c3=70,
+                   l1=35, l2=98, l3=35, 
+                   p1=1.5, p2=1.2, p3=.6, p4=1.2, 
+                   cmax1=150, cmax2=10)
+  }
+  else
+    scale_colour_continuous_sequential(palette="RdYlBu", n_interp=n)
+}
+
+makeRedYellowBlueColorsMod2 = function(n, ggplot=FALSE) {
+  # Original parameters:
+  # h1=10; h2=85; h3=260
+  # c1=105; c2=45; c3=70
+  # l1=35; l2=98; l3=35
+  # p1=1.5; p2=1.2; p3=.6; p4=1.2
+  # cmax1=150; cmax2=10
+  
+  h1=15; h2=79; h3=250
+  c1=100; c2=100; c3=40
+  l1=60; l2=70; l3=33
+  p1=1.2; p3=.5; p4=1
+  # 2: p1=.5; p2=1
+  
+  if(!ggplot) {
+    # divergingx_hcl(n, 
+    #                h1=10, h2=85, h3=260, 
+    #                c1=105, c2=45, c3=70, 
+    #                l1=80, l2=55, l3=30)
+    if((n %% 2) == 0) {
+      lower = sequential_hcl(h1=h1, h2=h2, c1=c1, c2=c2, 
+                             l1=l1, l2=l2, p1=p1, n)[seq(1, n, by=2)]
+      upper = sequential_hcl(h1=h2, h2=h3, c1=c2, c2=c3, 
+                             l1=l2, l2=l3, p1=p3, p2=p4, n)[seq(2, n, by=2)]
+    } else {
+      lower = sequential_hcl(h1=h1, h2=h2, c1=c1, c2=c2, 
+                             l1=l1, l2=l2, p1=p1, ceiling(n/2))
+      upper = sequential_hcl(h1=h2, h2=h3, c1=c2, c2=c3, 
+                             l1=l2, l2=l3, p1=p3, p2=p4, ceiling(n/2))[-1]
+    }
+    c(lower, upper)
+  }
+  else
+    stop("ggplot version not supported")
+}
+
+makeRedYellowSequentialColors = function(n, ggplot=FALSE) {
   # library("colorspace")
   # pal <-choose_palette()
   if(!ggplot)
-    sequential_hcl(n, h1=15, h2=79, c1=100, c2=52, l1=55, l2=95, p1=1.2)
+    sequential_hcl(n, h1=15, h2=79, c1=100, c2=72, l1=40, l2=90, p1=1.2)
   else
     scale_colour_continuous_sequential(h1=15, h2=79, c1=100, c2=52, l1=55, l2=95, p1=1.2, n_interp=n)
 }
@@ -2409,6 +2573,143 @@ makeRedGreenDivergingColors = function(n, ggplot=FALSE) {
     sequential_hcl(n, h1=265, h2=101, c1=100, l1=50, l2=92, p1=0.6, p2=1.5)
   else
     scale_colour_continuous_sequential(h1=265, h2=101, c1=100, l1=50, l2=92, p1=0.6, p2=1.5, n_interp=n)
+}
+
+# given continuous color scale and range, chooses colors based on a set of values
+getColorsFromScale = function(vals, valRange=NULL, cols, scaleFun=function(x) {x}, 
+                              forceValuesInRange=FALSE) {
+  
+  if(is.null(valRange)) {
+    nas = !is.finite(scaleFun(vals))
+    valRange = range(vals[!nas])
+  }
+  
+  if(forceValuesInRange) {
+    vals[vals < valRange[1]] = valRange[1]
+    vals[vals > valRange[2]] = valRange[2]
+  }
+  
+  valRange = scaleFun(valRange)
+  vals = scaleFun(vals)
+  vals = vals - valRange[1]
+  vals = vals/(valRange[2] - valRange[1])
+  col = cols[round(vals*(length(cols)-1))+1]
+  
+  col
+}
+
+plotWithColor = function(x, y, z, zlim=NULL, colScale=tim.colors(), xlab=NULL, ylab=NULL, 
+                         legend.mar=7, new=TRUE, scaleFun = function(x) {x}, scaleFunInverse = function(x) {x}, 
+                         n.ticks=5, min.n=5, ticks=NULL, tickLabels=NULL, legend.width=1.2, addColorBar=TRUE, 
+                         legendArgs=list(), leaveRoomForLegend=TRUE, forceColorsInRange=FALSE, orderI=NULL, 
+                         ordering=c("none", "increasing", "decreasing"), colorName = c("col", "bg"), ...) {
+  ordering = match.arg(ordering)
+  colorName = match.arg(colorName)
+  
+  # remove NA points
+  nas = is.na(x) | is.na(y) | is.na(z)
+  if(any(nas)) {
+    warning("Removing NAs")
+    x = x[!nas]
+    y = y[!nas]
+    z = z[!nas]
+  }
+  
+  # do setup for ploting data if necessary
+  if(is.null(zlim)) {
+    nas = !is.finite(scaleFun(z))
+    zlim = range(z[!nas])
+  }
+  
+  # order the plotting of the points
+  if(is.null(orderI)) {
+    if(ordering == "increasing") {
+      orderI = sort(z, index.return=TRUE)$ix
+    } else if(ordering == "decreasing") {
+      orderI = sort(z, decreasing=TRUE, index.return=TRUE)$ix
+    } else {
+      orderI = 1:length(z)
+    }
+  }
+  x = x[orderI]
+  y = y[orderI]
+  z = z[orderI]
+  
+  # if(forceColorsInRange) {
+  #   z[z > zlim[2]] = zlim[2]
+  #   z[z < zlim[1]] = zlim[1]
+  # }
+  
+  # get colors of points
+  cols = getColorsFromScale(z, zlim, colScale, scaleFun, forceColorsInRange)
+  
+  # generate new plot if necessary
+  # browser()
+  if(new) {
+    # set graphical parameters so the legend won't overlap with plot
+    currPar = par()
+    newPar = currPar
+    newMar = newPar$mar
+    newMar[4] = max(newMar[4], legend.mar)
+    newPar$mar = newMar
+    if(currPar$mar[4] != newMar[4])
+      suppressWarnings({par(newPar)})
+    
+    if(is.null(xlab)) {
+      xlab = "X"
+    }
+    if(is.null(ylab)) {
+      ylab = "Y"
+    }
+    
+    # par( oma=c( 0,0,0,6)) # leave room for the legend
+    if(colorName == "col") {
+      do.call("plot", c(list(x=x, y=y, col=cols, xlab=xlab, ylab=ylab), list(...)))
+    } else {
+      do.call("plot", c(list(x=x, y=y, bg=cols, xlab=xlab, ylab=ylab), list(...)))
+    }
+  } else {
+    if(colorName == "col") {
+      do.call("points", c(list(x=x, y=y, col=cols), list(...)))
+    } else {
+      do.call("points", c(list(x=x, y=y, bg=cols), list(...)))
+    }
+  }
+  
+  if(addColorBar) {
+    # add legend
+    # par( oma=c(0,0,0,2))
+    if(is.null(ticks))
+      ticks = scaleFun(pretty(zlim, n=n.ticks, min.n=min.n))
+    else
+      ticks = scaleFun(ticks)
+    if(is.null(tickLabels))
+      tickLabels = scaleFunInverse(ticks)
+    
+    # par( oma=c( 0,0,0,3))
+    
+    # set list of arguments to image.plot
+    legendArgs$zlim=scaleFun(zlim)
+    legendArgs$nlevel=length(colScale)
+    legendArgs$legend.only=TRUE
+    legendArgs$horizontal=FALSE
+    legendArgs$col=colScale
+    legendArgs$add = TRUE
+    if(is.null(legendArgs$axis.args))
+      legendArgs$axis.args=list(at=ticks, labels=tickLabels)
+    else {
+      legendArgs$axis.args$at=ticks
+      legendArgs$axis.args$labels=tickLabels
+    }
+    legendArgs$legend.mar=legend.mar
+    legendArgs$legend.width=legend.width
+    
+    do.call("image.plot", legendArgs)
+    
+    # image.plot(zlim=zlim, nlevel=length(cols), legend.only=TRUE, horizontal=FALSE, 
+    #            col=cols, add = TRUE)
+  }
+  invisible(NULL)
 }
 
 myPairs = function(x, labels, panel = points, ..., horInd = 1:nc, verInd = 1:nc, 
@@ -2747,7 +3048,28 @@ generatePlottingSymbols = function() {
   dev.off()
 }
 
-
+plotPlusAtAngle = function(x, y=NULL, angle=0, size=1, ...) {
+  if(is.null(y)) {
+    y = x[,2]
+    x = x[,1]
+  }
+  
+  rotationMat = rbind(c(cos(angle), -sin(angle)), 
+                      c(sin(angle), cos(angle)))
+  shiftX = c(0, -1, 0, 1) * size
+  shiftY = c(-1, 0, 1, 0) * size
+  thesePoints = rbind(shiftX, shiftY)
+  thesePoints = rotationMat %*% thesePoints
+  thesePoints1 = t(cbind(thesePoints[,1], thesePoints[,3]))
+  thesePoints2 = t(cbind(thesePoints[,2], thesePoints[,4]))
+  
+  for(i in 1:length(x)) {
+    thisX = x[i]
+    thisY = y[i]
+    lines(thisX + thesePoints1[,1], thisY + thesePoints1[,2], ...)
+    lines(thisX + thesePoints2[,1], thisY + thesePoints2[,2], ...)
+  }
+}
 
 
 

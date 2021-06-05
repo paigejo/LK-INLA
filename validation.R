@@ -1,47 +1,37 @@
 library(kableExtra)
 
 # validate the smoothing models by leaving out data from one county at a time
-validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutRegion=FALSE, 
-                           startI=ifelse(urbanPrior, 5, 1), loadPreviousFit=FALSE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE, 
-                           urbanPrior=TRUE, family=c("betabinomial", "binomial")) {
+validateExample = function(dat=NULL, leaveOutRegion=FALSE, 
+                           startI=1, loadPreviousFit=FALSE, verbose=TRUE, endI=Inf, loadPreviousResults=FALSE) {
   targetPop = match.arg(targetPop)
   family = match.arg(family)
   
   # load in relevant data for the given example
-  if(targetPop == "women") {
-    resultNameRoot="Ed"
-    if(is.null(dat)) {
-      out = load("../U5MR/kenyaDataEd.RData")
-      dat = ed
-    }
-    load("../U5MR/popGridAdjustedWomen.RData")
-  } else if(targetPop == "children") {
-    resultNameRoot="Mort"
-    if(is.null(dat)) {
-      out = load("../U5MR/kenyaData.RData")
-      dat = mort
-    }
-    load("../U5MR/popGridAdjusted.RData")
+  resultNameRoot="Mort"
+  if(is.null(dat)) {
+    out = load("../U5MR/kenyaData.RData")
+    dat = mort
   }
+  load("../U5MR/popGridAdjusted.RData")
   resultNameRootLower = tolower(resultNameRoot)
   dataType = resultNameRootLower
   
-  familyText=""
-  if(family == "binomial")
-    familyText = "_LgtN"
-  clusterEffect = family == "binomial"
+  clusterEffect = TRUE
   
   # get region names
   regions = sort(unique(countyToRegion(as.character(dat$admin1))))
   
+  # get the truth aggregated to the pixel level
+  pixelTruth = getPixelLevelTruth(dat, popMat=NULL)
+  
   ##### Do validation
   resultsListSPDE = list()
-  resultsListLKINLA = list()
+  # resultsListLKINLA = list()
   
   ##### run SPDE
-  argList = list(list(dat = dat, urbanEffect = FALSE), 
-                 list(dat = dat, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, verbose=verbose, loadPreviousFit=loadPreviousFit, family=family, 
+  argList = list(list(dat = dat))
+  otherArguments = list(urbanEffect = TRUE, verbose=verbose, 
+                        loadPreviousFit=loadPreviousFit, 
                         loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
   
   modelNames = c()
@@ -49,12 +39,12 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
     args = argList[[i]]
     separateRanges = args$separateRanges
     urbanEffect = args$urbanEffect
-    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_urbanEffect", urbanEffect, familyText, "_LORegion", leaveOutRegion)
+    fileName = paste0("savedOutput/validation/resultsSPDE", resultNameRootLower, "_LORegion", leaveOutRegion)
     if(urbanEffect)
       urbanText = "U"
     else
       urbanText = "u"
-    modelNames = c(modelNames, paste0("spde", urbanText))
+    modelNames = c(modelNames, paste0("spde", urbanText, "C"))
     
     if(i > endI)
       return(invisible(NULL))
@@ -83,68 +73,68 @@ validateExample = function(dat=NULL, targetPop=c("women", "children"), leaveOutR
   }
   names(resultsListSPDE) = modelNames
   
-  
-  ##### run LK-INLA
-  argList = list(list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE), 
-                 list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
-                 list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
-                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
-  otherArguments = list(dataType=dataType, loadPreviousFit=loadPreviousFit, family=family, 
-                        loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
-  
-  for(i in 1:length(argList)) {
-    args = argList[[i]]
-    separateRanges = args$separateRanges
-    urbanEffect = args$urbanEffect
-    
-    urbanPriorText = ""
-    if(!urbanPrior && separateRanges)
-      urbanPriorText = "_noUrbanPrior"
-    
-    fileName = paste0("savedOutput/validation/resultsLKINLA", resultNameRootLower, "_urbanEffect", urbanEffect, 
-                      "_separateRanges", separateRanges, familyText, urbanPriorText, "_LORegion", leaveOutRegion)
-    if(separateRanges)
-      separateText = "S"
-    else
-      separateText = "s"
-    if(urbanEffect)
-      urbanText = "U"
-    else
-      urbanText = "u"
-    modelNames = c(modelNames, paste0("lkinla", urbanText, separateText))
-    
-    if(i+2 > endI)
-      return(invisible(NULL))
-    
-    if(startI <= i + 2) {
-      print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
-      results = do.call("validateLKINLAKenyaDat", c(args, otherArguments))
-      
-      results = list(fit=results)
-      # save(results, file=paste0(fileName, ".RData")) # too much space
-      
-      results$fit$fullModelFit = NULL
-      save(results, file=paste0(fileName, "compact.RData"))
-    } else {
-      print(paste0("Loading LK-INLA model results with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
-      if(file.exists(paste0(fileName, "compact.RData")))
-        load(paste0(fileName, "compact.RData"))
-      else {
-        load(paste0(fileName, ".RData"))
-        results$fit$fullModelFit = NULL
-        save(results, file=paste0(fileName, "compact.RData"))
-      }
-      
-      if(names(results$fit)[34] == "") {
-        # leftover error from previous run that we can fix without rerunning the whole thing
-        names(results$fit)[33:34] = c("singleScores", "singleScoresBinomial")
-        save(results, file=paste0(fileName, "compact.RData"))
-      }
-    }
-    
-    resultsListLKINLA = c(resultsListLKINLA, list(results))
-  }
-  names(resultsListLKINLA) = modelNames[3:6]
+  # 
+  # ##### run LK-INLA
+  # argList = list(list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE), 
+  #                list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
+  #                list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
+  #                list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
+  # otherArguments = list(dataType=dataType, loadPreviousFit=loadPreviousFit, family=family, 
+  #                       loadPreviousResults=loadPreviousResults, stratifiedValidation=!leaveOutRegion)
+  # 
+  # for(i in 1:length(argList)) {
+  #   args = argList[[i]]
+  #   separateRanges = args$separateRanges
+  #   urbanEffect = args$urbanEffect
+  #   
+  #   urbanPriorText = ""
+  #   if(!urbanPrior && separateRanges)
+  #     urbanPriorText = "_noUrbanPrior"
+  #   
+  #   fileName = paste0("savedOutput/validation/resultsLKINLA", resultNameRootLower, "_urbanEffect", urbanEffect, 
+  #                     "_separateRanges", separateRanges, familyText, urbanPriorText, "_LORegion", leaveOutRegion)
+  #   if(separateRanges)
+  #     separateText = "S"
+  #   else
+  #     separateText = "s"
+  #   if(urbanEffect)
+  #     urbanText = "U"
+  #   else
+  #     urbanText = "u"
+  #   modelNames = c(modelNames, paste0("lkinla", urbanText, separateText))
+  #   
+  #   if(i+2 > endI)
+  #     return(invisible(NULL))
+  #   
+  #   if(startI <= i + 2) {
+  #     print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
+  #     results = do.call("validateLKINLAKenyaDat", c(args, otherArguments))
+  #     
+  #     results = list(fit=results)
+  #     # save(results, file=paste0(fileName, ".RData")) # too much space
+  #     
+  #     results$fit$fullModelFit = NULL
+  #     save(results, file=paste0(fileName, "compact.RData"))
+  #   } else {
+  #     print(paste0("Loading LK-INLA model results with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
+  #     if(file.exists(paste0(fileName, "compact.RData")))
+  #       load(paste0(fileName, "compact.RData"))
+  #     else {
+  #       load(paste0(fileName, ".RData"))
+  #       results$fit$fullModelFit = NULL
+  #       save(results, file=paste0(fileName, "compact.RData"))
+  #     }
+  #     
+  #     if(names(results$fit)[34] == "") {
+  #       # leftover error from previous run that we can fix without rerunning the whole thing
+  #       names(results$fit)[33:34] = c("singleScores", "singleScoresBinomial")
+  #       save(results, file=paste0(fileName, "compact.RData"))
+  #     }
+  #   }
+  #   
+  #   resultsListLKINLA = c(resultsListLKINLA, list(results))
+  # }
+  # names(resultsListLKINLA) = modelNames[3:6]
   
   print("Finished validating models, now concatenating results...")
   
