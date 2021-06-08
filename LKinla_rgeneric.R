@@ -1723,11 +1723,14 @@ inla.rgeneric.lk.model.standard = function(
         source("U:/git/LK-INLA/LKinla.R")
     }
     AMat = makeA(datCoords, latInfo)
-    mod = lm(ys ~ cbind(X, as.matrix(AMat)) - 1)
-    r2 = summary(mod)$r.squared
-    s2 = summary(mod)$sigma^2
+    # mod = lm(ys ~ cbind(X, as.matrix(AMat)) - 1)
+    # r2 = summary(mod)$r.squared
+    # s2 = summary(mod)$sigma^2
     # sigmaSq = (r2/(1-r2)) * s2
-    sigmaSq = var(ys) * r2
+    # sigmaSq = var(ys) * r2
+    r2 = 1
+    theseYs = ys/ns
+    sigmaSq = var(theseYs) * r2
     
     # initialize covariance parameters
     if(is.null(initialEffectiveRange)) {

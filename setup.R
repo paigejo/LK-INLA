@@ -57,6 +57,7 @@ source('generateExampleResults.R')
 source('plotGenerator.R')
 source('validation.R')
 source('pcBeta.R')
+source('~/git/LK-INLA/modBCEF.R')
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {

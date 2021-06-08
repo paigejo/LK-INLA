@@ -1,8 +1,9 @@
 # model for fitting BCEF dataset with flexible covariate model
 
 modBCEF = function(dat, predCoords, predPTC, latInfo=NULL, 
-                   nu=1.5, seed=1, nLayer=2, NC=c(25, 100), 
-                   nBuffer=5, priorPar=NULL, rwPrior=NULL, rwKnots=NULL, 
+                   nu=1.5, seed=1, nLayer=ifelse(is.null(latInfo), 2, length(latInfo)), 
+                   NC=c(25, 100), nBuffer=5, priorPar=NULL, 
+                   rwPrior=NULL, rwKnots=NULL, 
                    rwModel=c("rw1", "rw2"), nNonlinearBasis=20, 
                    normalize=TRUE, fastNormalize=TRUE, 
                    intStrategy="ccd", strategy="gaussian", 
@@ -461,15 +462,20 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   
   ## generate logit predictions (first without cluster effect then add the cluster effect in)
   # for prediction locations
-  if(length(xPred) != 0)
-    fixedPart = xPred %*% latentMat[fixedIndices,]
-  else
+  if(length(xPred) != 0) {
+    fixedMat = latentMat[fixedIndices,]
+    fixedPart = xPred %*% fixedMat
+  }
+  else {
+    fixedMat = NULL
     fixedPart = 0
+  }
+  
   predMat = fixedPart + APred %*% latentMat[fieldIndices,] + latentMat[rwIndices,][rwEffectsIndsNew,]
   
   # for observation locations
   if(length(xObs) != 0)
-    fixedPart = xObs  %*% latentMat[fixedIndices,]
+    fixedPart = xObs  %*% fixedMat
   else
     fixedPart = 0
   obsMat = fixedPart + AObs %*% latentMat[fieldIndices,] + latentMat[rwIndices,][rwEffectsInds,]
@@ -602,7 +608,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   list(preds=preds, sigmas=predSDs, lower=lowerPreds, median=medianPreds, upper=upperPreds, 
        obsPreds=obsPreds, obsSDs=obsSDs, obsLower=lowerObs, obsMedian=medianObs, obsUpper=upperObs, 
        mod=mod, latInfo=latInfo, coefPreds=coefPreds, coefSDs=coefSDs, 
-       interceptSummary=interceptSummary, fixedEffectSummary=fixedEffectSummary, rangeSummary=rangeSummary, 
+       interceptSummary=interceptSummary, fixedEffectSummary=fixedEffectSummary, fixedMat=fixedMat, rangeSummary=rangeSummary, 
        sdSummary=sdSummary, varSummary=varSummary, overdispersionSummary=overdispersionSummary, parameterSummaryTable=parameterSummaryTable, 
        alphaSummary=alphaSummary, timings=timings, priorPar=priorPar, precomputedNormalizationFun=precomputedNormalizationFun, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
