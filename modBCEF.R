@@ -338,7 +338,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
                                               spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
                                               rwVar=1/x[3 + nLayer], rwSD=1/sqrt(x[3 + nLayer]))})
       mat = rbind(mat, alpha=1-colSums(mat[8:(7+nLayer-1),]))
-      mat = mat[c(1:(7+nLayer-1), nrow(mat), (nrow(mat)-2):(nrow(mat)-1))]
+      mat = mat[c(1:(7+nLayer-1), nrow(mat), (nrow(mat)-2):(nrow(mat)-1)),]
       hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
                      paste0("alpha", 1:nLayer), "rwVar", "rwSD")
     } else {
