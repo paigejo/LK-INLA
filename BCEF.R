@@ -1,5 +1,5 @@
 library(spNNGP)
-makeAllPlots = FALSE
+makeAllPlots = TRUE
 blueGreenCols = rev(makeGreenBlueSequentialColors(64))
 yellowBlueCols = makeBlueGreenYellowSequentialColors(64)
 # data(MI_TSCA)
@@ -51,37 +51,19 @@ yellowBlueCols = makeBlueGreenYellowSequentialColors(64)
 # install.packages("spNNGP")
 # library(spNNGP)
 data(BCEF)
-head(BCEF)
-summary(BCEF)
-fromproj4 = "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs"
-coordsOrig = SpatialPoints(cbind(BCEF$x, BCEF$y), proj4string=CRS(fromproj4))
-lonLatCoords = spTransform(coordsOrig, CRS("+init=epsg:4326"))
-lonLatCoords = attr(lonLatCoords, "coords")
-
-# the result is not in Alaska
-head(lonLatCoords)
-range(lonLatCoords[,1])
-# [1] -148.5642 -148.0947
-range(lonLatCoords[,2])
-# [1] 64.64402 64.79030
-
-if(makeAllPlots) {
-  plot(lonLatCoords, pch=".", col="blue")
-  US(add=TRUE)
-}
-
 
 # 2000 percent tree cover from:
 # https://storage.googleapis.com/earthenginepartners-hansen/GFC-2020-v1.8/download.html
 library(tiff)
 library(raster)
 # out = readTIFF("~/git/LK-INLA/PTC_2000.tif")
-test = inla.nonconvex.hull(cbind(BCEF$x, BCEF$y))
+# test = inla.nonconvex.hull(cbind(BCEF$x, BCEF$y))
 
-if(makeAllPlots) {
+if(FALSE) {
   plot(cbind(BCEF$x, BCEF$y), pch=".")
 }
 
+# leave out central points before making convex hull ----
 xLows = c(260, 265.5, 268, 262, 275, 270)
 xHighs = c(271, 277.5, 278, 268, 280, 272.5)
 yLows = c(1644.5, 1649.6, 1653, 1643, 1657, 1646)
@@ -96,7 +78,7 @@ keepPoints = allPoints[!leaveOutI,]
 leaveOutPoints = allPoints[leaveOutI,]
 xlim = range(allPoints[,1])
 ylim = range(allPoints[,2])
-if(makeAllPlots) {
+if(FALSE) {
   plot(keepPoints, pch=".", col="green", xlim=xlim, ylim=ylim)
   points(leaveOutPoints, pch=".", col="red")
 }
@@ -104,87 +86,109 @@ if(makeAllPlots) {
 nrow(allPoints)
 sum(!leaveOutI)
 
-scaleFun = function(pts, factor) {
-  center = colMeans(pts)
-  centered = sweep(pts, 2, center, "-")
-  scaledCentered = centered * factor
-  scaled = sweep(scaledCentered, 2, center, "+")
-  scaled
-}
-
-scaleFunAnisotropic = function(pts, factors, rotationAngle=0, shift=c(0, 0)) {
-  center = colMeans(pts)
-  centered = sweep(pts, 2, center, "-")
-  rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
-                      c(sin(rotationAngle), cos(rotationAngle)))
-  rotatedCentered = t(rotationMat %*% t(centered))
-  scaledRotatedCentered = sweep(rotatedCentered, 2, factors, "*")
-  scaledCentered = t(t(rotationMat) %*% t(scaledRotatedCentered))
-  scaled = sweep(scaledCentered, 2, center + shift, "+")
-  scaled
-}
-
-system.time(test <- inla.nonconvex.hull(keepPoints, convex=2.5))
-
-factors = c(1, 1)
-factors = c(.78, .85)
-rotationAngle = 49.5 * (pi/180)
-shift = c(0, 0)
-shift = c(.2, 0)
-
-# for testing purposes
-centered = sweep(allPoints, 2, colMeans(allPoints), "-")
-rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
-                    c(sin(rotationAngle), cos(rotationAngle)))
-if(makeAllPlots) {
-  plot(t(rotationMat %*% t(centered)), pch=".", col="green")
-}
-
-# scale the hull and plot to make sure it's a good fit
-hull = scaleFunAnisotropic(test$loc, factors, rotationAngle, c(.2, 0))
-xlim = range(c(allPoints[,1], hull[,1]))
-ylim = range(c(allPoints[,2], hull[,2]))
-if(makeAllPlots) {
-  plot(keepPoints, pch=".", col="green", xlim=xlim, ylim=ylim)
-  points(leaveOutPoints, pch=".", col="red")
-  points(hull, pch=19, cex=.3, col="purple")
-}
-
-# compare to the convex hull
+# get the convex hull ----
 chullI = chull(keepPoints[,1], keepPoints[,2])
 chullPoints = keepPoints[chullI,]
-if(makeAllPlots) {
+if(FALSE) {
   plot(keepPoints, pch=".", col="green", xlim=xlim, ylim=ylim)
   points(leaveOutPoints, pch=".", col="red")
   points(chullPoints, pch=19, cex=.3, col="purple")
   polygon(chullPoints[,1], chullPoints[,2])
 }
 
+##### construct prediction points ----
+xRange = range(allPoints[,1])
+yRange = range(allPoints[,2])
+xGrid = seq(xRange[1], xRange[2], by=.1)
+yGrid = seq(yRange[1], yRange[2], by=.1)
+predPoints = expand.grid(list(x=xGrid, y=yGrid))
+inds = in.poly(predPoints, chullPoints)
+sum(inds)
+predPoints = predPoints[inds,]
+fromproj4 = "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs"
+coordsOrig = SpatialPoints(predPoints, proj4string=CRS(fromproj4))
+predPointsLonLat = spTransform(coordsOrig, CRS("+init=epsg:4326"))
+predPointsLonLat = attr(predPointsLonLat, "coords")
 
-spatialDomain <- Polygon(chullPoints)
+# get percent tree cover ----
+ptc = raster("~/git/LK-INLA/PTC_2000.tif", values= TRUE)
+predPTC = extract(ptc, SpatialPoints(predPoints, proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+range(predPTC, na.rm=TRUE)
+
+# plot percent tree cover
+if(FALSE) {
+  png("Figures/BCEF/PTC.png", width=500, height=500)
+  quilt.plot(predPoints, predPTC, col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  png("Figures/BCEF/FCH.png", width=500, height=500)
+  plotWithColor(BCEF$x, BCEF$y, BCEF$FCH, xlab="Easting (km)", ylab="Northing (km)", 
+                colScale=yellowBlueCols, pch=19, cex=.1)
+  dev.off()
+  
+  # A few exploratory plots
+  pdf("Figures/BCEF/PTCvFCH.pdf", width=5, height=5)
+  plot(BCEF$PTC, BCEF$FCH, pch=".", 
+       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
+  dev.off()
+  
+  set.seed(123)
+  BCEFSubset = BCEF[sample(1:nrow(BCEF), 50000, replace=F),]
+  out = loess(FCH~PTC, data=BCEFSubset)
+  pdf("Figures/BCEF/PTCvFCH_loess.pdf", width=5, height=5)
+  vals = predict(out, seq(0, 100))
+  plot(out, pch=".", 
+       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
+  lines(seq(0, 100), vals, col="red")
+  dev.off()
+  
+  cuts = cut(BCEF$PTC, breaks=seq(0, 100, by=5), include.lowest=TRUE)
+  xs = seq(2.5, 97.5, by=5)
+  breakInd = as.integer(cuts)
+  xVals = xs[breakInd]
+  meanVals = aggregate(BCEF$FCH, by=list(PTC=xVals), FUN=mean)$x
+  
+  pdf("Figures/BCEF/PTCvFCH_mean.pdf", width=5, height=5)
+  plot(BCEF$PTC, BCEF$FCH, pch=".", 
+       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
+  points(xs, meanVals, col="red", pch=19, cex=.5)
+  dev.off()
+  
+  meanVals = aggregate(BCEF$FCH, by=list(PTC=xVals), FUN=mean)$x
+  
+  pdf("Figures/BCEF/PTCvLogFCH_mean.pdf", width=5, height=5)
+  plot(BCEF$PTC, BCEF$FCH, pch=".", 
+       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)", 
+       log="y")
+  points(xs, meanVals, col="red", pch=19, cex=.5)
+  dev.off()
+}
 
 ##### construct rotated grid of lattice points ----
-# first rotate points
+# first get range of shifted and rotated data domain for lattice
+allPoints = cbind(BCEF$x, BCEF$y)
 rotationAngle = 49.5 * (pi/180)
 center = colMeans(allPoints)
 centered = sweep(allPoints, 2, center, "-")
 rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
                     c(sin(rotationAngle), cos(rotationAngle)))
 rotatedCentered = t(rotationMat %*% t(centered))
-if(makeAllPlots) {
-  plot(rotatedCentered, pch=".", col="green")
-}
-
-
-# construct basis functions on the rotated centered coordinate system
 xRange = range(rotatedCentered[,1])
 yRange = range(rotatedCentered[,2])
-NCs = c(25, 100)
-separateRanges = TRUE
-NCs = c(25, 50, 99) # 1km, .5km, and .25km resolution
-separateRanges = FALSE
+
+# construct basis functions on the rotated centered coordinate system
 NCs = c(13, 50) # 2km and .5km resolution (this results in memory explosion...)
 separateRanges = TRUE
+NCs = c(25, 50, 99) # 1km, .5km, and .25km resolution (matrix factorization explosion...)
+separateRanges = FALSE
+NCs = c(25, 100)
+separateRanges = TRUE # 1km and .25km (killed on the cluster, bad sampling on laptop)
+NCs = c(25, 50) # 1km and .5km (killed on cluster)
+separateRanges = TRUE
+NCs = c(13, 25, 50) # 2km, 1km and .5km
+separateRanges = FALSE
 
 NCsText = paste(c("NC", NCs), collapse="_")
 
@@ -235,77 +239,6 @@ if(makeAllPlots) {
   dev.off()
 }
 
-##### construct prediction points ----
-xRange = range(allPoints[,1])
-yRange = range(allPoints[,2])
-xGrid = seq(xRange[1], xRange[2], by=.1)
-yGrid = seq(yRange[1], yRange[2], by=.1)
-predPoints = expand.grid(list(x=xGrid, y=yGrid))
-inds = in.poly(predPoints, chullPoints)
-sum(inds)
-predPoints = predPoints[inds,]
-fromproj4 = "+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs"
-coordsOrig = SpatialPoints(predPoints, proj4string=CRS(fromproj4))
-predPointsLonLat = spTransform(coordsOrig, CRS("+init=epsg:4326"))
-predPointsLonLat = attr(predPointsLonLat, "coords")
-
-# get percent tree cover ----
-ptc = raster("~/git/LK-INLA/PTC_2000.tif", values= TRUE)
-
-predPTC = extract(ptc, SpatialPoints(predPoints, proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
-range(predPTC, na.rm=TRUE)
-
-# plot percent tree cover
-if(makeAllPlots) {
-  png("Figures/BCEF/PTC.png", width=500, height=500)
-  quilt.plot(predPoints, ptcs, col=blueGreenCols, 
-             nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)")
-  dev.off()
-  
-  png("Figures/BCEF/FCH.png", width=500, height=500)
-  plotWithColor(BCEF$x, BCEF$y, BCEF$FCH, xlab="Easting (km)", ylab="Northing (km)", 
-                colScale=yellowBlueCols, pch=19, cex=.1)
-  dev.off()
-  
-  # A few exploratory plots
-  pdf("Figures/BCEF/PTCvFCH.pdf", width=5, height=5)
-  plot(BCEF$PTC, BCEF$FCH, pch=".", 
-       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
-  dev.off()
-  
-  set.seed(123)
-  BCEFSubset = BCEF[sample(1:nrow(BCEF), 50000, replace=F),]
-  out = loess(FCH~PTC, data=BCEFSubset)
-  pdf("Figures/BCEF/PTCvFCH_loess.pdf", width=5, height=5)
-  vals = predict(out, seq(0, 100))
-  plot(out, pch=".", 
-       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
-  lines(seq(0, 100), vals, col="red")
-  dev.off()
-  
-  cuts = cut(BCEF$PTC, breaks=seq(0, 100, by=5), include.lowest=TRUE)
-  xs = seq(2.5, 97.5, by=5)
-  breakInd = as.integer(cuts)
-  xVals = xs[breakInd]
-  meanVals = aggregate(BCEF$FCH, by=list(PTC=xVals), FUN=mean)$x
-  
-  pdf("Figures/BCEF/PTCvFCH_mean.pdf", width=5, height=5)
-  plot(BCEF$PTC, BCEF$FCH, pch=".", 
-       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)")
-  points(xs, meanVals, col="red", pch=19, cex=.5)
-  dev.off()
-  
-  meanVals = aggregate(BCEF$FCH, by=list(PTC=xVals), FUN=mean)$x
-  
-  pdf("Figures/BCEF/PTCvLogFCH_mean.pdf", width=5, height=5)
-  plot(BCEF$PTC, BCEF$FCH, pch=".", 
-       xlab="Percent Tree Cover", ylab="Forest Canopy Height (m)", 
-       log="y")
-  points(xs, meanVals, col="red", pch=19, cex=.5)
-  dev.off()
-}
-
 # Run the analysis ----
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 fitModels=TRUE
@@ -336,7 +269,7 @@ for(i in 1:length(Ns)) {
   # priorPar are the spatial parameters
   # priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
   #                       latticeInfo=latInfo, useUrbanPrior=FALSE)
-  priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=2, separateRanges=separateRanges, 
+  priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=length(NCs), separateRanges=separateRanges, 
                         latticeInfo=latInfo, useUrbanPrior=FALSE)
   if(fitModels) {
     precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
@@ -344,21 +277,24 @@ for(i in 1:length(Ns)) {
     totalTime = system.time(bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
                                                seed=1, rwModel="rw1", nNonlinearBasis=30, 
                                                normalize=TRUE, fastNormalize=TRUE, 
-                                               intStrategy="eb", strategy="gaussian", 
+                                               intStrategy="ccd", strategy="gaussian", 
                                                printVerboseTimings=FALSE, priorPar=priorPar, 
-                                               loadPrecomputationResults=TRUE, separateRanges=separateRanges, 
+                                               loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
                                                savePrecomputationResults=savePrecomputationResults, 
                                                precomputationFileNameRoot=precomputationFileNameRoot))
     bcefELK$mod = NULL
     save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))
   } else {
-    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, ".RData"))
+    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
   
-  # (N, minutes) for laptop
+  # (N, minutes) for laptop NC: 25, 100
   # (1000, 10), (5000, 17), (25000, 46), (100000, 368 or 6:08)
+  
+  # (N, minutes) for cluster NC: 25, 50, 99
+  # (1000, 16), 
   
   # plot predictions ----
   preds = exp(bcefELK$preds)

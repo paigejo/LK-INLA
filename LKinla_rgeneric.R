@@ -1722,7 +1722,7 @@ inla.rgeneric.lk.model.standard = function(
       else
         source("U:/git/LK-INLA/LKinla.R")
     }
-    AMat = makeA(datCoords, latInfo)
+    # AMat = makeA(datCoords, latInfo)
     # mod = lm(ys ~ cbind(X, as.matrix(AMat)) - 1)
     # r2 = summary(mod)$r.squared
     # s2 = summary(mod)$sigma^2
@@ -1735,7 +1735,7 @@ inla.rgeneric.lk.model.standard = function(
     # initialize covariance parameters
     if(is.null(initialEffectiveRange)) {
       # We want the "middle" representable effective range to be an eighth of the domain diameter
-      middleEffectiveRange = ((xRangeDat[2] - xRangeDat[1]) + (yRangeDat[2] - yRangeDat[1]))/8
+      middleEffectiveRange = max(c(xRangeDat[2] - xRangeDat[1], yRangeDat[2] - yRangeDat[1]))/8
       nLayer = length(latInfo)
       exponent = (nLayer-1)/2
       effectiveRangeInit = middleEffectiveRange * 2^exponent
@@ -2023,7 +2023,7 @@ inla.rgeneric.lk.model.full = function(
     # initialize covariance parameters
     if(is.null(initialEffectiveRange)) {
       # We want the "middle" representable effective range to be an eighth of the domain diameter
-      middleEffectiveRange = ((xRangeDat[2] - xRangeDat[1]) + (yRangeDat[2] - yRangeDat[1]))/8
+      middleEffectiveRange = max(c(xRangeDat[2] - xRangeDat[1], yRangeDat[2] - yRangeDat[1]))/8
       
       # based on the middle effective range, set the effective ranges of each layer:
       nLayer = length(latInfo)
