@@ -220,7 +220,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   if(!is.null(previousFit)) {
     # modeControl$result = previousFit
     modeControl$theta = previousFit$mode$theta
-    modeControl$x = previousFit$mode$x
+    # modeControl$x = previousFit$mode$x
     modeControl$restart = TRUE
   }
   endTimeDefineModel = proc.time()[3]

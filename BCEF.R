@@ -239,9 +239,11 @@ if(makeAllPlots) {
   dev.off()
 }
 
-# Run the analysis ----
+# Run the ELK analysis ----
+Ns = c(1000, 5000, 25000)
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 fitModels=TRUE
+lastMod = NULL
 for(i in 1:length(Ns)) {
   sampleN = ceiling(nrow(BCEF)/2)
   sampleN = sum(BCEF$holdout == 0)
@@ -265,7 +267,7 @@ for(i in 1:length(Ns)) {
   abline(0, 1)
   dev.off()
   
-  # fit model ----
+  # fit ELK model ----
   # priorPar are the spatial parameters
   # priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
   #                       latticeInfo=latInfo, useUrbanPrior=FALSE)
@@ -281,7 +283,9 @@ for(i in 1:length(Ns)) {
                                                printVerboseTimings=FALSE, priorPar=priorPar, 
                                                loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
                                                savePrecomputationResults=savePrecomputationResults, 
-                                               precomputationFileNameRoot=precomputationFileNameRoot))
+                                               precomputationFileNameRoot=precomputationFileNameRoot, 
+                                               previousFit=lastMod))
+    lastMod = bcefELK$mod
     bcefELK$mod = NULL
     save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))
   } else {
@@ -350,7 +354,8 @@ for(i in 1:length(Ns)) {
 
 
 
-
+# Construct SPDE mesh ----
+mesh = 
 
 
 
