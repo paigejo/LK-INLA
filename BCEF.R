@@ -276,15 +276,29 @@ for(i in 1:length(Ns)) {
   if(fitModels) {
     precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
     savePrecomputationResults=FALSE
-    totalTime = system.time(bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-                                               seed=1, rwModel="rw1", nNonlinearBasis=30, 
-                                               normalize=TRUE, fastNormalize=TRUE, 
-                                               intStrategy="ccd", strategy="gaussian", 
-                                               printVerboseTimings=FALSE, priorPar=priorPar, 
-                                               loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-                                               savePrecomputationResults=savePrecomputationResults, 
-                                               precomputationFileNameRoot=precomputationFileNameRoot, 
-                                               previousFit=lastMod))
+    startTime = proc.time()
+    if(sampleN > 25000) {
+      bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+                                                 seed=1, rwModel="rw1", nNonlinearBasis=30, 
+                                                 normalize=TRUE, fastNormalize=TRUE, 
+                                                 intStrategy="eb", strategy="gaussian", 
+                                                 printVerboseTimings=FALSE, priorPar=priorPar, 
+                                                 loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+                                                 savePrecomputationResults=savePrecomputationResults, 
+                                                 precomputationFileNameRoot=precomputationFileNameRoot, 
+                                                 previousFit=lastMod, diagonal=1000)
+      lastMod = bcefELK$mod
+    }
+    bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+                       seed=1, rwModel="rw1", nNonlinearBasis=30, 
+                       normalize=TRUE, fastNormalize=TRUE, 
+                       intStrategy="ccd", strategy="gaussian", 
+                       printVerboseTimings=FALSE, priorPar=priorPar, 
+                       loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+                       savePrecomputationResults=savePrecomputationResults, 
+                       precomputationFileNameRoot=precomputationFileNameRoot, 
+                       previousFit=lastMod)
+    totalTime = proc.time() - startTime
     lastMod = bcefELK$mod
     bcefELK$mod = NULL
     save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))

@@ -14,7 +14,8 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
                    precomputedNormalizationFun=NULL, loadPrecomputationResults=FALSE, 
                    precomputationFileNameRoot="BCEFprecomputations", 
                    savePrecomputationResults=FALSE, family=c("normal"), 
-                   leaveOutI=NULL, previousFit=NULL, verbose=TRUE, diagonal=NULL) {
+                   leaveOutI=NULL, previousFit=NULL, verbose=TRUE, diagonal=0.0, 
+                   rwConstr=TRUE) {
   rwModel = match.arg(rwModel)
   
   # construct lattice info if necessary
@@ -230,14 +231,14 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   # control.inla = list(cmin = 0, int.strategy=int.strategy) 
   # see: inla.doc("loggamma")
   # shape=.1, scale=10 for unit mean, variance 100 prior
-  controls = list(strategy=strategy, int.strategy=intStrategy) 
+  controls = list(strategy=strategy, int.strategy=intStrategy, diagonal=diagonal) 
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
   startTimeFitModel = proc.time()[3]
   if(family == "normal") {
     if(!is.null(xObs)) {
       mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
                    f(rw, model=rwModel, values=rwKnots, hyper=rwPrior, 
-                     scale.model=TRUE, diagonal=diagonal), 
+                     scale.model=TRUE, constr=rwConstr), 
                  data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
                  control.inla=controls, 
                  control.mode=modeControl, 
@@ -255,7 +256,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
         mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
                      f(clust, model="iid", hyper=list(prec=list(param=c(1, 0.01), prior="pc.prec"))) + 
                      f(rw, model=rwModel, values=rwKnots, hyper=rwPrior, 
-                       scale.model=TRUE, diagonal=diagonal), 
+                       scale.model=TRUE, constr=rwConstr), 
                    data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
                    control.inla=controls, Ntrials=dat$Ntrials, 
                    control.mode=modeControl, 
@@ -269,7 +270,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
       if(!is.null(xObs)) {
         mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
                      f(rw, model=rwModel, values=rwKnots, hyper=rwPrior, 
-                       scale.model=TRUE, diagonal=diagonal), 
+                       scale.model=TRUE, constr=rwConstr), 
                    data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
                    control.inla=controls, Ntrials=dat$Ntrials, 
                    control.mode=modeControl, 
@@ -286,13 +287,11 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   
   print(paste0("finished fitting model. Took ", round(totalTimeFitModel / 60, 2), " minutes"))
   
-  # # improve the approximation of the posterior if requested by the user
+  # # improve the approximation of the posterior for the hyperparameters if requested by the user
   # if(improveHyperpar) {
   #   browser()
   #   mod = inla.hyperpar(mod)
   # }
-  
-  # browser()
   
   # get predictive surface, SD, and data
   index = inla.stack.index(stack.full, "pred")$data
@@ -588,6 +587,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   }
   
   endTime = proc.time()[3]
+  browser()
   totalTimeSampleProcessing = endTime - startTimeSampleProcessing
   print(paste0("finished processing samples. Took ", round(totalTimeSampleProcessing / 60, 2), " minutes"))
   totalTime = endTime - startTime
