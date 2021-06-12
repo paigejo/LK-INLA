@@ -588,7 +588,7 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
   }
   
   endTime = proc.time()[3]
-  browser()
+  # browser()
   totalTimeSampleProcessing = endTime - startTimeSampleProcessing
   print(paste0("finished processing samples. Took ", round(totalTimeSampleProcessing / 60, 2), " minutes"))
   totalTime = endTime - startTime
