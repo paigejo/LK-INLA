@@ -245,7 +245,8 @@ modBCEF = function(dat, predCoords, predPTC, latInfo=NULL,
                  control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
                  control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
                  control.fixed=list(quantiles=allQuantiles), 
-                 control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
+                 control.family=list(hyper = list(prec = list(prior="loggamma", param=c(0.1,0.1)))))
+      # control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec")))
     } else {
       stop("must include covariates in this application...")
     }

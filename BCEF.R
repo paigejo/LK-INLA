@@ -189,6 +189,8 @@ NCs = c(25, 50) # 1km and .5km (killed on cluster)
 separateRanges = TRUE
 NCs = c(13, 25, 50) # 2km, 1km and .5km
 separateRanges = FALSE
+NCs = c(25, 245) # 1km and .1km
+separateRanges = TRUE
 
 NCsText = paste(c("NC", NCs), collapse="_")
 
@@ -288,6 +290,15 @@ for(i in 1:length(Ns)) {
                                                  precomputationFileNameRoot=precomputationFileNameRoot, 
                                                  previousFit=lastMod, diagonal=1000)
       lastMod = bcefELK$mod
+      bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+                         seed=1, rwModel="rw1", nNonlinearBasis=30, 
+                         normalize=TRUE, fastNormalize=TRUE, 
+                         intStrategy="eb", strategy="gaussian", 
+                         printVerboseTimings=FALSE, priorPar=priorPar, 
+                         loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+                         savePrecomputationResults=savePrecomputationResults, 
+                         precomputationFileNameRoot=precomputationFileNameRoot, 
+                         previousFit=lastMod, diagonal=5)
     }
     bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
                        seed=1, rwModel="rw1", nNonlinearBasis=30, 
