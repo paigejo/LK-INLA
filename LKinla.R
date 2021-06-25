@@ -15,7 +15,10 @@ require(MCMCpack)
 
 # computing precision matrix for a single layer or a block diagonal sparse 
 # precision matrix for multiple layers
-# kappa: scale of Matern covariance with smoothness 1
+# kappa: roughly proportional to the inverse range of Matern covariance with smoothness 1. 
+#        diagonal of basis coefficient SAR matrix, B, has diagonal elements 4 + kappa^2. 
+#        Hence, kappa is sqrt(a.wght - 4), which is equal to exp(omega), where a.wght and 
+#        omega are the LK parameters. kappa also affects the spatial variance
 # xRange, yRange: x and y intervals in space over which basis elements are placed
 # nx, ny: number of basis elements when counting along the lattive in 
 #         x and y directions respectively (for the first layer)
