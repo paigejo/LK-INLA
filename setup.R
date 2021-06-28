@@ -14,7 +14,7 @@ library(raster)
 library(MCMCpack)
 library(numDeriv)
 library(INLA)
-
+library(spam64)
 
 
 inf = sessionInfo()
@@ -57,7 +57,8 @@ source('generateExampleResults.R')
 source('plotGenerator.R')
 source('validation.R')
 source('pcBeta.R')
-source('~/git/LK-INLA/modBCEF.R')
+source('modBCEF.R')
+source('LK2ELK.R')
 
 # parallelization
 if(!exists("doParallel") || (exists("doParallel") && doParallel == FALSE)) {

@@ -168,14 +168,37 @@ quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids,
 dev.off()
 
 ##### try fitting LK ----
-NC<- 40
-nlevel<- 4
-a.wght<-  10.25
+# * Setup ----
+dataCase = "full"
+dataCase = "test"
+dataCaseText = ifelse(dataCase == "test", "_test", "")
+if(dataCase=="test"){
+  load("heaton/heatoncomparison-master/Data/SmallTestData.RData")
+  lon <- code.test$Lon
+  lat <- code.test$Lat
+  temps <- code.test$MaskedData
+  NC<- 16
+  nlevel<- 2
+  a.wght<- 4.4
+  nu<- .5
+} else {
+  out = load("heaton/AllSatelliteTemps.RData")
+  names(all.sat.temps)
+  NC<- 40
+  nlevel<- 4
+  a.wght<-  10.25
+  nu<- .1
+}
 kappa = sqrt(a.wght - 4)
-nu<- .1
 
 # create locations and responses (y)
-dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
+source("heaton/heatoncomparison-master/Code/LatticeKrig/functions.R")
+if(dataCase == "test") {
+  dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
+} else {
+  dataObject<- makeData(code.test$Lon,code.test$Lat, code.test$Temp)
+}
+
 
 # setup LKrig object
 LKinfoFinal<- LKrigSetup( dataObject$x,
@@ -183,8 +206,14 @@ LKinfoFinal<- LKrigSetup( dataObject$x,
                           nlevel = nlevel,
                           a.wght = a.wght,
                           nu = nu)
-comp.timeLKfit <- system.time(fitFinal<- LatticeKrig( dataObject$x, dataObject$y, LKinfo= LKinfoFinal))
 
+# * Fit model ----
+require(spam64)
+comp.timeLKfit <- system.time(fitFinal<- LatticeKrig(dataObject$x, dataObject$y, 
+                                                     LKinfo=LKinfoFinal, 
+                                                     verbose=TRUE))
+
+# * Get SEs ----
 set.seed(234)
 
 M <- 100  # Number of conditional draws (used for standard errors) [Final model: 100]
@@ -193,17 +222,62 @@ comp.timeLKse =
                 LKrig.sim.conditional(fitFinal,
                                       x.grid = dataObject$xMissing, 
                                       M = M))
-comp.timeLK = comp.timeLKfit + comp.timeLKse
+
+# * Get CIs ----
+comp.timeLKci <- system.time(standardError<- sqrt( 
+  apply( outputSim$g.draw, 1, "var") +
+    fitFinal$sigma.MLE^2))
+
+
+yHat<- outputSim$ghat
+CI80Lower<- yHat + qnorm(.1) * standardError
+CI80Upper<- yHat + qnorm(.9) * standardError
+
+comp.timeLK = comp.timeLKfit + comp.timeLKse + comp.timeLKci
+
+# * Save results ----
+
+finalResults<- list(x=dataObject$xMissing,
+                    yHat=yHat, 
+                    standError=standardError)
+
+save( finalResults, fitFinal, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"finalResultsLK", dataCaseText, ".rda") )
 
 ##### try fitting ELK ----
-xRange = range(sat.temps$Lon)
-yRange = range(sat.temps$Lat)
 
+# * Setup ----
 latInfo = LKinfo2ELKBasis(LKinfoFinal)
 Ms = getMs(latInfo=latInfo)
 Ms
 sapply(latInfo, function(x) {x$latWidth})
 
+priorPar = getPCPrior(max(c(latInfo[[1]]$xRangeDat, latInfo[[1]]$yRangeDat))/5, .01, 1, nLayer=nlevel, separateRanges=FALSE, latticeInfo=latInfo, useUrbanPrior=FALSE) # 37.06811/5
+
+# * Fit model ----
+
+comp.timeELKprecomputation = system.time({
+  precomputedMatrices = precomputationsQ2(latInfo)
+  precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
+                                                        plotNormalizationSplines=FALSE)
+})
+
+precomputationFileNameRoot = "precomputationResultsHeatonComparison"
+save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
+     file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, dataCaseText, ".RData"))
+
+comp.timeELKall = system.time(fitFinal <- fitLKINLAStandard2(dataObject$x, dataObject$y, 
+                                                             predCoords=dataObject$xMissing, 
+                                                             nu=nu, seed=234, nLayer=nlevel, NC=NC,
+                   nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
+                   intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
+                   predictionType=c("mean", "median"), significanceCI=0.8, 
+                   printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
+                   clusterEffect=TRUE, latInfo=latInfo, 
+                   initialEffectiveRange=3, 
+                   verbose=TRUE, separateRanges=FALSE, 
+                   loadPrecomputationResults=TRUE, 
+                   precomputationFileNameRoot=precomputationFileNameRoot, 
+                   diagonal=c(5.0, 0.0)))
 
 
 

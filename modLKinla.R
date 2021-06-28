@@ -9,6 +9,9 @@
 # int.strategy: "auto" or "eb" for empirical Bayes
 # predClusterI: whether or not to include cluster effects for which predictions
 # priorPar default was getPrior(.1, .1, 10, nLayer=nLayer)
+# diagonal: A vector of "diagonal" values that are input to INLA in consecutive fits. 
+#           Used when optimization is numerically unstable. Last value should be 0.0 
+#           or else results will be less accurate
 fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
                               nBuffer=5, priorPar=NULL, 
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
@@ -21,7 +24,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               plotNormalizationSplines=FALSE, verbose=TRUE, separateRanges=FALSE, 
                               doValidation=FALSE, previousFit=NULL, precomputedNormalizationFun=NULL, 
                               useUrbanPrior=FALSE, savePrecomputationResults=FALSE, loadPrecomputationResults=FALSE, 
-                              precomputationFileNameRoot="precomputationResults") {
+                              precomputationFileNameRoot="precomputationResults", diagonal=0.0) {
   
   startTime = proc.time()[3]
   set.seed(seed)
@@ -211,7 +214,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   if(!is.null(previousFit)) {
     # modeControl$result = previousFit
     modeControl$theta = previousFit$mode$theta
-    modeControl$x = previousFit$mode$x
+    # modeControl$x = previousFit$mode$x
     modeControl$restart = TRUE
   }
   endTimeDefineModel = proc.time()[3]
@@ -221,71 +224,86 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # control.inla = list(cmin = 0, int.strategy=int.strategy) 
   # see: inla.doc("loggamma")
   # shape=.1, scale=10 for unit mean, variance 100 prior
-  controls = list(strategy=strategy, int.strategy=intStrategy) 
+  # 
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
   startTimeFitModel = proc.time()[3]
-  if(family == "normal") {
-    if(!is.null(xObs)) {
-      mod = inla(y ~ - 1 + X + f(field, model=rgen), 
-                 data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                 control.inla=controls, 
-                 control.mode=modeControl, 
-                 control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
-                 control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
-                 control.fixed=list(quantiles=allQuantiles), 
-                 control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
-    } else {
-      mod = inla(y ~ - 1 + f(field, model=rgen), 
-                 data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                 control.inla=controls, 
-                 control.mode=modeControl, 
-                 control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
-                 control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
-                 control.fixed=list(quantiles=allQuantiles), 
-                 control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
-    }
-  } else if(family == "binomial" || family == "betabinomial") {
-    if(clusterEffect) {
-      # clusterList = list(param=c(.15, 0.01), prior="pc.prec")
-      if(!is.null(xObs)) {
-        mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
-                     f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
-                   data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                   control.inla=controls, Ntrials=dat$Ntrials, 
-                   control.mode=modeControl, 
-                   control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
-                   control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
-                   control.fixed=list(quantiles=allQuantiles), control.family = control.family)
-      } else {
-        mod = inla(y ~ - 1 + f(field, model=rgen) + 
-                     f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
-                   data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                   control.inla=controls, Ntrials=dat$Ntrials, 
-                   control.mode=modeControl, 
-                   control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
-                   control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
-                   control.fixed=list(quantiles=allQuantiles), control.family = control.family)
-      }
-    } else {
+  for(i in 1:length(diagonal)) {
+    controls = list(strategy=strategy, int.strategy=intStrategy, diagonal=diagonal[i]) 
+    
+    if(family == "normal") {
       if(!is.null(xObs)) {
         mod = inla(y ~ - 1 + X + f(field, model=rgen), 
                    data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.inla=controls, 
                    control.mode=modeControl, 
                    control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
                    control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
-                   control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+                   control.fixed=list(quantiles=allQuantiles), 
+                   control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
       } else {
         mod = inla(y ~ - 1 + f(field, model=rgen), 
                    data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
-                   control.inla=controls, Ntrials=dat$Ntrials, 
+                   control.inla=controls, 
                    control.mode=modeControl, 
                    control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
-                   control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE, quantiles=allQuantiles), 
-                   control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+                   control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
+                   control.fixed=list(quantiles=allQuantiles), 
+                   control.family=list(hyper = list(prec = list(param=c(1, 0.05), prior="pc.prec"))))
+      }
+    } else if(family == "binomial" || family == "betabinomial") {
+      if(clusterEffect) {
+        # clusterList = list(param=c(.15, 0.01), prior="pc.prec")
+        if(!is.null(xObs)) {
+          mod = inla(y ~ - 1 + X + f(field, model=rgen) + 
+                       f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
+                     data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
+                     control.inla=controls, Ntrials=dat$Ntrials, 
+                     control.mode=modeControl, 
+                     control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
+                     control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
+                     control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+        } else {
+          mod = inla(y ~ - 1 + f(field, model=rgen) + 
+                       f(clust, model="iid", hyper = list(prec = list(param=c(1, 0.01), prior="pc.prec"))), 
+                     data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
+                     control.inla=controls, Ntrials=dat$Ntrials, 
+                     control.mode=modeControl, 
+                     control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
+                     control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
+                     control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+        }
+      } else {
+        if(!is.null(xObs)) {
+          mod = inla(y ~ - 1 + X + f(field, model=rgen), 
+                     data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
+                     control.inla=controls, Ntrials=dat$Ntrials, 
+                     control.mode=modeControl, 
+                     control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
+                     control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE), 
+                     control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+        } else {
+          mod = inla(y ~ - 1 + f(field, model=rgen), 
+                     data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
+                     control.inla=controls, Ntrials=dat$Ntrials, 
+                     control.mode=modeControl, 
+                     control.compute=list(config=TRUE, cpo=doValidation, dic=doValidation, waic=doValidation), 
+                     control.predictor=list(A=inla.stack.A(stack.full), compute=FALSE, quantiles=allQuantiles), 
+                     control.fixed=list(quantiles=allQuantiles), control.family = control.family)
+        }
       }
     }
+    
+    # if diagonal is a vector, update previous fit and restart at 
+    # the previous maximum
+    previousFit = mod
+    if(!is.null(previousFit)) {
+      modeControl$result = previousFit
+      modeControl$theta = previousFit$mode$theta
+      modeControl$x = previousFit$mode$x
+      modeControl$restart = TRUE
+    }
   }
+  
   endTimeFitModel = proc.time()[3]
   totalTimeFitModel = endTimeFitModel - startTimeFitModel
   
