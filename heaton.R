@@ -194,9 +194,9 @@ kappa = sqrt(a.wght - 4)
 # create locations and responses (y)
 source("heaton/heatoncomparison-master/Code/LatticeKrig/functions.R")
 if(dataCase == "test") {
-  dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
+  dataObject<- makeData(code.test$Lon,code.test$Lat, code.test$MaskedData)
 } else {
-  dataObject<- makeData(code.test$Lon,code.test$Lat, code.test$Temp)
+  dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
 }
 
 
@@ -261,9 +261,9 @@ comp.timeELKprecomputation = system.time({
                                                         plotNormalizationSplines=FALSE)
 })
 
-precomputationFileNameRoot = "precomputationResultsHeatonComparison"
+precomputationFileNameRoot = paste0("precomputationResultsHeatonComparison", dataCaseText)
 save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
-     file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, dataCaseText, ".RData"))
+     file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
 
 comp.timeELKall = system.time(fitFinal <- fitLKINLAStandard2(dataObject$x, dataObject$y, 
                                                              predCoords=dataObject$xMissing, 
