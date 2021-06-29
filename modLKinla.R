@@ -227,6 +227,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # 
   allQuantiles = c(0.5, (1-significanceCI) / 2, 1 - (1-significanceCI) / 2)
   startTimeFitModel = proc.time()[3]
+  endTimeFitModels = 1:length(diagonal)
   for(i in 1:length(diagonal)) {
     controls = list(strategy=strategy, int.strategy=intStrategy, diagonal=diagonal[i]) 
     
@@ -302,10 +303,13 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
       modeControl$x = previousFit$mode$x
       modeControl$restart = TRUE
     }
+    
+    endTimeFitModels[i] = proc.time()[3]
   }
   
   endTimeFitModel = proc.time()[3]
   totalTimeFitModel = endTimeFitModel - startTimeFitModel
+  modelFitTimes = diff(c(startTimeFitModel, endTimeFitModels))
   
   print(paste0("finished fitting model. Took ", round(totalTimeFitModel / 60, 2), " minutes"))
   
@@ -614,7 +618,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
        sdSummary=sdSummary, varSummary=varSummary, overdispersionSummary=overdispersionSummary, parameterSummaryTable=parameterSummaryTable, 
        alphaSummary=alphaSummary, timings=timings, priorPar=priorPar, precomputedNormalizationFun=precomputedNormalizationFun, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
-       predMat=predMatClustEffect, obsMat=obsMatClustEffect, hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos
+       predMat=predMatClustEffect, obsMat=obsMatClustEffect, hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
+       modelFitTimes=modelFitTimes
        )
 }
 
