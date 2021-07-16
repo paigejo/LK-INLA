@@ -5,6 +5,15 @@
 # nu: Matern smoothness parameter from "simple" LKrig model
 # xObs: observation design matrix (intercept and covariates at obs locations)
 # xPred: prediction design matrix (intercept and covariates at pred locations)
+# nonlinearCovariateInds: indices in the designMatrix that are 
+#                         nonlinear covariates
+# nonlinearModels: type of nonlinear covariate model (currently supported are 
+#                  rw1 and rw2, though others in theory can be used). Can 
+#                  either be a vector or a single value
+# nKnotsNonlinear: a vector with the number of knots for the respective nonlinear effects
+# rwPriors: list of priors for the nonlinear effect random walks
+# rwKnots: list of vectors of knots, one vector for each nonlinear effect
+# constrNonlinear: whether to add sum to zero constraints to the nonlinear effects
 # NC: number of coarse lattice points over the longest dimension of the data
 # int.strategy: "auto" or "eb" for empirical Bayes
 # predClusterI: whether or not to include cluster effects for which predictions
@@ -15,6 +24,8 @@
 fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
                               nBuffer=5, priorPar=NULL, 
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
+                              nonlinearCovariateInds=c(), nonlinearModels="rw1", 
+                              nKnotsNonlinear=30, rwPriors=NULL, rwKnots=NULL, constrNonlinear=NULL, 
                               intStrategy="grid", strategy="gaussian", fastNormalize=TRUE, 
                               predictionType=c("mean", "median"), significanceCI=0.8, 
                               printVerboseTimings=FALSE, nPostSamples=1000, family=c("normal", "binomial", "betabinomial"),
@@ -38,7 +49,6 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     stop("cluster effect must be included for the normal family")
   
   # get lattice points, prediction points
-  
   if(is.null(latInfo)) {
     xRangeDat = range(obsCoords[,1])
     yRangeDat = range(obsCoords[,2])
@@ -52,6 +62,73 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   
   if(is.null(priorPar))
     priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior) # 1444.772/5
+  
+  ## setup nonlinear covariates
+  
+  # check to make sure the intercept isn't included
+  nNonlinear = length(nonlinearCovariateInds)
+  xObsNonlinear = matrix(xObs[,nonlinearCovariateInds], ncol=length(nonlinearCovariateInds))
+  xPredNonlinear = matrix(xPred[,nonlinearCovariateInds], ncol=length(nonlinearCovariateInds))
+  if(nNonlinear > 0 && any(apply(xObsNonlinear, 2, function(x) {all(x == 1)}))) {
+    stop("the intercept cannot be set as a nonlinear covariate")
+  }
+  if(nNonlinear > length(nonlinearModels)) {
+    if(length(nonlinearModels) != 1) {
+      stop("number of nonlinear effects > length(nonlinearModels) != 1")
+    }
+    nonlinearModels = rep(nonlinearModels, nNonlinear)
+  }
+  if(nNonlinear > length(nKnotsNonlinear)) {
+    if(length(nKnotsNonlinear) != 1) {
+      stop("number of nonlinear effects > length(nKnotsNonlinear) != 1")
+    }
+    nKnotsNonlinear = rep(nKnotsNonlinear, nNonlinear)
+  }
+  if(family != "normal" && nNonlinear > 0) {
+    stop("nonlinear effects are currently only implemented for gaussian data")
+  }
+  
+  # set RW priors for nonlinear effects
+  if(is.null(rwPriors) && nNonlinear != 0) {
+    rwPriors = list()
+    for(i in 1:nNonlinear) {
+      rwPrior = getRandomWalkPriors(xObsNonlinear[,i], models=nonlinearModels[i], priorType="pc.prec", paramList=NULL, family=family, n=NULL)[1]
+      rwPriors = c(rwPriors, list(rwPrior))
+    }
+  }
+  
+  # set knots if necessary
+  if(is.null(rwKnots) && nNonlinear != 0) {
+    rwKnots = list()
+    for(i in 1:nNonlinear) {
+      thisRWknots = make_knots(c(xObsNonlinear[,i], xPredNonlinear[,i]), n=nKnotsNonlinear[i])[[1]]
+      rwKnots = c(rwKnots, list(thisRWknots))
+    }
+  }
+  
+  # must set each value of the covariates to the closest knot
+  rwEffects = NULL
+  rwEffectsNew = NULL
+  rwEffectsInds = NULL
+  rwEffectsIndsNew = NULL
+  if(nNonlinear != 0) {
+    rwEffects = list()
+    rwEffectsNew = list()
+    rwEffectsInds = list()
+    rwEffectsIndsNew = list()
+    for(i in 1:nNonlinear) {
+      thisrwEffects = match_with_knots(xObsNonlinear[,i], rwKnots[[i]])
+      thisrwEffectsNew = match_with_knots(xPredNonlinear[,i], rwKnots[[i]])
+      thisrwEffectsInds = match(thisrwEffects, rwKnots[[i]])
+      thisrwEffectsIndsNew = match(thisrwEffectsNew, rwKnots[[i]])
+      rwEffects = c(rwEffects, list(thisrwEffects))
+      rwEffectsNew = c(rwEffectsNew, list(thisrwEffectsNew))
+      rwEffectsInds = c(rwEffectsInds, list(thisrwEffectsInds))
+      rwEffectsIndsNew = c(rwEffectsIndsNew, list(thisrwEffectsIndsNew))
+    }
+    names(rwEffects) = paste("nonlinearEffect", 1:nNonlinear, sep="")
+    names(rwEffectsNew) = paste("nonlinearEffect", 1:nNonlinear, sep="")
+  }
   
   # generate lattice basis matrix
   AObs = makeA(obsCoords, latInfo)
@@ -119,13 +196,18 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                                 initialEffectiveRange=initialEffectiveRange, initialAlphas=initialAlphas, 
                                 precomputedNormalizationFun=precomputedNormalizationFun, ns=obsNs)
   }
-  
+  # browser()
   # use these global variables for testing calls to inla.rgeneric.lk.model.simple
   # latInfo<<-latInfo; ys<<-obsValues; ns<<-obsNs;
   # prior<<-priorPar; normalize<<-normalize; precomputedMatrices<<-precomputedMatrices;
   # X<<-xObs; nu<<-nu; datCoords<<-obsCoords; fastNormalize<<-fastNormalize;
   # printVerboseTimings<<-printVerboseTimings; initialEffectiveRange<<-initialEffectiveRange;
   # initialAlphas<<-initialAlphas; precomputedNormalizationFun<<-precomputedNormalizationFun
+  # cmd = c("graph", "Q", "mu", "initial", "log.norm.const",
+  #         "log.prior", "quit")
+  # thet = inla.rgeneric.lk.model.full("initial") # separate ranges
+  # thet = inla.rgeneric.lk.model.standard("initial") # non-separate ranges
+  # test = inla.rgeneric.lk.model.standard("Q", thet)
   ## generate inla stack:
   # Stacked A matrix (A_s from notation of LR2015 Bayesian Spatial Modelling with R_INLA):
   # (AEst   0  )
@@ -136,15 +218,19 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   APred = makeA(predCoords, latInfo)
   latticeInds = 1:ncol(AEst)
   clust = 1:length(obsValues)
+  nonlinearA = NULL
+  if(nNonlinear != 0) {
+    nonlinearA = as.list(rep(1, nNonlinear))
+  }
   if(family == "normal") {
     if(!is.null(xObs)) {
-      stack.est = inla.stack(A =list(AEst, 1), 
-                             effects =list(field=latticeInds, X=xObs), 
+      stack.est = inla.stack(A =c(list(AEst, 1), nonlinearA), 
+                             effects =c(list(field=latticeInds, X=xObs), rwEffects), 
                              data =list(y=obsValues, link=1), 
                              tag ="est", 
                              remove.unused=FALSE)
-      stack.pred = inla.stack(A =list(matrix(APred[1,], nrow=1), 1), 
-                              effects =list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
+      stack.pred = inla.stack(A =c(list(matrix(APred[1,], nrow=1), 1), nonlinearA), 
+                              effects =c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), lapply(rwEffectsNew, function(x) {x[1]})), 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
                               remove.unused=FALSE)
@@ -233,7 +319,17 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     
     if(family == "normal") {
       if(!is.null(xObs)) {
-        mod = inla(y ~ - 1 + X + f(field, model=rgen), 
+        
+        formulaText = "y ~ - 1 + X + f(field, model=rgen)"
+        if(nNonlinear != 0) {
+          for(i in 1:nNonlinear) {
+            formulaText = paste0(formulaText, " + f(nonlinearEffect", i, ", model=nonlinearModels[", i, "], ", 
+                                 "values=rwKnots[[", i, "]], hyper=rwPriors[[", i, "]], scale.model=TRUE, constr=constrNonlinear)")
+          }
+        }
+        
+        thisFormula = eval(as.formula(formulaText))
+        mod = inla(thisFormula, 
                    data=dat, quantiles=allQuantiles, family=family, verbose=verbose, 
                    control.inla=controls, 
                    control.mode=modeControl, 
@@ -357,19 +453,47 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   if(family == "normal") {
     if(!separateRanges) {
-      mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1], spatialVar=exp(x[3]), errorVar=1/x[1], 
-                                              totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
-                                              spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]))})
-      mat = rbind(mat, alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=nLayer-1)))
-      hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
-                     paste0("alpha", 1:nLayer))
+      
+      if(nNonlinear == 0) {
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1], spatialVar=exp(x[3]), errorVar=1/x[1], 
+                                                totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
+                                                spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]))})
+        mat = rbind(mat, alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))))
+        hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
+                       paste0("alpha", 1:nLayer))
+      }
+      else {
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):(2 + nLayer + nNonlinear)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
+                                                totalSD=sqrt(exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):(2 + nLayer + nNonlinear)])), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
+                                                spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
+                                                rwVar=1/x[(3 + nLayer):(2 + nLayer + nNonlinear)], rwSD=1/sqrt(x[(3 + nLayer):(2 + nLayer + nNonlinear)]))})
+        mat = rbind(mat[1:8,], 
+                    alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))), 
+                    mat[9:nrow(mat),])
+        # mat = mat[c(1:(7+nLayer-1), nrow(mat), (nrow(mat)-2):(nrow(mat)-1)),]
+        hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
+                       paste0("alpha", 1:nLayer), paste0("rwVar", 1:nNonlinear), paste0("rwSD", 1:nNonlinear))
+      }
     } else {
-      mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1], spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
-                                              totalSD=sqrt(exp(x[2+nLayer])+1/x[1]), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
-                                              spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]))})
-      mat = rbind(mat, alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)))
-      hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
-                     paste0("alpha", 1:nLayer))
+      if(nNonlinear == 0) {
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1], spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
+                                                totalSD=sqrt(exp(x[2+nLayer])+1/x[1]), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
+                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]))})
+        mat = rbind(mat, alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)))
+        hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
+                       paste0("alpha", 1:nLayer))
+      } else {
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
+                                                totalSD=sqrt(exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)])), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
+                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]), 
+                                                rwVar=1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)], rwSD=1/sqrt(x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]))})
+        mat = rbind(mat[1:(6+nLayer+1 + nLayer-2),], 
+                    alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)), 
+                    mat[(6+nLayer+1 + nLayer-1):(6+nLayer+1 + nLayer-2 + nNonlinear),])
+        # mat = mat[c(1:(6+nLayer+1 + nLayer-2), nrow(mat), (nrow(mat)-2):(nrow(mat)-1)),]
+        hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
+                       paste0("alpha", 1:nLayer), paste0("rwVar", 1:nNonlinear), paste0("rwSD", 1:nNonlinear))
+      }
     }
   } else if(family == "binomial") {
     if(clusterEffect) {
@@ -474,26 +598,53 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   latentVarNames = rownames(postSamples[[1]]$latent)
   fieldIndices = which(grepl("field", latentVarNames))
   fixedIndices = which(grepl("X", latentVarNames))
+  nonlinearIndices = list()
+  for(i in 1:nNonlinear) {
+    nonlinearIndices = c(nonlinearIndices, list(which(grepl(paste0("nonlinearEffect", i), latentVarNames))))
+  }
+  
   # if(clusterEffect)
   #   clustIndices = grepl("clust", latentVarNames)
   
   ## generate logit predictions (first without cluster effect then add the cluster effect in)
   # for prediction locations
+  
+  # add in fixed effects
   if(length(xPred) != 0)
     fixedPart = xPred  %*% latentMat[fixedIndices,]
   else
     fixedPart = 0
+  
+  # add in random effects
   predMat = fixedPart + APred %*% latentMat[fieldIndices,]
+  if(nNonlinear != 0) {
+    for(i in 1:nNonlinear) {
+      predMat = predMat + latentMat[nonlinearIndices[[i]],][rwEffectsIndsNew[[i]],]
+    }
+  }
   
   # for observation locations
+  
+  # add in fixed part
   if(length(xObs) != 0)
     fixedPart = xObs  %*% latentMat[fixedIndices,]
   else
     fixedPart = 0
+  
+  # add in random part
   obsMat = fixedPart + AObs %*% latentMat[fieldIndices,]
+  if(nNonlinear != 0) {
+    for(i in 1:nNonlinear) {
+      obsMat = obsMat + latentMat[nonlinearIndices[[i]],][rwEffectsInds[[i]],]
+    }
+  }
   
   # get draws from basis function coefficients
   basisCoefMat = latentMat[fieldIndices,]
+  rwCoefMats = list()
+  for(i in 1:nNonlinear) {
+    rwCoefMats = c(rwCoefMats, list(latentMat[nonlinearIndices[[i]],]))
+  }
   
   # add in cluster effect if necessary
   if((family == "binomial" && clusterEffect) || family == "normal") {
@@ -534,33 +685,53 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # compute predictive credible intervals
   if(is.null(predMatClustEffect)) {
     preds = rowMeans(predMat)
+    obsPreds = rowMeans(obsMat)
+    
     predSDs = apply(predMat, 1, sd)
     lowerPreds = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
     medianPreds = apply(predMat, 1, median)
     upperPreds = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
     obsPreds = rowMeans(obsMat)
+    predSDsNoNugget = predSDs
+    lowerPredsNoNugget = lowerPreds
+    medianPredsNoNugget = medianPreds
+    upperPredsNoNugget = upperPreds
+    obsPredsNoNugget = obsPreds
+    
     obsSDs = apply(obsMat, 1, sd)
     lowerObs = apply(obsMat, 1, quantile, probs=(1-significanceCI)/2)
     medianObs = apply(obsMat, 1, median)
     upperObs = apply(obsMat, 1, quantile, probs=1-(1-significanceCI)/2)
+    obsSDsNoNugget = obsSDs
+    lowerObsNoNugget = lowerObs
+    medianObsNoNugget = medianObs
+    upperObsNoNugget = upperObs
   } else {
     if(family == "normal") {
       preds = rowMeans(predMat)
-      medianPreds = apply(predMat, 1, median)
       obsPreds = rowMeans(obsMat)
-      medianObs = apply(obsMat, 1, median)
     } else {
       preds = rowMeans(predMatClustEffect)
-      medianPreds = apply(predMatClustEffect, 1, median)
       obsPreds = rowMeans(obsMatClustEffect)
-      medianObs = apply(obsMatClustEffect, 1, median)
     }
+    medianPreds = apply(predMat, 1, median) # no nugget/cluster effect needed here
+    medianObs = apply(obsMat, 1, median)
+    medianPredsNoNugget = medianPreds
+    medianObsNoNugget = medianObs
+      
     predSDs = apply(predMatClustEffect, 1, sd)
     lowerPreds = apply(predMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
     upperPreds = apply(predMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
+    predSDsNoNugget = apply(predMat, 1, sd)
+    lowerPredsNoNugget = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
+    upperPredsNoNugget = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
+    
     obsSDs = apply(obsMatClustEffect, 1, sd)
     lowerObs = apply(obsMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
     upperObs = apply(obsMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
+    obsSDsNoNugget = apply(obsMat, 1, sd)
+    lowerObsNoNugget = apply(obsMat, 1, quantile, probs=(1-significanceCI)/2)
+    upperObsNoNugget = apply(obsMat, 1, quantile, probs=1-(1-significanceCI)/2)
   }
   
   if(!is.null(xObs) && all(xObs[,1]==1))
@@ -572,6 +743,12 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     fixedEffectSummary = mod$summary.fixed[,c(1, 2, 4, 3, 5)]
   else
     fixedEffectSummary = mod$summary.fixed
+  
+  rwSummary = NULL
+  if(nNonlinear != 0) {
+    rwSummary = lapply(1:nNonlinear, function(i) {mod$summary.random[[paste0("nonlinearEffect", i)]][,c(1, 2, 4, 3, 5, 6)]})
+    names(rwSummary) = paste("nonlinearEffect", 1:nNonlinear, sep="")
+  }
   
   # compute basis function coefficient predictions and standard deviations
   # startI = n+nrow(predCoords)+1
@@ -614,13 +791,210 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   list(preds=preds, sigmas=predSDs, lower=lowerPreds, median=medianPreds, upper=upperPreds, 
        obsPreds=obsPreds, obsSDs=obsSDs, obsLower=lowerObs, obsMedian=medianObs, obsUpper=upperObs, 
        mod=mod, latInfo=latInfo, coefPreds=coefPreds, coefSDs=coefSDs, 
+       sigmasNoNugget=predSDsNoNugget, lowerNoNugget=lowerPredsNoNugget, medianNoNugget=medianPredsNoNugget, upperNoNugget=upperPredsNoNugget, 
+       obsSigmasNoNugget=obsSDsNoNugget, obsLowerNoNugget=lowerObsNoNugget, obsMedianObsNoNugget=medianObsNoNugget, obsUpperNoNugget=upperObsNoNugget, 
        interceptSummary=interceptSummary, fixedEffectSummary=fixedEffectSummary, rangeSummary=rangeSummary, 
        sdSummary=sdSummary, varSummary=varSummary, overdispersionSummary=overdispersionSummary, parameterSummaryTable=parameterSummaryTable, 
        alphaSummary=alphaSummary, timings=timings, priorPar=priorPar, precomputedNormalizationFun=precomputedNormalizationFun, 
+       rwSummary=rwSummary, rwKnots=rwKnots, rwMats=rwCoefMats, rwPriors=rwPriors, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
        predMat=predMatClustEffect, obsMat=obsMatClustEffect, hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
-       modelFitTimes=modelFitTimes
-       )
+       modelFitTimes=modelFitTimes)
+}
+
+# construct priors for random walk effects
+## Inputs:
+# y: the observations, only used lim constructing the priors for the gaussian family, as 
+#    recommended by INLA
+# models: either a single string, or a list of them with the same length as the number of 
+#         nonlinear effects in the model. The strings describe the order of random walk of the 
+#         nonlinear effect.
+# priorType: either a single string, or a list of them with the same length as the number 
+#             of nonlinear effects in the model. The strings describe the type of model for 
+#             the prior of each nonlinear effect
+# paramList: a list of param vectors, which are inputs to the random walk models in inla. 
+#            each param vector contains 2 values, which have different interpretations 
+#            depending on the type of prior used. For the log gamma prior, the first element 
+#            param is the shape parameter, and the second is the inverse scale. For the 
+#            pc.prec prior, the first element is the standard deviation threshold, and 
+#            the second is the probability the standard deviation is over that threshold. 
+#            See inla.doc("rw1"), inla.doc("rw2"), inla.doc("loggamma"), and 
+#            inla.doc("pc.prec") for more details on priors for random walks. Must be same 
+#            length as the desired value of n.
+# n: the number of priors in the output list to generate
+# family: the distribution family of the observations, as in a GLM
+getRandomWalkPriors = function(y, models=c("rw1", "rw2"), priorType=c("pc.prec", "loggamma"), paramList=NULL, family="gaussian", n=NULL) {
+  ##### get user inputs
+  # determine the number of priors and make sure the number of priors specified by each input is consistent
+  if(!is.null(paramList))
+    n0 = length(paramList)
+  else
+    n0 = 1
+  if(!identical(models, c("rw1", "rw2")))
+    n1 = length(models)
+  else {
+    n1 = 1
+    models = "rw1"
+  }
+  if(!identical(priorType, c("pc.prec", "loggamma")))
+    n2 = length(priorType)
+  else {
+    n2 = 1
+    priorType = "pc.prec"
+  }
+  nTemp = max(n0, n1, n2)
+  if(nTemp != 1 && !is.null(n) && nTemp != n)
+    stop("length of either paramList, models, or priorType is not 1 and does not match the specified number of random walk priors")
+  if(is.null(n))
+    n = nTemp
+  if(family == "normal") {
+    family = "gaussian"
+  }
+  
+  # now expand input arguments to match the number of random walk priors
+  if(length(priorType) == 1)
+    priorType = rep(priorType, n)
+  if(length(models) == 1)
+    models = rep(models, n)
+  if(length(paramList) == 1)
+    paramList = rep(paramList, n)
+  
+  # if family is a string, get the actual family
+  if(is.character(family))
+    family = do.call(family, list())
+  
+  # set values of param in paramList
+  if(is.null(paramList)) {
+    paramList = list()
+    
+    if(any(priorType == "loggamma"))
+      warning("INLA's default log gamma priors for random walk log precision are not recommended (shape=1, inverse scale=.01). Instead, the user should use a penalized complexity prior, or set their own the log gamma parameters")
+    
+    for(i in 1:length(priorType)) {
+      prior = priorType[i]
+      
+      if(prior == "loggamma") {
+        # these are the parameters listed in the example in inla.doc("rw1")
+        u = 1
+      }
+      else if(prior == "pc.prec") {
+        # these are the parameters recommended in inla.doc("rw1")
+        if(family$family == "gaussian")
+          u = sd(y)
+        else if(family$family == "poisson" && family$link == "log")
+          u = 1
+        else if(family$family == "binomial" && family$link == "logit")
+          u = .5
+        else if(family$family == "binomial" && family$link == "probit")
+          u = .33
+        else
+          stop(paste0("No default prior values for family '", family$family, "' and link '", family$link, "'. In this case, user must specify paramList"))
+      }
+      paramList = c(paramList, list(c(u, 0.01)))
+    }
+  }
+  
+  # construct list of priors
+  rwPriors = list()
+  for(i in 1:n) {
+    rwPriors = c(rwPriors, list(prec=list(prior=priorType[i], param=paramList[[i]])))
+  }
+  
+  # return results
+  rwPriors
+}
+
+# Makes knots for random walk and b splines.  Either generates equally spaced knots or 
+# non-equally spaced but instead based on quantiles from equally increasing probabilities.
+# x: covariate values over which to construct default knot points. It can be a matrix, 
+#    where each column corresponds to a covariate
+# n: number of knots. Can be a vector with length equal to the number of columns of x
+# quantiles: either used
+# NOTE: for cubic b splines there are 3 more basis functions than knots
+# NOTE2: fda package requires knots to cover range of x
+make_knots = function(x, n=25, quantiles=FALSE, return.vector=FALSE) {
+  # ensure x has the correct format
+  if(prod(dim(x)) == 0) {
+    return(NULL)
+  }
+  if(class(x) != "data.frame") {
+    x = data.frame(x)
+  }
+  
+  # ensure n is a vector with length equal to the number of columns of x
+  if(length(n) == 1) {
+    n = rep(n, ncol(x))
+  }
+  else if(length(n) != ncol(x)) {
+    stop("n must be either scalar or have the same number of columns as x")
+  }
+  
+  # generate the knots for each covariate
+  make_knots_single = function(i) {
+    rangeVals = range(x[, i])
+    if(!quantiles)
+      seq(rangeVals[1], rangeVals[2], l=n[i])
+    else {
+      ps = seq(0, 1, l=n[i])
+      c(rangeVals[1], quantile(x[, i], probs=ps[2:(n[i]-1)]), rangeVals[2])
+    }
+  }
+  
+  knots = lapply(1:length(n), make_knots_single)
+  if(return.vector) {
+    unlist(knots)
+  }
+  else {
+    knots
+  }
+}
+
+# for each element of vals, rounds it to the nearest value in knots. Assumes knots is sorted and increasing
+match_with_knots = function(vals, knots, returnIndices=FALSE) {
+  # get basic info about the knots
+  minVal = knots[1]
+  maxVal = knots[length(knots)]
+  
+  # threshold values
+  if(any(vals < maxVal)) {
+    # warning("some coordinates larger than maximum of knots")
+    vals[vals > maxVal] = maxVal
+  }
+  if(any(vals < minVal)) {
+    # warning("some coordinates smaller than minimum of knots")
+    vals[vals < minVal] = minVal
+  }
+  
+  # round the values to the knots
+  findIndex = function(i) {
+    # first find the first knot the value is smaller than
+    index = match(TRUE, vals[i] <= knots)
+    
+    # if NA, closest to the biggest knot.  If 1, closest to smallest knot
+    if(is.na(index))
+      return(length(knots))
+    else if(index == 1)
+      return(index)
+    else {
+      # otherwise find which of the 2 knots near the returned index the value is closer to
+      dist1 = abs(vals[i] - knots[index])
+      dist2 = abs(vals[i] - knots[index - 1])
+      if(dist1 <= dist2)
+        index
+      else
+        index - 1
+    }
+  }
+  
+  # get the indices and knots the values are closest to
+  indices = sapply(1:length(vals), findIndex)
+  result = knots[indices]
+  
+  # return results
+  if(returnIndices)
+    return(list(values=result, indices=indices))
+  else
+    return(result)
 }
 
 # use the fitSPDE function to fit SPDE model to binomial data within Kenya
