@@ -344,35 +344,56 @@ for(i in startI:length(Ns)) {
     savePrecomputationResults=FALSE
     startTime = proc.time()
     if(sampleN > 25000) {
-      bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-                         seed=1, rwModel="rw1", nNonlinearBasis=30, 
-                         normalize=TRUE, fastNormalize=TRUE, 
-                         intStrategy="eb", strategy="gaussian", 
-                         printVerboseTimings=FALSE, priorPar=priorPar, 
-                         loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-                         savePrecomputationResults=savePrecomputationResults, 
-                         precomputationFileNameRoot=precomputationFileNameRoot, 
-                         previousFit=lastMod, diagonal=10)
-      lastMod = bcefELK$mod
-      bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-                         seed=1, rwModel="rw1", nNonlinearBasis=30, 
-                         normalize=TRUE, fastNormalize=TRUE, 
-                         intStrategy="eb", strategy="gaussian", 
-                         printVerboseTimings=FALSE, priorPar=priorPar, 
-                         loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-                         savePrecomputationResults=savePrecomputationResults, 
-                         precomputationFileNameRoot=precomputationFileNameRoot, 
-                         previousFit=lastMod, diagonal=2)
+      # bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+      #                    seed=1, rwModel="rw1", nNonlinearBasis=30, 
+      #                    normalize=TRUE, fastNormalize=TRUE, 
+      #                    intStrategy="eb", strategy="gaussian", 
+      #                    printVerboseTimings=FALSE, priorPar=priorPar, 
+      #                    loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+      #                    savePrecomputationResults=savePrecomputationResults, 
+      #                    precomputationFileNameRoot=precomputationFileNameRoot, 
+      #                    previousFit=lastMod, diagonal=10)
+      # lastMod = bcefELK$mod
+      # bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+      #                    seed=1, rwModel="rw1", nNonlinearBasis=30, 
+      #                    normalize=TRUE, fastNormalize=TRUE, 
+      #                    intStrategy="eb", strategy="gaussian", 
+      #                    printVerboseTimings=FALSE, priorPar=priorPar, 
+      #                    loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+      #                    savePrecomputationResults=savePrecomputationResults, 
+      #                    precomputationFileNameRoot=precomputationFileNameRoot, 
+      #                    previousFit=lastMod, diagonal=2)
+      thisDiagonal = c(10, 2, 0)
+      thisIntStrategy = "eb"
+    } else {
+      thisDiagonal = 0
+      thisIntStrategy = "ccd"
+      # bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+      #                    seed=1, rwModel="rw1", nNonlinearBasis=30, 
+      #                    normalize=TRUE, fastNormalize=TRUE, 
+      #                    intStrategy="ccd", strategy="gaussian", 
+      #                    printVerboseTimings=FALSE, priorPar=priorPar, 
+      #                    loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+      #                    savePrecomputationResults=savePrecomputationResults, 
+      #                    precomputationFileNameRoot=precomputationFileNameRoot, 
+      #                    previousFit=lastMod)
     }
-    bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-                       seed=1, rwModel="rw1", nNonlinearBasis=30, 
-                       normalize=TRUE, fastNormalize=TRUE, 
-                       intStrategy="ccd", strategy="gaussian", 
-                       printVerboseTimings=FALSE, priorPar=priorPar, 
-                       loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-                       savePrecomputationResults=savePrecomputationResults, 
-                       precomputationFileNameRoot=precomputationFileNameRoot, 
-                       previousFit=lastMod)
+    bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
+                                  obsValues=BCEFSubset$FCH, 
+                                  predCoords=predPoints, 
+                                  xObs=cbind(1, BCEFSubset$PTC), 
+                                  xPred=cbind(1, predPTC), 
+                                  nonlinearCovariateInds=c(2), 
+                                  latInfo=latInfo, 
+                                  seed=1, nKnotsNonlinear=30, 
+                                  normalize=TRUE, fastNormalize=TRUE, 
+                                  intStrategy=thisIntStrategy, strategy="gaussian", 
+                                  printVerboseTimings=FALSE, priorPar=priorPar, 
+                                  loadPrecomputationResults=!savePrecomputationResults, 
+                                  separateRanges=separateRanges, 
+                                  savePrecomputationResults=savePrecomputationResults, 
+                                  precomputationFileNameRoot=precomputationFileNameRoot, 
+                                  previousFit=lastMod, diagonal=thisDiagonal)
     totalTime = proc.time() - startTime
     lastMod = bcefELK$mod
     bcefELK$mod = NULL
@@ -390,9 +411,11 @@ for(i in startI:length(Ns)) {
   # (1000, 16), 
   
   # plot predictions ----
-  preds = exp(bcefELK$preds)
+  # preds = exp(bcefELK$preds)
+  preds = bcefELK$preds
   predSDs = bcefELK$sigmas
-  predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  predCIWidths = bcefELK$upper - bcefELK$lower
   
   png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, preds, col=yellowBlueCols, 
@@ -413,17 +436,31 @@ for(i in startI:length(Ns)) {
   rwSummary = bcefELK$rwSummary
   fixedSummary = bcefELK$fixedEffectSummary
   fixedMat = bcefELK$fixedMat
-  ptcMat = exp(bcefELK$rwMat + outer(rwKnots, fixedMat[2,]))
+  # ptcMat = exp(bcefELK$rwMat + outer(rwKnots, fixedMat[2,]))
+  # # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
+  # # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
+  # # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
+  # rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
+  # rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
+  # rwEst = 100*(rowMeans(ptcMat)-1)
+  # ylim=range(c(rwEst, rwLower, rwUpper))
+  # pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
+  # plot(rwKnots, rwEst, ylim=ylim, type="l", 
+  #      xlab="Percent Tree Cover", ylab="Percent Change Forest Canopy Height")
+  # lines(rwKnots, rwLower, lty=2)
+  # lines(rwKnots, rwUpper, lty=2)
+  # dev.off()
+  ptcMat = bcefELK$rwMat + outer(rwKnots, fixedMat[2,])
   # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
   # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
   # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
-  rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
-  rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
-  rwEst = 100*(rowMeans(ptcMat)-1)
+  rwLower = 100*apply(ptcMat, 1, quantile, prob=.1)
+  rwUpper = 100*apply(ptcMat, 1, quantile, prob=.9)
+  rwEst = 100*rowMeans(ptcMat)
   ylim=range(c(rwEst, rwLower, rwUpper))
   pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
   plot(rwKnots, rwEst, ylim=ylim, type="l", 
-       xlab="Percent Tree Cover", ylab="Percent Change Forest Canopy Height")
+       xlab="Percent Tree Cover", ylab="Change Forest Canopy Height")
   lines(rwKnots, rwLower, lty=2)
   lines(rwKnots, rwUpper, lty=2)
   dev.off()
@@ -581,7 +618,7 @@ for(i in startI:length(Ns)) {
                       savePrecomputationResults=savePrecomputationResults, 
                       precomputationFileNameRoot=precomputationFileNameRoot, 
                       previousFit=lastMod)
-    bcefLK = fitLKSimple(cbind(BCEFSubset$x, BCEFSubset$y), obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
+    bcefLK = fitLKStandard(cbind(BCEFSubset$x, BCEFSubset$y), obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
                          nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8)
     totalTime = proc.time() - startTime
     lastMod = bcefELK$mod

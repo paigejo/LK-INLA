@@ -26,6 +26,9 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                               nonlinearCovariateInds=c(), nonlinearModels="rw1", 
                               nKnotsNonlinear=30, rwPriors=NULL, rwKnots=NULL, constrNonlinear=NULL, 
+                              nonlinearCovariateInteractionInds=c(), 
+                              nrowInteraction=nKnotsNonlinear, ncolInteraction=nKnotsNonlinear, 
+                              rwIntPrior=NULL, 
                               intStrategy="grid", strategy="gaussian", fastNormalize=TRUE, 
                               predictionType=c("mean", "median"), significanceCI=0.8, 
                               printVerboseTimings=FALSE, nPostSamples=1000, family=c("normal", "binomial", "betabinomial"),
@@ -48,7 +51,11 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   if(!clusterEffect && family == "normal")
     stop("cluster effect must be included for the normal family")
   
-  # get lattice points, prediction points
+  if(family != "normal" && length(c(nonlinearCovariateInteractionInds, nonlinearCovariateInds)) > 0) {
+    warning("nonlinear covariates have not yet been tested for non-Gaussian responses")
+  }
+  
+  # set up lattice ----
   if(is.null(latInfo)) {
     xRangeDat = range(obsCoords[,1])
     yRangeDat = range(obsCoords[,2])
@@ -56,6 +63,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   } else {
     xRangeDat = latInfo[[1]]$xRangeDat
     yRangeDat = latInfo[[1]]$yRangeDat
+    nLayer = length(latInfo)
   }
   nx = latInfo[[1]]$nx
   ny = latInfo[[1]]$ny
@@ -63,10 +71,11 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   if(is.null(priorPar))
     priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior) # 1444.772/5
   
-  ## setup nonlinear covariates
+  # set up nonlinear covariate effects ----
   
   # check to make sure the intercept isn't included
   nNonlinear = length(nonlinearCovariateInds)
+  nonlinearInteraction = length(nonlinearCovariateInteractionInds) > 0
   xObsNonlinear = matrix(xObs[,nonlinearCovariateInds], ncol=length(nonlinearCovariateInds))
   xPredNonlinear = matrix(xPred[,nonlinearCovariateInds], ncol=length(nonlinearCovariateInds))
   if(nNonlinear > 0 && any(apply(xObsNonlinear, 2, function(x) {all(x == 1)}))) {
@@ -95,6 +104,9 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
       rwPrior = getRandomWalkPriors(xObsNonlinear[,i], models=nonlinearModels[i], priorType="pc.prec", paramList=NULL, family=family, n=NULL)[1]
       rwPriors = c(rwPriors, list(rwPrior))
     }
+  }
+  if(is.null(rwIntPrior)) {
+    rwIntPrior = getRandomWalkPriors(xObsNonlinear[,i], models="rw1", priorType="pc.prec", paramList=NULL, family=family, n=NULL)[1]
   }
   
   # set knots if necessary
@@ -130,10 +142,34 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     names(rwEffectsNew) = paste("nonlinearEffect", 1:nNonlinear, sep="")
   }
   
+  # generate 2d random walk effects and indices
+  if(length(nonlinearCovariateInteractionInds) > 0) {
+    if(length(nonlinearCovariateInteractionInds) != 2) {
+      stop("length(nonlinearCovariateInteractionInds) != 2, but code implementation currently only supports a single 2d interaction effect")
+    }
+    
+    covcoordsObs = xObs[,nonlinearCovariateInteractionInds]
+    covcoordsPred = xPred[,nonlinearCovariateInteractionInds]
+    rwIntIndsAll = matchWith2dKnots(covcoordsObs, nrow=nrowInteraction, ncol=ncolInteraction)
+    rwIntIndsNewAll = matchWith2dKnots(covcoordsPred, nrow=nrowInteraction, ncol=ncolInteraction)
+    rwIntInds = rwIntIndsAll$ind
+    rwIntIndsNew = rwIntIndsNewAll$ind
+    
+    rwIntA = list(1)
+    rwIntEffect = list(rw2d=rwIntInds)
+    rwIntANew = list(1)
+    rwIntEffectNew = list(rw2d=rwIntIndsNew)
+  } else {
+    rwIntA = NULL
+    rwIntEffect = NULL
+    rwIntANew = NULL
+    rwIntEffectNew = NULL
+  }
+  
   # generate lattice basis matrix
   AObs = makeA(obsCoords, latInfo)
   
-  ## run precomputations
+  # run precomputations ----
   print("running precomputations...")
   startTimePrecomputations = proc.time()[3]
   
@@ -180,6 +216,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     control.family = list()
   }
   
+  # set up rgeneric ----
   n = length(obsValues)
   if(separateRanges) {
     rgen = inla.rgeneric.define(model=inla.rgeneric.lk.model.full, latInfo=latInfo, ys=obsValues, 
@@ -208,7 +245,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # thet = inla.rgeneric.lk.model.full("initial") # separate ranges
   # thet = inla.rgeneric.lk.model.standard("initial") # non-separate ranges
   # test = inla.rgeneric.lk.model.standard("Q", thet)
-  ## generate inla stack:
+  ## set up the stack ----
   # Stacked A matrix (A_s from notation of LR2015 Bayesian Spatial Modelling with R_INLA):
   # (AEst   0  )
   # ( 0   APred)
@@ -224,13 +261,15 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   }
   if(family == "normal") {
     if(!is.null(xObs)) {
-      stack.est = inla.stack(A =c(list(AEst, 1), nonlinearA), 
-                             effects =c(list(field=latticeInds, X=xObs), rwEffects), 
+      stack.est = inla.stack(A =c(list(AEst, 1), nonlinearA, rwIntA), 
+                             effects =c(list(field=latticeInds, X=xObs), rwEffects, rwIntEffect), 
                              data =list(y=obsValues, link=1), 
                              tag ="est", 
                              remove.unused=FALSE)
-      stack.pred = inla.stack(A =c(list(matrix(APred[1,], nrow=1), 1), nonlinearA), 
-                              effects =c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), lapply(rwEffectsNew, function(x) {x[1]})), 
+      stack.pred = inla.stack(A =c(list(matrix(APred[1,], nrow=1), 1), nonlinearA, rwIntANew), 
+                              effects =c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
+                                         lapply(rwEffectsNew, function(x) {x[1]}), 
+                                         rwIntEffectNew), 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
                               remove.unused=FALSE)
@@ -306,7 +345,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   endTimeDefineModel = proc.time()[3]
   totalTimeDefineModel = endTimeDefineModel - startTimeDefineModel
   
-  # fit the model
+  # fit the model ----
   # control.inla = list(cmin = 0, int.strategy=int.strategy) 
   # see: inla.doc("loggamma")
   # shape=.1, scale=10 for unit mean, variance 100 prior
@@ -326,6 +365,11 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
             formulaText = paste0(formulaText, " + f(nonlinearEffect", i, ", model=nonlinearModels[", i, "], ", 
                                  "values=rwKnots[[", i, "]], hyper=rwPriors[[", i, "]], scale.model=TRUE, constr=constrNonlinear)")
           }
+        }
+        if(nonlinearInteraction) {
+          formulaText = paste0(formulaText, 
+                               " + f(rw2d, model=rw2d, nrow=nrowInteraction, ncol=ncolInteraction, ", 
+                               "hyper=rwIntPrior, scale.model=TRUE, constr=constrNonlinear)")
         }
         
         thisFormula = eval(as.formula(formulaText))
@@ -434,7 +478,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # predSDs = linpred.sd[predInds]
   # obsSDs = linpred.sd[obsInds]
   
-  # generate samples from posterior
+  # sample from posterior ----
   print("Sampling from posterior")
   startTimePosteriorSampling = proc.time()[3]
   postSamples = inla.posterior.sample(nPostSamples, mod)
@@ -442,6 +486,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   totalTimePosteriorSampling = endTimePosteriorSampling - startTimePosteriorSampling
   print(paste0("finished sampling from the posterior. Took ", round(totalTimePosteriorSampling / 60, 2), " minutes"))
   
+  # process posterior samples ----
   print("Processing posterior samples...")
   startTimeSampleProcessing = proc.time()[3]
   # get posterior hyperparameter samples and transform them as necessary
@@ -452,6 +497,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # 4-(3 + nLayer - 1): multivariateLogit alpha
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   if(family == "normal") {
+    browser()
     if(!separateRanges) {
       
       if(nNonlinear == 0) {
@@ -606,7 +652,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # if(clusterEffect)
   #   clustIndices = grepl("clust", latentVarNames)
   
-  ## generate logit predictions (first without cluster effect then add the cluster effect in)
+  # generate predictions ----
   # for prediction locations
   
   # add in fixed effects
@@ -682,7 +728,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     obsMatClustEffect = expit(obsMatClustEffect)
   }
   
-  # compute predictive credible intervals
+  # compute predictive credible intervals ----
   if(is.null(predMatClustEffect)) {
     preds = rowMeans(predMat)
     obsPreds = rowMeans(obsMat)
@@ -772,6 +818,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   
   endTime = proc.time()[3]
   totalTimeSampleProcessing = endTime - startTimeSampleProcessing
+  
+  # process timings ----
   print(paste0("finished processing samples. Took ", round(totalTimeSampleProcessing / 60, 2), " minutes"))
   totalTime = endTime - startTime
   timings = data.frame(totalTime=totalTime, 
@@ -788,6 +836,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   timings$sampleProcessingTimePct = timings$sampleProcessingTime / timings$totalTime
   timings$otherTimePct = timings$otherTime / timings$totalTime
   
+  # return results ----
   list(preds=preds, sigmas=predSDs, lower=lowerPreds, median=medianPreds, upper=upperPreds, 
        obsPreds=obsPreds, obsSDs=obsSDs, obsLower=lowerObs, obsMedian=medianObs, obsUpper=upperObs, 
        mod=mod, latInfo=latInfo, coefPreds=coefPreds, coefSDs=coefSDs, 
@@ -995,6 +1044,22 @@ match_with_knots = function(vals, knots, returnIndices=FALSE) {
     return(list(values=result, indices=indices))
   else
     return(result)
+}
+
+# get indices for rw2d effects based on possibly continuous set of coordinates
+matchWith2dKnots = function(coords, xlim=range(coords[,1]), ylim=range(coords[,2]), 
+                            nrow=30, ncol=30) {
+  # generate breaks and knots (cell centers) in x and y directions
+  xBreaks = seq(xlim[1], xlim[2]+.000001, l=ncol+1)
+  yBreaks = seq(ylim[1], ylim[2]+.000001, l=nrow+1)
+  xKnots = xBreaks[1:ncol] + diff(xBreaks) / 2
+  yKnots = yBreaks[1:nrow] + diff(yBreaks) / 2
+  
+  # match coordinates with the cell
+  xInd = sapply(coords[,1], function (x) {(length(xBreaks) - match(TRUE, x >= rev(xBreaks))) + 1})
+  yInd = sapply(coords[,2], function (y) {(length(yBreaks) - match(TRUE, y >= rev(yBreaks))) + 1})
+  ind = (xInd - 1)*nrow + yInd
+  list(ind=ind, xInd=xInd, yInd=yInd)
 }
 
 # use the fitSPDE function to fit SPDE model to binomial data within Kenya
