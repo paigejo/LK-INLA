@@ -105,8 +105,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
       rwPriors = c(rwPriors, list(rwPrior))
     }
   }
-  if(is.null(rwIntPrior)) {
-    rwIntPrior = getRandomWalkPriors(xObsNonlinear[,i], models="rw1", priorType="pc.prec", paramList=NULL, family=family, n=NULL)[1]
+  if(is.null(rwIntPrior) && nonlinearInteraction) {
+    rwIntPrior = getRandomWalkPriors(c(xObs[,nonlinearCovariateInteractionInds]), models="rw1", priorType="pc.prec", paramList=NULL, family=family, n=NULL)[1]
   }
   
   # set knots if necessary
@@ -150,10 +150,19 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     
     covcoordsObs = xObs[,nonlinearCovariateInteractionInds]
     covcoordsPred = xPred[,nonlinearCovariateInteractionInds]
-    rwIntIndsAll = matchWith2dKnots(covcoordsObs, nrow=nrowInteraction, ncol=ncolInteraction)
-    rwIntIndsNewAll = matchWith2dKnots(covcoordsPred, nrow=nrowInteraction, ncol=ncolInteraction)
+    rwIntIndsAll = matchWith2dKnots(covcoordsObs, nrow=nrowInteraction, ncol=ncolInteraction, 
+                                    xlim=range(c(covcoordsObs[,1], covcoordsPred[,1])), 
+                                    ylim=range(c(covcoordsObs[,2], covcoordsPred[,2])))
+    rwIntIndsNewAll = matchWith2dKnots(covcoordsPred, nrow=nrowInteraction, ncol=ncolInteraction, 
+                                       xlim=range(c(covcoordsObs[,1], covcoordsPred[,1])), 
+                                       ylim=range(c(covcoordsObs[,2], covcoordsPred[,2])))
     rwIntInds = rwIntIndsAll$ind
     rwIntIndsNew = rwIntIndsNewAll$ind
+    
+    rw2dMatchWithKnotsFun = function(covCoords) {
+      matchWith2dKnots(covCoords, nrow=nrowInteraction, ncol=ncolInteraction)
+    }
+    rw2dKnotCoords = get2dKnotCoords(rbind(covcoordsObs, covcoordsPred))
     
     rwIntA = list(1)
     rwIntEffect = list(rw2d=rwIntInds)
@@ -164,6 +173,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     rwIntEffect = NULL
     rwIntANew = NULL
     rwIntEffectNew = NULL
+    rw2dMatchWithKnotsFun = NULL
+    rw2dKnotCoords = NULL
   }
   
   # generate lattice basis matrix
@@ -269,7 +280,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
       stack.pred = inla.stack(A =c(list(matrix(APred[1,], nrow=1), 1), nonlinearA, rwIntANew), 
                               effects =c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
                                          lapply(rwEffectsNew, function(x) {x[1]}), 
-                                         rwIntEffectNew), 
+                                         list(rw2d=rwIntEffectNew[[1]][1])), 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
                               remove.unused=FALSE)
@@ -368,7 +379,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
         }
         if(nonlinearInteraction) {
           formulaText = paste0(formulaText, 
-                               " + f(rw2d, model=rw2d, nrow=nrowInteraction, ncol=ncolInteraction, ", 
+                               " + f(rw2d, model='rw2d', nrow=nrowInteraction, ncol=ncolInteraction, ", 
                                "hyper=rwIntPrior, scale.model=TRUE, constr=constrNonlinear)")
         }
         
@@ -496,29 +507,46 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # 3: log spatial variance
   # 4-(3 + nLayer - 1): multivariateLogit alpha
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
+  
   if(family == "normal") {
-    browser()
     if(!separateRanges) {
-      
       if(nNonlinear == 0) {
-        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1], spatialVar=exp(x[3]), errorVar=1/x[1], 
+        rw2dInds = NULL
+        if(nonlinearInteraction) {
+          rw2dInds = nrow(hyperMat)
+        }
+        
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/sum(x[c(1, rw2dInds)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
-                                                spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]))})
-        mat = rbind(mat, alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))))
+                                                spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
+                                                rw2dVar=1/x[rw2dInds], rw2dSD=sqrt(1/x[rw2dInds]))})
+        rw2dIndsMat = sort(c(grep("rw2dVar", rownames(mat)), grep("rw2dSD", rownames(mat))))
+        mat = rbind(mat[-rw2dIndsMat,], alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))), mat[rw2dIndsMat,])
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
                        paste0("alpha", 1:nLayer))
+        if(nonlinearInteraction) {
+          hyperNames = c(hyperNames, "rw2dVar", "rw2dSD")
+        }
       }
       else {
-        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):(2 + nLayer + nNonlinear)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
+        rw2dInds = NULL
+        if(nonlinearInteraction) {
+          rw2dInds = nrow(hyperMat)
+        }
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):nrow(hyperMat)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):(2 + nLayer + nNonlinear)])), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
                                                 spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
-                                                rwVar=1/x[(3 + nLayer):(2 + nLayer + nNonlinear)], rwSD=1/sqrt(x[(3 + nLayer):(2 + nLayer + nNonlinear)]))})
+                                                rwVar=1/x[(3 + nLayer):(2 + nLayer + nNonlinear)], rwSD=1/sqrt(x[(3 + nLayer):(2 + nLayer + nNonlinear)]), 
+                                                rw2dVar=1/x[rw2dInds], rw2dSD=sqrt(1/x[rw2dInds]))})
         mat = rbind(mat[1:8,], 
                     alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))), 
                     mat[9:nrow(mat),])
         # mat = mat[c(1:(7+nLayer-1), nrow(mat), (nrow(mat)-2):(nrow(mat)-1)),]
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
                        paste0("alpha", 1:nLayer), paste0("rwVar", 1:nNonlinear), paste0("rwSD", 1:nNonlinear))
+        if(nonlinearInteraction) {
+          hyperNames = c(hyperNames, "rw2dVar", "rw2dSD")
+        }
       }
     } else {
       if(nNonlinear == 0) {
@@ -529,6 +557,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
                        paste0("alpha", 1:nLayer))
       } else {
+        browser()
         mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)])), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
                                                 spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]), 
@@ -648,6 +677,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   for(i in 1:nNonlinear) {
     nonlinearIndices = c(nonlinearIndices, list(which(grepl(paste0("nonlinearEffect", i), latentVarNames))))
   }
+  rw2dInds = which(grepl("rw2d", latentVarNames))
   
   # if(clusterEffect)
   #   clustIndices = grepl("clust", latentVarNames)
@@ -669,6 +699,10 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     }
   }
   
+  if(nonlinearInteraction) {
+    predMat = predMat + latentMat[rw2dInds,][rwIntEffectNew[[1]],]
+  }
+  
   # for observation locations
   
   # add in fixed part
@@ -685,12 +719,24 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     }
   }
   
+  if(nonlinearInteraction) {
+    obsMat = obsMat + latentMat[rw2dInds,][rwIntEffect[[1]],]
+  }
+  
   # get draws from basis function coefficients
   basisCoefMat = latentMat[fieldIndices,]
   rwCoefMats = list()
-  for(i in 1:nNonlinear) {
-    rwCoefMats = c(rwCoefMats, list(latentMat[nonlinearIndices[[i]],]))
+  if(nNonlinear > 0) {
+    for(i in 1:nNonlinear) {
+      rwCoefMats = c(rwCoefMats, list(latentMat[nonlinearIndices[[i]],]))
+    }
   }
+  
+  rw2dCoefMat = NULL
+  if(nonlinearInteraction) {
+    rw2dCoefMat = latentMat[rw2dInds,]
+  }
+  
   
   # add in cluster effect if necessary
   if((family == "binomial" && clusterEffect) || family == "normal") {
@@ -796,6 +842,11 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     names(rwSummary) = paste("nonlinearEffect", 1:nNonlinear, sep="")
   }
   
+  rw2dSummary = NULL
+  if(nonlinearInteraction) {
+    rw2dSummary = mod$summary.random$rw2d[,c(1, 2, 4, 3, 5, 6)]
+  }
+  
   # compute basis function coefficient predictions and standard deviations
   # startI = n+nrow(predCoords)+1
   # endI = n+nrow(predCoords)+nx*ny
@@ -846,6 +897,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
        sdSummary=sdSummary, varSummary=varSummary, overdispersionSummary=overdispersionSummary, parameterSummaryTable=parameterSummaryTable, 
        alphaSummary=alphaSummary, timings=timings, priorPar=priorPar, precomputedNormalizationFun=precomputedNormalizationFun, 
        rwSummary=rwSummary, rwKnots=rwKnots, rwMats=rwCoefMats, rwPriors=rwPriors, 
+       rw2dSummary=rw2dSummary, rw2dMat=rw2dCoefMat, rw2dPrior=rwIntPrior, 
+       rw2dMatchWithKnotsFun=rw2dMatchWithKnotsFun, rw2dKnotCoords=rw2dKnotCoords, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
        predMat=predMatClustEffect, obsMat=obsMatClustEffect, hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
        modelFitTimes=modelFitTimes)
@@ -1060,6 +1113,28 @@ matchWith2dKnots = function(coords, xlim=range(coords[,1]), ylim=range(coords[,2
   yInd = sapply(coords[,2], function (y) {(length(yBreaks) - match(TRUE, y >= rev(yBreaks))) + 1})
   ind = (xInd - 1)*nrow + yInd
   list(ind=ind, xInd=xInd, yInd=yInd)
+}
+
+get2dKnotCoords = function(coords, xlim=range(coords[,1]), ylim=range(coords[,2]), 
+                           nrow=30, ncol=30) {
+  # generate breaks and knots (cell centers) in x and y directions
+  xBreaks = seq(xlim[1], xlim[2]+.000001, l=ncol+1)
+  yBreaks = seq(ylim[1], ylim[2]+.000001, l=nrow+1)
+  xKnots = xBreaks[1:ncol] + diff(xBreaks) / 2
+  yKnots = yBreaks[1:nrow] + diff(yBreaks) / 2
+  
+  out = make.surface.grid(list(x = xKnots, y=yKnots))
+  out = data.frame(out)
+  xLow = xBreaks[1:ncol]
+  xHigh = xBreaks[2:(ncol + 1)]
+  yLow = yBreaks[1:nrow]
+  yHigh = yBreaks[2:(nrow + 1)]
+  out$xLow = xLow[match(out$x, xKnots)]
+  out$xHigh = xHigh[match(out$x, xKnots)]
+  out$yLow = yLow[match(out$y, yKnots)]
+  out$yHigh = yHigh[match(out$y, yKnots)]
+  
+  out
 }
 
 # use the fitSPDE function to fit SPDE model to binomial data within Kenya

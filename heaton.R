@@ -5,6 +5,8 @@ infernoCols = inferno(64)
 magmaCols = magma(64)
 plasmaCols = plasma(64)
 
+makePlots = FALSE
+
 # get datasets ----
 # analysis of the heaton et al. dataset
 # https://link.springer.com/article/10.1007/s13253-018-00348-w
@@ -26,40 +28,42 @@ eastNorth = attr(coordsUTM, "coords")
 all.sat.temps$east = eastNorth[,1]
 all.sat.temps$north = eastNorth[,2]
 
-# get sun's azimuth angle
-library(suncalc)
-centerEast = mean(eastNorth[,1])
-centerNorth = mean(eastNorth[,2])
-
-# azimuth is angle from south to west (e.g. 0 is south, pi/2 is west)
-sunPos = getSunlightPosition(date = "2016-08-04", lat = centerLat, lon = centerLon, data = NULL)
-# getSunlightPosition(date = "2016-08-05 01:00:00", lat = centerLat, lon = centerLon, data = NULL)
-centeredEast = eastNorth[,1] - centerEast
-centeredNorth = eastNorth[,2] - centerNorth
-rotationAngle = -(2*pi - (sunPos$azimuth + pi/2)) # shift 0 to eastward and reverse direction from clockwise to counter clockwise
-rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
-                    c(sin(rotationAngle), cos(rotationAngle)))
-sunCoords = t(rotationMat %*% t(cbind(centeredEast, centeredNorth)))
-sunward = sunCoords[,1]
+# # get sun's azimuth angle
+# library(suncalc)
+# centerEast = mean(eastNorth[,1])
+# centerNorth = mean(eastNorth[,2])
+# 
+# # azimuth is angle from south to west (e.g. 0 is south, pi/2 is west)
+# sunPos = getSunlightPosition(date = "2016-08-04", lat = centerLat, lon = centerLon, data = NULL)
+# # getSunlightPosition(date = "2016-08-05 01:00:00", lat = centerLat, lon = centerLon, data = NULL)
+# centeredEast = eastNorth[,1] - centerEast
+# centeredNorth = eastNorth[,2] - centerNorth
+# rotationAngle = -(2*pi - (sunPos$azimuth + pi/2)) # shift 0 to eastward and reverse direction from clockwise to counter clockwise
+# rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
+#                     c(sin(rotationAngle), cos(rotationAngle)))
+# sunCoords = t(rotationMat %*% t(cbind(centeredEast, centeredNorth)))
+# sunward = sunCoords[,1]
 
 # test plot
-png("Figures/applicationHeaton/sunward.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, sunward, 
-           col=inferno(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-png("Figures/applicationHeaton/maskedTemp.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, all.sat.temps$MaskTemp, 
-           col=inferno(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-png("Figures/applicationHeaton/trueTemp.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, all.sat.temps$TrueTemp, 
-           col=inferno(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
+if(makePlots) {
+  png("Figures/applicationHeaton/sunward.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, sunward, 
+             col=inferno(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  png("Figures/applicationHeaton/maskedTemp.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, all.sat.temps$MaskTemp, 
+             col=inferno(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  png("Figures/applicationHeaton/trueTemp.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, all.sat.temps$TrueTemp, 
+             col=inferno(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+}
 
 # get elevation ----
 # temp = raster("elevation.nc")
@@ -71,11 +75,13 @@ elev = extract(elevRaster, SpatialPoints(cbind(all.sat.temps$Lon, all.sat.temps$
 # breakline = extract(temp2, SpatialPoints(cbind(all.sat.temps$Lon, all.sat.temps$Lat), proj4string=CRS("+proj=longlat")),method="bilinear")
 all.sat.temps$elev = elev
 
-png("Figures/applicationHeaton/elevation.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, elev, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
+if(makePlots) {
+  png("Figures/applicationHeaton/elevation.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, elev, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+}
 
 # png("Figures/applicationHeaton/breakline.png", width=700, height=700)
 # quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, breakline, 
@@ -89,11 +95,13 @@ ndviRaster = raster("MCD13.A2014.unaccum.nc4")
 ndvi = extract(ndviRaster, SpatialPoints(cbind(all.sat.temps$Lon, all.sat.temps$Lat), proj4string=CRS("+proj=longlat")),method="bilinear")
 all.sat.temps$ndvi = ndvi
 
-png("Figures/applicationHeaton/ndvi.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, ndvi, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
+if(makePlots) {
+  png("Figures/applicationHeaton/ndvi.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, ndvi, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+}
 
 # daysInMonth = c(31, 29, 31, 30, 31, 30, 31)
 # sum(daysInMonth) # 213, beginning of August
@@ -136,37 +144,37 @@ dataExtent = extent(c(min(lonGrid), max(lonGrid), min(latGrid), max(latGrid)))
 #                ext = dataExtent, crs=CRS("+proj=longlat"))
 temp <- raster(dataExtent, nrows=length(latGrid), ncols=length(lonGrid))
 distToWaterRaster <- rasterize(cbind(lon, lat), temp, distanceToWater, fun=mean)
-plot(distToWaterRaster)
+# plot(distToWaterRaster)
 
 distToWater = extract(distToWaterRaster, SpatialPoints(cbind(all.sat.temps$Lon, all.sat.temps$Lat), proj4string=CRS("+proj=longlat")),method="bilinear")
 all.sat.temps$distToWater = distToWater
 
-
-png("Figures/applicationHeaton/distanceToWater.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, distToWater, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-png("Figures/applicationHeaton/isWater.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, distToWater<1, 
-           col=rev(viridis(2)), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-isWater = distanceToWater < 1
-png("Figures/applicationHeaton/isWaterImageTest.png", width=700, height=700)
-image(isWater)
-dev.off()
-
-png("Figures/applicationHeaton/isWaterImageTest2.png", width=700, height=700)
-image(t(isWater))
-dev.off()
-
-png("Figures/applicationHeaton/isWaterImageTest3.png", width=700, height=700)
-image(t(apply(isWater, 1, rev)))
-dev.off()
-
+if(makePlots) {
+  png("Figures/applicationHeaton/distanceToWater.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, distToWater, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  png("Figures/applicationHeaton/isWater.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, distToWater<1, 
+             col=rev(viridis(2)), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  isWater = distanceToWater < 1
+  png("Figures/applicationHeaton/isWaterImageTest.png", width=700, height=700)
+  image(isWater)
+  dev.off()
+  
+  png("Figures/applicationHeaton/isWaterImageTest2.png", width=700, height=700)
+  image(t(isWater))
+  dev.off()
+  
+  png("Figures/applicationHeaton/isWaterImageTest3.png", width=700, height=700)
+  image(t(apply(isWater, 1, rev)))
+  dev.off()
+}
 
 # fit linear models ----
 save(all.sat.temps, file="savedOutput/heaton/all.sat.temps-full.rda")
@@ -192,88 +200,91 @@ summary(out)
 out = lm(TrueTemp ~ ndvi*elev*distToWater, data=all.sat.temps)
 summary(out)
 
-pdf("Figures/applicationHeaton/pairPlot.pdf", width=7, height=7)
-pairs(data.frame(all.sat.temps$TrueTemp, elev, ndvi, distToWater), 
-      pch=".", labels=c("Temperature", "Elevation", "NDVI", "Distance to water"))
-dev.off()
-
-# get residuals of linear model
-masked = is.na(all.sat.temps$MaskTemp)
-predFrame = all.sat.temps[masked,]
-predFrame$ndvi = ndvi[masked]
-predFrame$elev = elev[masked]
-predFrame$distToWater = distToWater[masked]
-fullPredFrame = all.sat.temps
-fullPredFrame$ndvi = ndvi
-fullPredFrame$elev = elev
-fullPredFrame$distToWater = distToWater
-
-out = lm(TrueTemp ~ Lon + Lat, data=all.sat.temps)
-preds = predict(out, fullPredFrame)
-resids = fullPredFrame$TrueTemp - preds
-png("Figures/applicationHeaton/linearResidsLonLat.png", width=700, height=700)
-quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-out = lm(TrueTemp ~ ndvi + elev + distToWater, data=all.sat.temps)
-preds = predict(out, fullPredFrame)
-resids = fullPredFrame$TrueTemp - preds
-png("Figures/applicationHeaton/linearResidsNoLonLatAllCovs.png", width=700, height=700)
-quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-out = lm(TrueTemp ~ ndvi*elev*distToWater, data=all.sat.temps)
-preds = predict(out, fullPredFrame)
-resids = fullPredFrame$TrueTemp - preds
-png("Figures/applicationHeaton/linearResidsNoLonLatAllCovsAndInteractions.png", width=700, height=700)
-quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-# plot interaction between ndvi and elev for linear model
-out = lm(TrueTemp ~ ndvi*elev, data=all.sat.temps)
-coefs = coef(out)
-tempPredFrame = make.surface.grid(list(ndvi=seq(min(ndvi), max(ndvi), l=100), elev=seq(min(elev), max(elev), l=100)))
-tempPredFrame = cbind(int=1, tempPredFrame, ndviElev=tempPredFrame[,1]*tempPredFrame[,2])
-preds = tempPredFrame %*% coefs
-png("Figures/applicationHeaton/linearModElevNDVIpredsCovSpaceInteraction.png", width=700, height=700)
-quilt.plot(tempPredFrame[,2:3], preds, 
-           col=viridis(64), nx=100, ny=100, 
-           xlab="NDVI", ylab="Elevation (m)")
-dev.off()
-
-tempPredFrame = cbind(1, all.sat.temps$ndvi, all.sat.temps$elev, all.sat.temps$ndvi*all.sat.temps$elev)
-preds = tempPredFrame %*% coefs
-png("Figures/applicationHeaton/linearModElevNDVIpredsLonLatInteraction.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, preds, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
-
-# plot interaction (when it's not included) between ndvi and elev for linear model
-out = lm(TrueTemp ~ ndvi+elev, data=all.sat.temps)
-coefs = coef(out)
-tempPredFrame = make.surface.grid(list(ndvi=seq(min(ndvi), max(ndvi), l=100), elev=seq(min(elev), max(elev), l=100)))
-tempPredFrame = cbind(int=1, tempPredFrame)
-preds = tempPredFrame %*% coefs
-png("Figures/applicationHeaton/linearModElevNDVIpredsCovSpace.png", width=700, height=700)
-quilt.plot(tempPredFrame[,2:3], preds, 
-           col=viridis(64), nx=100, ny=100, 
-           xlab="NDVI", ylab="Elevation (m)")
-dev.off()
-
-tempPredFrame = cbind(1, all.sat.temps$ndvi, all.sat.temps$elev)
-preds = tempPredFrame %*% coefs
-png("Figures/applicationHeaton/linearModElevNDVIpredsLonLat.png", width=700, height=700)
-quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, preds, 
-           col=viridis(64), nx=500, ny=300, 
-           xlab="Longitude", ylab="Latitude")
-dev.off()
+if(makePlots) {
+  pdf("Figures/applicationHeaton/pairPlot.pdf", width=7, height=7)
+  pairs(data.frame(all.sat.temps$TrueTemp, elev, ndvi, distToWater), 
+        pch=".", labels=c("Temperature", "Elevation", "NDVI", "Distance to water"))
+  dev.off()
+  
+  # get residuals of linear model
+  masked = is.na(all.sat.temps$MaskTemp)
+  predFrame = all.sat.temps[masked,]
+  predFrame$ndvi = ndvi[masked]
+  predFrame$elev = elev[masked]
+  predFrame$distToWater = distToWater[masked]
+  fullPredFrame = all.sat.temps
+  fullPredFrame$ndvi = ndvi
+  fullPredFrame$elev = elev
+  fullPredFrame$distToWater = distToWater
+  
+  out = lm(TrueTemp ~ Lon + Lat, data=all.sat.temps)
+  preds = predict(out, fullPredFrame)
+  resids = fullPredFrame$TrueTemp - preds
+  
+  png("Figures/applicationHeaton/linearResidsLonLat.png", width=700, height=700)
+  quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  out = lm(TrueTemp ~ ndvi + elev + distToWater, data=all.sat.temps)
+  preds = predict(out, fullPredFrame)
+  resids = fullPredFrame$TrueTemp - preds
+  png("Figures/applicationHeaton/linearResidsNoLonLatAllCovs.png", width=700, height=700)
+  quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  out = lm(TrueTemp ~ ndvi*elev*distToWater, data=all.sat.temps)
+  preds = predict(out, fullPredFrame)
+  resids = fullPredFrame$TrueTemp - preds
+  png("Figures/applicationHeaton/linearResidsNoLonLatAllCovsAndInteractions.png", width=700, height=700)
+  quilt.plot(fullPredFrame$Lon, fullPredFrame$Lat, resids, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  # plot interaction between ndvi and elev for linear model
+  out = lm(TrueTemp ~ ndvi*elev, data=all.sat.temps)
+  coefs = coef(out)
+  tempPredFrame = make.surface.grid(list(ndvi=seq(min(ndvi), max(ndvi), l=100), elev=seq(min(elev), max(elev), l=100)))
+  tempPredFrame = cbind(int=1, tempPredFrame, ndviElev=tempPredFrame[,1]*tempPredFrame[,2])
+  preds = tempPredFrame %*% coefs
+  png("Figures/applicationHeaton/linearModElevNDVIpredsCovSpaceInteraction.png", width=700, height=700)
+  quilt.plot(tempPredFrame[,2:3], preds, 
+             col=viridis(64), nx=100, ny=100, 
+             xlab="NDVI", ylab="Elevation (m)")
+  dev.off()
+  
+  tempPredFrame = cbind(1, all.sat.temps$ndvi, all.sat.temps$elev, all.sat.temps$ndvi*all.sat.temps$elev)
+  preds = tempPredFrame %*% coefs
+  png("Figures/applicationHeaton/linearModElevNDVIpredsLonLatInteraction.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, preds, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+  
+  # plot interaction (when it's not included) between ndvi and elev for linear model
+  out = lm(TrueTemp ~ ndvi+elev, data=all.sat.temps)
+  coefs = coef(out)
+  tempPredFrame = make.surface.grid(list(ndvi=seq(min(ndvi), max(ndvi), l=100), elev=seq(min(elev), max(elev), l=100)))
+  tempPredFrame = cbind(int=1, tempPredFrame)
+  preds = tempPredFrame %*% coefs
+  png("Figures/applicationHeaton/linearModElevNDVIpredsCovSpace.png", width=700, height=700)
+  quilt.plot(tempPredFrame[,2:3], preds, 
+             col=viridis(64), nx=100, ny=100, 
+             xlab="NDVI", ylab="Elevation (m)")
+  dev.off()
+  
+  tempPredFrame = cbind(1, all.sat.temps$ndvi, all.sat.temps$elev)
+  preds = tempPredFrame %*% coefs
+  png("Figures/applicationHeaton/linearModElevNDVIpredsLonLat.png", width=700, height=700)
+  quilt.plot(all.sat.temps$Lon, all.sat.temps$Lat, preds, 
+             col=viridis(64), nx=500, ny=300, 
+             xlab="Longitude", ylab="Latitude")
+  dev.off()
+}
 
 ##### try fitting LK ----
 # * Setup ----
@@ -887,6 +898,83 @@ plot(xs, ys,
      main="Estimated effect of NDVI on temperature", 
      pch=19, cex=1, col="blue")
 dev.off()
+
+# try fitting ELK with nonlinear effect interaction
+comp.timeELKfit = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisDataObject$x, thisDataObject$y, 
+                                                                 predCoords=cbind(datPred$Lon, datPred$Lat), 
+                                                                 xObs=cbind(1, dat$Lon, dat$Lat, dat$elev, dat$ndvi, dat$elev*dat$ndvi), 
+                                                                 xPred=cbind(1, datPred$Lon, datPred$Lat, datPred$elev, datPred$ndvi, datPred$elev*datPred$ndvi), 
+                                                                 nonlinearCovariateInds=c(), 
+                                                                 nonlinearCovariateInteractionInds=c(4, 5), 
+                                                                 nu=nu, seed=234, nLayer=nlevel, NC=NC,
+                                                                 nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
+                                                                 intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
+                                                                 predictionType=c("mean", "median"), significanceCI=0.8, 
+                                                                 printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
+                                                                 clusterEffect=TRUE, latInfo=latInfo, 
+                                                                 initialEffectiveRange=3, 
+                                                                 verbose=TRUE, separateRanges=FALSE, 
+                                                                 loadPrecomputationResults=TRUE, 
+                                                                 precomputationFileNameRoot=precomputationFileNameRoot, 
+                                                                 diagonal=c(0.0)))
+
+# ELK nonlinear plots
+xrange = range(all.sat.temps$Lon)
+yrange = range(all.sat.temps$Lat)
+pdf("Figures/applicationHeaton/ELKfinalIntPreds.pdf", width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds, fitELKfinal$preds, fitELKfinalInt$preds))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKfinalInt$preds, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK predictions (2d covariate interaction model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf("Figures/applicationHeaton/ELKfinalIntSDs.pdf", width=5, height=5)
+sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
+sdsFinal = rowMeans(outer(fitELKfinal$sigmasNoNugget^2, fitELKfinal$clusterVars, function(x, y) {sqrt(x + y)}))
+sdsNonlinearInt = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
+zlim = range(c(finalResults$standError, sds, sdsNonlinear, sdsFinal, sdsNonlinearInt))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsNonlinearInt, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK SD (2d covariate interaction model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf("Figures/applicationHeaton/ELKfinalIntResids.pdf", width=5, height=5)
+ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, 
+               fitELKnonlinear$preds-datPred$TrueTemp, fitELKfinal$preds-datPred$TrueTemp, 
+               fitELKfinalInt$preds-datPred$TrueTemp), na.rm=TRUE)
+plot(datPred$elev, fitELKfinalInt$preds-datPred$TrueTemp, 
+     xlab="Elevation (m)", ylab="ELK residuals", 
+     main="ELK residuals vs. elevation (final model)", 
+     pch=19, cex=.1, col="blue", ylim=ylim)
+dev.off()
+
+pdf("Figures/applicationHeaton/ELKfinalIntElev.pdf", width=5, height=5)
+xs = fitELKfinalInt$rwSummary$nonlinearEffect1$ID
+ys = xs*fitELKfinalInt$fixedEffectSummary$mean[4] + fitELKfinalInt$rwSummary$nonlinearEffect1$mean
+plot(xs, ys, 
+     xlab="Elevation (m)", ylab="Effect (degrees F)", 
+     main="Main effect of elevation on temperature", 
+     pch=19, cex=1, col="blue")
+dev.off()
+
+pdf("Figures/applicationHeaton/ELKfinalIntNDVI.pdf", width=5, height=5)
+xs = fitELKfinalInt$rwSummary$nonlinearEffect2$ID
+ys = xs*fitELKfinalInt$fixedEffectSummary$mean[5] + fitELKfinalInt$rwSummary$nonlinearEffect2$mean
+plot(xs, ys, 
+     xlab="NDVI", ylab="Effect (degrees F)", 
+     main="Main effect of NDVI on temperature", 
+     pch=19, cex=1, col="blue")
+dev.off()
+
+pdf("Figures/applicationHeaton/ELKfinalIntRW2D.pdf", width=5, height=5)
+knotCoords = fitELKfinalIntNoMain$rw2dKnotCoords[,1:2]
+knotVals = fitELKfinalInt$rw2dSummary$mean
+quilt.plot(knotCoords, knotVals, nx=30, ny=30, 
+     xlab="Elevation (m)", ylab="NDVI", 
+     main="RW2D Mean", col=makeGreenBlueDivergingColors(64, range(knotVals), 0, TRUE))
+dev.off()
+
 
 
 
