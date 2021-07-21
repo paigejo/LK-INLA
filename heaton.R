@@ -305,6 +305,8 @@ if(dataCase=="test"){
   nlevel<- 2
   a.wght<-  10.25
   nu<- .1
+  separateRanges=FALSE
+  sampleN = 5000
 } else {
   out = load("heaton/AllSatelliteTemps.RData")
   names(all.sat.temps)
@@ -317,6 +319,8 @@ if(dataCase=="test"){
   nlevel<- 3
   a.wght<-  10.25
   nu<- .1
+  separateRanges=FALSE
+  sampleN = sum(!is.na(all.sat.temps$MaskTemp))
 }
 kappa = sqrt(a.wght - 4)
 
@@ -324,7 +328,7 @@ kappa = sqrt(a.wght - 4)
 source("heaton/heatoncomparison-master/Code/LatticeKrig/functions.R")
 if(dataCase == "test") {
   dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
-  sampleI = sample(1:nrow(dataObject$x), 1000)
+  sampleI = sample(1:nrow(dataObject$x), sampleN)
   thisDataObject = dataObject
   thisDataObject$x = thisDataObject$x[sampleI,]
   thisDataObject$y = thisDataObject$y[sampleI]
@@ -336,10 +340,15 @@ if(dataCase == "test") {
   thisDataObject = dataObject
   thisDataObjectI = which(!is.na(all.sat.temps$TrueTemp))
   thisDataObjectMissingI = which(is.na(all.sat.temps$MaskTemp))
+  separateRanges=FALSE
 }
 thisDataObject$TrueTemp = all.sat.temps$TrueTemp[thisDataObjectI]
 thisDataObject$TrueTempMissing = all.sat.temps$TrueTemp[thisDataObjectMissingI]
 thisDataObject$TrueTempMissingMasked = all.sat.temps$MaskTemp[thisDataObjectMissingI]
+
+NCtext = paste("_NC", 10, 20, sep="_")
+thisLatticeNameRoot = NCtext
+thisFileNameRoot = paste0("_N", sampleN, NCtext, "_sepRanges", separateRanges)
 
 elev = extract(elevRaster, SpatialPoints(thisDataObject$x, proj4string=CRS("+proj=longlat")),method="bilinear")
 elevPred = extract(elevRaster, SpatialPoints(thisDataObject$xMissing, proj4string=CRS("+proj=longlat")),method="bilinear")
@@ -388,26 +397,26 @@ finalResults<- list(x=thisDataObject$xMissing,
                     yHat=yHat, 
                     standError=standardError)
 
-save( finalResults, fitLK, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsLK", dataCaseText, ".rda") )
-load(paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsLK", dataCaseText, ".rda")) 
+save( finalResults, fitLK, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/resultsLK", thisFileNameRoot, ".rda") )
+load(paste0("savedOutput/heaton/resultsLK", thisFileNameRoot, ".rda")) 
 
 # * Plot results ----
 xrange = range(all.sat.temps$Lon)
 yrange = range(all.sat.temps$Lat)
-pdf("Figures/applicationHeaton/LKbasicPreds.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LKbasicPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
 quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$yHat, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="LK predictions (linear covariate model)", 
            xlab="Longitude", ylab="Latitude")
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicSDs.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LKbasicSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
 quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$standError, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="LK SD (linear covariate model)", 
            xlab="Longitude", ylab="Latitude")
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicResids.pdf", width=5, height=5)
-plot(thisDataObject$elevPred, finalResults$yHat-thisDataObject$TrueTempMissing, 
+pdf(paste0("Figures/applicationHeaton/LKbasicResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+plot(datPred$elev, finalResults$yHat-thisDataObject$TrueTempMissing, 
      xlab="Elevation (m)", ylab="LK residuals", 
      main="LK residuals Vs. elevation", 
      pch=19, cex=.1, col="blue")
@@ -425,16 +434,19 @@ priorPar = getPCPrior(max(c(latInfo[[1]]$xRangeDat, latInfo[[1]]$yRangeDat))/5, 
 
 # * Do precomputations ----
 
-comp.timeELKprecomputation = system.time({
-  precomputedMatrices = precomputationsQ2(latInfo)
-  precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
-                                                        plotNormalizationSplines=FALSE)
-})
-
-precomputationFileNameRoot = paste0("precomputationResultsHeatonComparison", dataCaseText)
-save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
-     file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
-load(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+precomputationFileNameRoot = paste0("precomputationResultsHeatonComparison", NCtext)
+if(!file.exists(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))) {
+  comp.timeELKprecomputation = system.time({
+    precomputedMatrices = precomputationsQ2(latInfo)
+    precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
+                                                          plotNormalizationSplines=FALSE)
+  })
+  
+  save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
+       file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+} else {
+  load(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+}
 
 # * Fit model ----
 dat = data.frame(Lon=thisDataObject$x[,1], Lat=thisDataObject$x[,2], MaskedTemp=thisDataObject$y, 
@@ -459,7 +471,7 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
                                                     printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
                                                     clusterEffect=TRUE, latInfo=latInfo, 
                                                     initialEffectiveRange=3, 
-                                                    verbose=TRUE, separateRanges=TRUE, 
+                                                    verbose=TRUE, separateRanges=separateRanges, 
                                                     loadPrecomputationResults=TRUE, 
                                                     precomputationFileNameRoot=precomputationFileNameRoot, 
                                                     diagonal=c(0.0)))
@@ -468,8 +480,8 @@ comp.timeELKall = comp.timeELKfit + comp.timeELKprecomputation
 
 # * save results ----
 save(fitELK, comp.timeELKall, comp.timeELKfit, comp.timeELKprecomputation, 
-     file=paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsELK", dataCaseText, ".rda"))
-out = load(paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsELK", dataCaseText, ".rda"))
+     file=paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
+out = load(paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
 
 # * Plot results ----
 # replot LK results with same scales
@@ -477,14 +489,14 @@ xrange = range(all.sat.temps$Lon)
 yrange = range(all.sat.temps$Lat)
 
 # LK plots
-pdf("Figures/applicationHeaton/LKbasicPreds.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LKbasicPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
 zlim = range(c(finalResults$yHat, fitELK$preds))
 quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$yHat, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="LK predictions (linear covariate model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicSDs.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LKbasicSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
 sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
 zlim = range(c(finalResults$standError, sds))
 quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$standError, nx=500, ny=300, 
@@ -492,23 +504,23 @@ quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), fina
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicResids.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LKbasicResids", thisFileNameRoot, ".pdf"), width=5, height=5)
 ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(thisDataObject$elevPred, finalResults$yHat-thisDataObject$TrueTempMissing, 
+plot(datPred$elev, finalResults$yHat-thisDataObject$TrueTempMissing, 
      xlab="Elevation (m)", ylab="LK residuals", 
      main="LK residuals Vs. elevation", 
      pch=19, cex=.1, col="blue", ylim=ylim)
 dev.off()
 
 # ELK plots
-pdf("Figures/applicationHeaton/ELKbasicPredsNDVIxELEV.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKbasicPredsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
 zlim = range(c(finalResults$yHat, fitELK$preds))
 quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELK$preds, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="ELK predictions (linear covariate model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKbasicSDsNDVIxELEV.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKbasicSDsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
 sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
 zlim = range(c(finalResults$standError, sds))
 quilt.plot(cbind(datPred$Lon, datPred$Lat), sds, nx=500, ny=300, 
@@ -516,7 +528,7 @@ quilt.plot(cbind(datPred$Lon, datPred$Lat), sds, nx=500, ny=300,
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKbasicResidsNDVIxELEV.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKbasicResidsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
 ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp), na.rm=TRUE)
 plot(datPred$elev, fitELK$preds-datPred$TrueTemp, 
      xlab="Elevation (m)", ylab="LK residuals", 
@@ -525,17 +537,17 @@ plot(datPred$elev, fitELK$preds-datPred$TrueTemp,
 dev.off()
 
 # calculate distance to nearest observation
-# dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
-# nndists = apply(dists, 1, min)
+dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+nndists = apply(dists, 1, min)
 
-pdf("Figures/applicationHeaton/LK-ELKbasicPredsComparison.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
 plotWithColor(finalResults$yHat, fitELK$preds, nndists, colScale=yellowBlueCols, 
               xlab="LatticeKrig", ylab="ELK", 
               main="Prediction comparison (linear covariate models)", 
               pch=19, cex=.2, ordering="increasing")
 dev.off()
 
-pdf("Figures/applicationHeaton/LK-ELKbasicSDsComparison.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/LK-ELKbasicSDsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
 plotWithColor(finalResults$standError, sds, nndists, colScale=yellowBlueCols, 
               xlab="LatticeKrig", ylab="ELK", 
               main="SD comparison (linear covariate models)", 
@@ -546,147 +558,229 @@ dev.off()
 ##### try fitting ELK with nonlinear effects ----
 
 # * Fit model ----
+# 
+# comp.timeELKnonlinearFit = system.time(fitELKnonlinear <- modHeaton(dat, 
+#                                                            predCoords=cbind(datPred$Lon, datPred$Lat), 
+#                                                            predCovar=datPred$ndvi, 
+#                                                            nu=nu, seed=234, nLayer=nlevel, NC=NC,
+#                                                            nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
+#                                                            intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
+#                                                            predictionType=c("mean", "median"), significanceCI=0.8, 
+#                                                            printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
+#                                                            clusterEffect=TRUE, latInfo=latInfo, 
+#                                                            initialEffectiveRange=3, 
+#                                                            verbose=TRUE, separateRanges=FALSE, 
+#                                                            loadPrecomputationResults=TRUE, 
+#                                                            precomputationFileNameRoot=precomputationFileNameRoot, 
+#                                                            diagonal=c(0.0), rwConstr=TRUE))
+# 
+# comp.timeELKnonlinearAll = comp.timeELKnonlinearFit + comp.timeELKprecomputation
+# 
+# # * save results ----
+# save(fitELKnonlinear, comp.timeELKnonlinearAll, comp.timeELKnonlinearFit, comp.timeELKprecomputation,
+#      file=paste0("savedOutput/heaton/resultsELKnonlinear", thisFileNameRoot, ".rda"))
+# out = load(paste0("savedOutput/heaton/resultsELKnonlinear", thisFileNameRoot, ".rda"))
+# 
+# # * Plot results ----
+# # replot LK results with same scales
+# xrange = range(all.sat.temps$Lon)
+# yrange = range(all.sat.temps$Lat)
+# 
+# # LK plots
+# pdf(paste0("Figures/applicationHeaton/LKbasicPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+# zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
+# quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$yHat, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="LK predictions (linear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/LKbasicSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
+# sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+# sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
+# zlim = range(c(finalResults$standError, sds, sdsNonlinear))
+# quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$standError, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="LK SD (linear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/LKbasicResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+# ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
+# plot(datPred$elev, 
+#      finalResults$yHat-thisDataObject$TrueTempMissing, 
+#      xlab="Elevation (m)", ylab="LK residuals", 
+#      main="LK residuals Vs. elevation", 
+#      pch=19, cex=.1, col="blue", ylim=ylim)
+# dev.off()
+# 
+# # ELK plots
+# pdf(paste0("Figures/applicationHeaton/ELKbasicPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+# zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
+# quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELK$preds, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="ELK predictions (linear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKbasicSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
+# sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+# sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
+# zlim = range(c(finalResults$standError, sds, sdsNonlinear))
+# quilt.plot(cbind(datPred$Lon, datPred$Lat), sds, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="ELK SD (linear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKbasicResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+# ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
+# plot(datPred$elev, fitELK$preds-datPred$TrueTemp, 
+#      xlab="Elevation (m)", ylab="ELK residuals", 
+#      main="ELK residuals Vs. elevation (linear covariate)", 
+#      pch=19, cex=.1, col="blue", ylim=ylim)
+# dev.off()
+# 
+# # ELK nonlinear plots
+# pdf(paste0("Figures/applicationHeaton/ELKnonlinearPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+# zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
+# quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKnonlinear$preds, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="ELK predictions (nonlinear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKnonlinearSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
+# sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+# sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
+# zlim = range(c(finalResults$standError, sds, sdsNonlinear))
+# quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsNonlinear, nx=500, ny=300, 
+#            xlim=xrange, ylim=yrange, main="ELK SD (nonlinear covariate model)", 
+#            xlab="Longitude", ylab="Latitude", zlim=zlim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKnonlinearResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+# ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
+# plot(datPred$elev, fitELKnonlinear$preds-datPred$TrueTemp, 
+#      xlab="Elevation (m)", ylab="ELK residuals", 
+#      main="ELK residuals Vs. elevation (nonlinear covariate)", 
+#      pch=19, cex=.1, col="blue", ylim=ylim)
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKnonlinearCovar", thisFileNameRoot, ".pdf"), width=5, height=5)
+# xs = fitELKnonlinear$rwSummary$ID
+# ys = xs*fitELKnonlinear$fixedEffectSummary$mean[4] + fitELKnonlinear$rwSummary$mean
+# plot(xs, ys, 
+#      xlab="NDVI", ylab="Effect (degrees F)", 
+#      main="Estimated effect of NDVI on temperature", 
+#      pch=19, cex=1, col="blue")
+# dev.off()
+# 
+# # calculate distance to nearest observation
+# # dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+# # nndists = apply(dists, 1, min)
+# 
+# pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+# lims = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
+# plotWithColor(finalResults$yHat, fitELK$preds, nndists, colScale=yellowBlueCols, 
+#               xlab="LatticeKrig", ylab="ELK", xlim=lims, ylim=lims, 
+#               main="Prediction comparison (linear covariate models)", 
+#               pch=19, cex=.2, ordering="increasing")
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/LK-ELKbasicSDsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+# plotWithColor(finalResults$standError, sds, nndists, colScale=yellowBlueCols, 
+#               xlab="LatticeKrig", ylab="ELK", 
+#               main="SD comparison (linear covariate models)", 
+#               pch=19, cex=.2, ordering="increasing")
+# abline(0, 1, lty=2)
+# dev.off()
+# 
+# # * Provide Tables ----
+# tabLK = 
+#   fitLK$MLE
 
-comp.timeELKnonlinearFit = system.time(fitELKnonlinear <- modHeaton(dat, 
-                                                           predCoords=cbind(datPred$Lon, datPred$Lat), 
-                                                           predCovar=datPred$ndvi, 
-                                                           nu=nu, seed=234, nLayer=nlevel, NC=NC,
-                                                           nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
-                                                           intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
-                                                           predictionType=c("mean", "median"), significanceCI=0.8, 
-                                                           printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
-                                                           clusterEffect=TRUE, latInfo=latInfo, 
-                                                           initialEffectiveRange=3, 
-                                                           verbose=TRUE, separateRanges=FALSE, 
-                                                           loadPrecomputationResults=TRUE, 
-                                                           precomputationFileNameRoot=precomputationFileNameRoot, 
-                                                           diagonal=c(0.0), rwConstr=TRUE))
+# try fitting ELK with rw2d covariate interaction ----
 
-comp.timeELKnonlinearAll = comp.timeELKnonlinearFit + comp.timeELKprecomputation
+# * fit model ----
+comp.timeELKfitFinalInt = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisDataObject$x, thisDataObject$y, 
+                                                                   predCoords=cbind(datPred$Lon, datPred$Lat), 
+                                                                   xObs=cbind(1, dat$Lon, dat$Lat, dat$elev, dat$ndvi, dat$elev*dat$ndvi), 
+                                                                   xPred=cbind(1, datPred$Lon, datPred$Lat, datPred$elev, datPred$ndvi, datPred$elev*datPred$ndvi), 
+                                                                   nonlinearCovariateInds=c(), 
+                                                                   nonlinearCovariateInteractionInds=c(4, 5), 
+                                                                   nu=nu, seed=234, nLayer=nlevel, NC=NC,
+                                                                   nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
+                                                                   intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
+                                                                   predictionType=c("mean", "median"), significanceCI=0.8, 
+                                                                   printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
+                                                                   clusterEffect=TRUE, latInfo=latInfo, 
+                                                                   initialEffectiveRange=3, 
+                                                                   verbose=TRUE, separateRanges=separateRanges, 
+                                                                   loadPrecomputationResults=TRUE, 
+                                                                   precomputationFileNameRoot=precomputationFileNameRoot, 
+                                                                   diagonal=c(0.0)))
+
+comp.timeELKfitFinalIntAll = comp.timeELKfitFinalInt + comp.timeELKprecomputation
 
 # * save results ----
-save(fitELKnonlinear, comp.timeELKnonlinearAll, comp.timeELKnonlinearFit, comp.timeELKprecomputation, 
-     file=paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsELKnonlinear", dataCaseText, ".rda"))
-out = load(paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"resultsELKnonlinear", dataCaseText, ".rda"))
+save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation,
+     file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 
-# * Plot results ----
-# replot LK results with same scales
+# * plot results ----
+# ELK nonlinear plots
 xrange = range(all.sat.temps$Lon)
 yrange = range(all.sat.temps$Lat)
-
-# LK plots
-pdf("Figures/applicationHeaton/LKbasicPreds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
-quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$yHat, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="LK predictions (linear covariate model)", 
+pdf(paste0("Figures/applicationHeaton/ELKfinalIntPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKfinalInt$preds, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK predictions (2d covariate interaction model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicSDs.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinalIntSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
 sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
-zlim = range(c(finalResults$standError, sds, sdsNonlinear))
-quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$standError, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="LK SD (linear covariate model)", 
+sdsNonlinearInt = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
+zlim = range(c(finalResults$standError, sds, sdsNonlinearInt))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsNonlinearInt, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK SD (2d covariate interaction model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/LKbasicResids.pdf", width=5, height=5)
-ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(thisDataObject$elevPred, 
-     finalResults$yHat-thisDataObject$TrueTempMissing, 
-     xlab="Elevation (m)", ylab="LK residuals", 
-     main="LK residuals Vs. elevation", 
-     pch=19, cex=.1, col="blue", ylim=ylim)
-dev.off()
-
-# ELK plots
-pdf("Figures/applicationHeaton/ELKbasicPreds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELK$preds, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK predictions (linear covariate model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKbasicSDs.pdf", width=5, height=5)
-sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
-zlim = range(c(finalResults$standError, sds, sdsNonlinear))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), sds, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK SD (linear covariate model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKbasicResids.pdf", width=5, height=5)
-ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(datPred$elev, fitELK$preds-datPred$TrueTemp, 
+pdf(paste0("Figures/applicationHeaton/ELKfinalIntResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, 
+               fitELKfinalInt$preds-datPred$TrueTemp), na.rm=TRUE)
+plot(datPred$elev, fitELKfinalInt$preds-datPred$TrueTemp, 
      xlab="Elevation (m)", ylab="ELK residuals", 
-     main="ELK residuals Vs. elevation (linear covariate)", 
+     main="ELK residuals vs. elevation (final model)", 
      pch=19, cex=.1, col="blue", ylim=ylim)
 dev.off()
 
-# ELK nonlinear plots
-pdf("Figures/applicationHeaton/ELKnonlinearPreds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKnonlinear$preds, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK predictions (nonlinear covariate model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
+# pdf(paste0("Figures/applicationHeaton/ELKfinalIntElev", thisFileNameRoot, ".pdf"), width=5, height=5)
+# xs = fitELKfinalInt$rwSummary$nonlinearEffect1$ID
+# ys = xs*fitELKfinalInt$fixedEffectSummary$mean[4] + fitELKfinalInt$rwSummary$nonlinearEffect1$mean
+# plot(xs, ys, 
+#      xlab="Elevation (m)", ylab="Effect (degrees F)", 
+#      main="Main effect of elevation on temperature", 
+#      pch=19, cex=1, col="blue")
+# dev.off()
+# 
+# pdf(paste0("Figures/applicationHeaton/ELKfinalIntNDVI", thisFileNameRoot, ".pdf"), width=5, height=5)
+# xs = fitELKfinalInt$rwSummary$nonlinearEffect2$ID
+# ys = xs*fitELKfinalInt$fixedEffectSummary$mean[5] + fitELKfinalInt$rwSummary$nonlinearEffect2$mean
+# plot(xs, ys, 
+#      xlab="NDVI", ylab="Effect (degrees F)", 
+#      main="Main effect of NDVI on temperature", 
+#      pch=19, cex=1, col="blue")
+# dev.off()
+
+pdf(paste0("Figures/applicationHeaton/ELKfinalIntRW2D", thisFileNameRoot, ".pdf"), width=5, height=5)
+knotCoords = fitELKfinalInt$rw2dKnotCoords[,1:2]
+knotVals = fitELKfinalInt$rw2dSummary$mean
+quilt.plot(knotCoords, knotVals, nx=30, ny=30, 
+           xlab="Elevation (m)", ylab="NDVI", 
+           main="RW2D Mean", col=makeGreenBlueDivergingColors(64, range(knotVals), 0, TRUE))
 dev.off()
-
-pdf("Figures/applicationHeaton/ELKnonlinearSDs.pdf", width=5, height=5)
-sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
-zlim = range(c(finalResults$standError, sds, sdsNonlinear))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsNonlinear, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK SD (nonlinear covariate model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKnonlinearResids.pdf", width=5, height=5)
-ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, fitELKnonlinear$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(datPred$elev, fitELKnonlinear$preds-datPred$TrueTemp, 
-     xlab="Elevation (m)", ylab="ELK residuals", 
-     main="ELK residuals Vs. elevation (nonlinear covariate)", 
-     pch=19, cex=.1, col="blue", ylim=ylim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKnonlinearCovar.pdf", width=5, height=5)
-xs = fitELKnonlinear$rwSummary$ID
-ys = xs*fitELKnonlinear$fixedEffectSummary$mean[4] + fitELKnonlinear$rwSummary$mean
-plot(xs, ys, 
-     xlab="NDVI", ylab="Effect (degrees F)", 
-     main="Estimated effect of NDVI on temperature", 
-     pch=19, cex=1, col="blue")
-dev.off()
-
-# calculate distance to nearest observation
-# dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
-# nndists = apply(dists, 1, min)
-
-pdf("Figures/applicationHeaton/LK-ELKbasicPredsComparison.pdf", width=5, height=5)
-lims = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds))
-plotWithColor(finalResults$yHat, fitELK$preds, nndists, colScale=yellowBlueCols, 
-              xlab="LatticeKrig", ylab="ELK", xlim=lims, ylim=lims, 
-              main="Prediction comparison (linear covariate models)", 
-              pch=19, cex=.2, ordering="increasing")
-dev.off()
-
-pdf("Figures/applicationHeaton/LK-ELKbasicSDsComparison.pdf", width=5, height=5)
-plotWithColor(finalResults$standError, sds, nndists, colScale=yellowBlueCols, 
-              xlab="LatticeKrig", ylab="ELK", 
-              main="SD comparison (linear covariate models)", 
-              pch=19, cex=.2, ordering="increasing")
-abline(0, 1, lty=2)
-dev.off()
-
-# * Provide Tables ----
-tabLK = 
-  fitLK$MLE
 
 ##### Final models ----
 
 # * setup ----
-dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
+# dataObject<- makeData(sat.temps$Lon,sat.temps$Lat, sat.temps$Temp)
 
 # get elevation
 # GMTED 2010 elevation data downloaded from https://topotools.cr.usgs.gov/gmted_viewer/viewer.htm
@@ -753,7 +847,7 @@ finalResults<- list(x=dataObject$xMissing,
                     yHat=yHat, 
                     standError=standardError)
 
-save( finalResults, fitFinal, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/NC",NC,"nlevel",nlevel,"finalResultsLK_n", length(sampleI), ".rda") )
+save( finalResults, fitFinal, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/finalResultsLK", thisFileNameRoot, ".rda") )
 
 # * ELK ----
 
@@ -810,33 +904,32 @@ comp.timeELKfit = system.time(fitELKfinal2 <- fitLKINLAStandard2(thisDataObject$
                                                            diagonal=c(0.0)))
 
 # ELK nonlinear plots
-pdf("Figures/applicationHeaton/ELKfinalPreds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds, fitELKfinal$preds))
+pdf(paste0("Figures/applicationHeaton/ELKfinalPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKfinal$preds))
 quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKfinal$preds, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="ELK predictions (final covariate model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinalSDs.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinalSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
 sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
 sdsFinal = rowMeans(outer(fitELKfinal$sigmasNoNugget^2, fitELKfinal$clusterVars, function(x, y) {sqrt(x + y)}))
-zlim = range(c(finalResults$standError, sds, sdsNonlinear, sdsFinal))
+zlim = range(c(finalResults$standError, sds, sdsFinal))
 quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsFinal, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="ELK SD (final covariate model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinalResids.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinalResids", thisFileNameRoot, ".pdf"), width=5, height=5)
 ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, 
-               fitELKnonlinear$preds-datPred$TrueTemp, fitELKfinal$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(datPred$elev, fitELKnonlinear$preds-datPred$TrueTemp, 
+               fitELKfinal$preds-datPred$TrueTemp), na.rm=TRUE)
+plot(datPred$elev, fitELKfinal$preds-datPred$TrueTemp, 
      xlab="Elevation (m)", ylab="ELK residuals", 
      main="ELK residuals vs. elevation (final model)", 
      pch=19, cex=.1, col="blue", ylim=ylim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinalElev.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinalElev", thisFileNameRoot, ".pdf"), width=5, height=5)
 xs = fitELKfinal$rwSummary$nonlinearEffect1$ID
 ys = xs*fitELKfinal$fixedEffectSummary$mean[4] + fitELKfinal$rwSummary$nonlinearEffect1$mean
 plot(xs, ys, 
@@ -845,7 +938,7 @@ plot(xs, ys,
      pch=19, cex=1, col="blue")
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinalNDVI.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinalNDVI", thisFileNameRoot, ".pdf"), width=5, height=5)
 xs = fitELKfinal$rwSummary$nonlinearEffect2$ID
 ys = xs*fitELKfinal$fixedEffectSummary$mean[5] + fitELKfinal$rwSummary$nonlinearEffect2$mean
 plot(xs, ys, 
@@ -855,14 +948,14 @@ plot(xs, ys,
 dev.off()
 
 # ELK nonlinear plots (2!)
-pdf("Figures/applicationHeaton/ELKfinal2Preds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds, fitELKfinal2$preds))
+pdf(paste0("Figures/applicationHeaton/ELKfinal2Preds", thisFileNameRoot, ".pdf"), width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKfinal2$preds))
 quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKfinal2$preds, nx=500, ny=300, 
            xlim=xrange, ylim=yrange, main="ELK predictions (final covariate model)", 
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinal2SDs.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinal2SDs", thisFileNameRoot, ".pdf"), width=5, height=5)
 sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
 sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
 sdsFinal = rowMeans(outer(fitELKfinal2$sigmasNoNugget^2, fitELKfinal2$clusterVars, function(x, y) {sqrt(x + y)}))
@@ -872,7 +965,7 @@ quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsFinal, nx=500, ny=300,
            xlab="Longitude", ylab="Latitude", zlim=zlim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinal2Resids.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinal2Resids", thisFileNameRoot, ".pdf"), width=5, height=5)
 ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, 
                fitELKnonlinear$preds-datPred$TrueTemp, fitELKfinal2$preds-datPred$TrueTemp), na.rm=TRUE)
 plot(datPred$elev, fitELKnonlinear$preds-datPred$TrueTemp, 
@@ -881,7 +974,7 @@ plot(datPred$elev, fitELKnonlinear$preds-datPred$TrueTemp,
      pch=19, cex=.1, col="blue", ylim=ylim)
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinal2Elev.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinal2Elev", thisFileNameRoot, ".pdf"), width=5, height=5)
 xs = fitELKfinal2$rwSummary$nonlinearEffect1$ID
 ys = xs*fitELKfinal2$fixedEffectSummary$mean[4] + fitELKfinal2$rwSummary$nonlinearEffect1$mean
 plot(xs, ys, 
@@ -890,89 +983,13 @@ plot(xs, ys,
      pch=19, cex=1, col="blue")
 dev.off()
 
-pdf("Figures/applicationHeaton/ELKfinal2NDVI.pdf", width=5, height=5)
+pdf(paste0("Figures/applicationHeaton/ELKfinal2NDVI", thisFileNameRoot, ".pdf"), width=5, height=5)
 xs = fitELKfinal2$rwSummary$nonlinearEffect2$ID
 ys = xs*fitELKfinal2$fixedEffectSummary$mean[5] + fitELKfinal2$rwSummary$nonlinearEffect2$mean
 plot(xs, ys, 
      xlab="NDVI", ylab="Effect (degrees F)", 
      main="Estimated effect of NDVI on temperature", 
      pch=19, cex=1, col="blue")
-dev.off()
-
-# try fitting ELK with nonlinear effect interaction
-comp.timeELKfit = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisDataObject$x, thisDataObject$y, 
-                                                                 predCoords=cbind(datPred$Lon, datPred$Lat), 
-                                                                 xObs=cbind(1, dat$Lon, dat$Lat, dat$elev, dat$ndvi, dat$elev*dat$ndvi), 
-                                                                 xPred=cbind(1, datPred$Lon, datPred$Lat, datPred$elev, datPred$ndvi, datPred$elev*datPred$ndvi), 
-                                                                 nonlinearCovariateInds=c(), 
-                                                                 nonlinearCovariateInteractionInds=c(4, 5), 
-                                                                 nu=nu, seed=234, nLayer=nlevel, NC=NC,
-                                                                 nBuffer=nBuffer, priorPar=priorPar, normalize=TRUE, 
-                                                                 intStrategy="eb", strategy="gaussian", fastNormalize=TRUE, 
-                                                                 predictionType=c("mean", "median"), significanceCI=0.8, 
-                                                                 printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
-                                                                 clusterEffect=TRUE, latInfo=latInfo, 
-                                                                 initialEffectiveRange=3, 
-                                                                 verbose=TRUE, separateRanges=FALSE, 
-                                                                 loadPrecomputationResults=TRUE, 
-                                                                 precomputationFileNameRoot=precomputationFileNameRoot, 
-                                                                 diagonal=c(0.0)))
-
-# ELK nonlinear plots
-xrange = range(all.sat.temps$Lon)
-yrange = range(all.sat.temps$Lat)
-pdf("Figures/applicationHeaton/ELKfinalIntPreds.pdf", width=5, height=5)
-zlim = range(c(finalResults$yHat, fitELK$preds, fitELKnonlinear$preds, fitELKfinal$preds, fitELKfinalInt$preds))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELKfinalInt$preds, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK predictions (2d covariate interaction model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKfinalIntSDs.pdf", width=5, height=5)
-sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinear = rowMeans(outer(fitELKnonlinear$sigmasNoNugget^2, fitELKnonlinear$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsFinal = rowMeans(outer(fitELKfinal$sigmasNoNugget^2, fitELKfinal$clusterVars, function(x, y) {sqrt(x + y)}))
-sdsNonlinearInt = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
-zlim = range(c(finalResults$standError, sds, sdsNonlinear, sdsFinal, sdsNonlinearInt))
-quilt.plot(cbind(datPred$Lon, datPred$Lat), sdsNonlinearInt, nx=500, ny=300, 
-           xlim=xrange, ylim=yrange, main="ELK SD (2d covariate interaction model)", 
-           xlab="Longitude", ylab="Latitude", zlim=zlim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKfinalIntResids.pdf", width=5, height=5)
-ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, fitELK$preds-datPred$TrueTemp, 
-               fitELKnonlinear$preds-datPred$TrueTemp, fitELKfinal$preds-datPred$TrueTemp, 
-               fitELKfinalInt$preds-datPred$TrueTemp), na.rm=TRUE)
-plot(datPred$elev, fitELKfinalInt$preds-datPred$TrueTemp, 
-     xlab="Elevation (m)", ylab="ELK residuals", 
-     main="ELK residuals vs. elevation (final model)", 
-     pch=19, cex=.1, col="blue", ylim=ylim)
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKfinalIntElev.pdf", width=5, height=5)
-xs = fitELKfinalInt$rwSummary$nonlinearEffect1$ID
-ys = xs*fitELKfinalInt$fixedEffectSummary$mean[4] + fitELKfinalInt$rwSummary$nonlinearEffect1$mean
-plot(xs, ys, 
-     xlab="Elevation (m)", ylab="Effect (degrees F)", 
-     main="Main effect of elevation on temperature", 
-     pch=19, cex=1, col="blue")
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKfinalIntNDVI.pdf", width=5, height=5)
-xs = fitELKfinalInt$rwSummary$nonlinearEffect2$ID
-ys = xs*fitELKfinalInt$fixedEffectSummary$mean[5] + fitELKfinalInt$rwSummary$nonlinearEffect2$mean
-plot(xs, ys, 
-     xlab="NDVI", ylab="Effect (degrees F)", 
-     main="Main effect of NDVI on temperature", 
-     pch=19, cex=1, col="blue")
-dev.off()
-
-pdf("Figures/applicationHeaton/ELKfinalIntRW2D.pdf", width=5, height=5)
-knotCoords = fitELKfinalIntNoMain$rw2dKnotCoords[,1:2]
-knotVals = fitELKfinalInt$rw2dSummary$mean
-quilt.plot(knotCoords, knotVals, nx=30, ny=30, 
-     xlab="Elevation (m)", ylab="NDVI", 
-     main="RW2D Mean", col=makeGreenBlueDivergingColors(64, range(knotVals), 0, TRUE))
 dev.off()
 
 

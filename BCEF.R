@@ -341,7 +341,7 @@ for(i in startI:length(Ns)) {
                         latticeInfo=latInfo, useUrbanPrior=FALSE)
   if(fitModels) {
     precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
-    savePrecomputationResults=FALSE
+    savePrecomputationResults=TRUE
     startTime = proc.time()
     if(sampleN > 25000) {
       # bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 

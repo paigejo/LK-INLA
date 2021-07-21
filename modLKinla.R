@@ -571,7 +571,6 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
           hyperNames = c(hyperNames, "rw2dVar", "rw2dSD")
         }
       } else {
-        browser()
         mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1]+sum(1/x[(2+2*nLayer-1):(2+2*nLayer-2+nNonlinear)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[2+nLayer])+1/x[1]+sum(1/x[(2+2*nLayer-1):(2+2*nLayer-2+nNonlinear)])), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
                                                 spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(2+nLayer):(2+2*nLayer-2)]), 
