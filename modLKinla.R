@@ -254,6 +254,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # cmd = c("graph", "Q", "mu", "initial", "log.norm.const",
   #         "log.prior", "quit")
   # thet = inla.rgeneric.lk.model.full("initial") # separate ranges
+  # test = inla.rgeneric.lk.model.full("Q", thet)
   # thet = inla.rgeneric.lk.model.standard("initial") # non-separate ranges
   # test = inla.rgeneric.lk.model.standard("Q", thet)
   ## set up the stack ----
@@ -277,10 +278,13 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                              data =list(y=obsValues, link=1), 
                              tag ="est", 
                              remove.unused=FALSE)
+      newEffectsList = c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
+                         lapply(rwEffectsNew, function(x) {x[1]}))
+      if(nonlinearInteraction) {
+        newEffectsList = c(newEffectsList, list(rw2d=rwIntEffectNew[[1]][1]))
+      }
       stack.pred = inla.stack(A =c(list(matrix(APred[1,], nrow=1), 1), nonlinearA, rwIntANew), 
-                              effects =c(list(field=latticeInds, X=matrix(xPred[1,], nrow=1)), 
-                                         lapply(rwEffectsNew, function(x) {x[1]}), 
-                                         list(rw2d=rwIntEffectNew[[1]][1])), 
+                              effects =newEffectsList, 
                               data =list(y=NA, link=1), 
                               tag ="pred", 
                               remove.unused=FALSE)
@@ -509,19 +513,23 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   
   if(family == "normal") {
+    rw2dInds = NULL
+    if(nonlinearInteraction) {
+      rw2dInds = nrow(hyperMat)
+    }
+    
     if(!separateRanges) {
       if(nNonlinear == 0) {
-        rw2dInds = NULL
-        if(nonlinearInteraction) {
-          rw2dInds = nrow(hyperMat)
-        }
-        
-        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/sum(x[c(1, rw2dInds)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+sum(1/x[c(1, rw2dInds)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[3])+1/x[1]), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
                                                 spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
                                                 rw2dVar=1/x[rw2dInds], rw2dSD=sqrt(1/x[rw2dInds]))})
         rw2dIndsMat = sort(c(grep("rw2dVar", rownames(mat)), grep("rw2dSD", rownames(mat))))
-        mat = rbind(mat[-rw2dIndsMat,], alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))), mat[rw2dIndsMat,])
+        noRW2dIndsMat = -rw2dIndsMat
+        if(!nonlinearInteraction) {
+          noRW2dIndsMat = -(nrow(mat) + 1) # (to fix the behaviour of mat[-numeric(0),], we use this slightly sketchy work around)
+        }
+        mat = rbind(mat[noRW2dIndsMat,], alpha=1-colSums(matrix(mat[8:(7+nLayer-1),], nrow=length(8:(7+nLayer-1)))), mat[rw2dIndsMat,])
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", "spatialRange", 
                        paste0("alpha", 1:nLayer))
         if(nonlinearInteraction) {
@@ -529,10 +537,6 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
         }
       }
       else {
-        rw2dInds = NULL
-        if(nonlinearInteraction) {
-          rw2dInds = nrow(hyperMat)
-        }
         mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):nrow(hyperMat)]), spatialVar=exp(x[3]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[3])+1/x[1]+sum(1/x[(3 + nLayer):(2 + nLayer + nNonlinear)])), spatialSD=sqrt(exp(x[3])), errorSD=sqrt(1/x[1]), 
                                                 spatialRange=exp(x[2]), alpha=multivariateExpit(x[4:(3 + nLayer - 1)]), 
@@ -549,25 +553,39 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
         }
       }
     } else {
+      
       if(nNonlinear == 0) {
-        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1], spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+sum(1/x[c(1, rw2dInds)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
                                                 totalSD=sqrt(exp(x[2+nLayer])+1/x[1]), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
-                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]))})
-        mat = rbind(mat, alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)))
+                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(2+nLayer):(2+2*nLayer-2)]), 
+                                                rw2dVar=1/x[rw2dInds], rw2dSD=sqrt(1/x[rw2dInds]))})
+        rw2dIndsMat = sort(c(grep("rw2dVar", rownames(mat)), grep("rw2dSD", rownames(mat))))
+        noRW2dIndsMat = -rw2dIndsMat
+        if(!nonlinearInteraction) {
+          noRW2dIndsMat = -(nrow(mat) + 1) # (to fix the behaviour of mat[-numeric(0),], we use this slightly sketchy work around)
+        }
+        mat = rbind(mat[noRW2dIndsMat,], alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)), mat[rw2dIndsMat,])
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
                        paste0("alpha", 1:nLayer))
+        if(nonlinearInteraction) {
+          hyperNames = c(hyperNames, "rw2dVar", "rw2dSD")
+        }
       } else {
         browser()
-        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
-                                                totalSD=sqrt(exp(x[2+nLayer])+1/x[1]+sum(1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)])), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
-                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(3+nLayer):(3+2*nLayer-2)]), 
-                                                rwVar=1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)], rwSD=1/sqrt(x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]))})
+        mat = apply(hyperMat, 2, function(x) {c(totalVar=exp(x[2+nLayer])+1/x[1]+sum(1/x[(2+2*nLayer-1):(2+2*nLayer-2+nNonlinear)]), spatialVar=exp(x[2+nLayer]), errorVar=1/x[1], 
+                                                totalSD=sqrt(exp(x[2+nLayer])+1/x[1]+sum(1/x[(2+2*nLayer-1):(2+2*nLayer-2+nNonlinear)])), spatialSD=sqrt(exp(x[2+nLayer])), errorSD=sqrt(1/x[1]), 
+                                                spatialRange=exp(x[2:(1+nLayer)]), alpha=multivariateExpit(x[(2+nLayer):(2+2*nLayer-2)]), 
+                                                rwVar=1/x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)], rwSD=1/sqrt(x[(3+2*nLayer-1):(3+2*nLayer-2+nNonlinear)]), 
+                                                rw2dVar=1/x[rw2dInds], rw2dSD=sqrt(1/x[rw2dInds]))})
         mat = rbind(mat[1:(6+nLayer+1 + nLayer-2),], 
                     alpha=1-colSums(matrix(mat[(6+nLayer+1):(6+nLayer+1 + nLayer-2),], nrow=nLayer-1)), 
-                    mat[(6+nLayer+1 + nLayer-1):(6+nLayer+1 + nLayer-2 + nNonlinear),])
+                    mat[(6+nLayer+1 + nLayer-1):nrow(mat),])
         # mat = mat[c(1:(6+nLayer+1 + nLayer-2), nrow(mat), (nrow(mat)-2):(nrow(mat)-1)),]
         hyperNames = c("totalVar", "spatialVar", "clusterVar", "totalSD", "spatialSD", "clusterSD", paste0("spatialRange", 1:nLayer), 
                        paste0("alpha", 1:nLayer), paste0("rwVar", 1:nNonlinear), paste0("rwSD", 1:nNonlinear))
+        if(nonlinearInteraction) {
+          hyperNames = c(hyperNames, "rw2dVar", "rw2dSD")
+        }
       }
     }
   } else if(family == "binomial") {

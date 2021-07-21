@@ -459,7 +459,7 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
                                                     printVerboseTimings=FALSE, nPostSamples=1000, family="normal",
                                                     clusterEffect=TRUE, latInfo=latInfo, 
                                                     initialEffectiveRange=3, 
-                                                    verbose=TRUE, separateRanges=FALSE, 
+                                                    verbose=TRUE, separateRanges=TRUE, 
                                                     loadPrecomputationResults=TRUE, 
                                                     precomputationFileNameRoot=precomputationFileNameRoot, 
                                                     diagonal=c(0.0)))

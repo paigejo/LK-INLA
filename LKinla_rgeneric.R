@@ -2021,7 +2021,23 @@ inla.rgeneric.lk.model.full = function(
     sigmaSq = var(theseYs) * r2
     
     # initialize covariance parameters
-    if(is.null(initialEffectiveRange)) {
+    if(!is.null(initialEffectiveRange)) {
+      if(length(initialEffectiveRange) < length(latInfo)) {
+        if(length(initialEffectiveRange) != 1) {
+          stop("initial effective range has length bigger than 1 but less than length(latInfo). ")
+        }
+        warning("initial effective range has length < length(latInfo). It is assumed to represent the initial 'middle' effective range")
+        middleEffectiveRange = initialEffectiveRange
+        
+        # based on the middle effective range, set the effective ranges of each layer:
+        nLayer = length(latInfo)
+        exponents = seq(0.5*(nLayer-1), -0.5*(nLayer-1), by=-1)
+        effectiveRangeInit = middleEffectiveRange * 2^exponents
+      } else {
+        effectiveRangeInit = initialEffectiveRange
+      }
+    }
+    else {
       # We want the "middle" representable effective range to be an eighth of the domain diameter
       middleEffectiveRange = max(c(xRangeDat[2] - xRangeDat[1], yRangeDat[2] - yRangeDat[1]))/8
       
@@ -2030,8 +2046,6 @@ inla.rgeneric.lk.model.full = function(
       exponents = seq(0.5*(nLayer-1), -0.5*(nLayer-1), by=-1)
       effectiveRangeInit = middleEffectiveRange * 2^exponents
     }
-    else
-      effectiveRangeInit = initialEffectiveRange
     
     # initialize the layer weights to be equal
     if(length(latInfo) == 1)
