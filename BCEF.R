@@ -307,7 +307,7 @@ Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 Ns = c(1000, 5000, 25000, 100000)
 fitModels=TRUE
 lastMod = NULL
-startI=3
+startI=1
 startI=1
 for(i in startI:length(Ns)) {
   sampleN = ceiling(nrow(BCEF)/2)
@@ -341,7 +341,7 @@ for(i in startI:length(Ns)) {
                         latticeInfo=latInfo, useUrbanPrior=FALSE)
   if(fitModels) {
     precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
-    savePrecomputationResults=TRUE
+    savePrecomputationResults=FALSE
     startTime = proc.time()
     if(sampleN > 25000) {
       # bcefELK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
@@ -450,7 +450,7 @@ for(i in startI:length(Ns)) {
   # lines(rwKnots, rwLower, lty=2)
   # lines(rwKnots, rwUpper, lty=2)
   # dev.off()
-  ptcMat = bcefELK$rwMat + outer(rwKnots, fixedMat[2,])
+  ptcMat = bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,])
   # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
   # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
   # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)

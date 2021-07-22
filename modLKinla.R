@@ -754,6 +754,10 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     rw2dCoefMat = latentMat[rw2dInds,]
   }
   
+  fixedMat = NULL
+  if(!is.null(xObs)) {
+    fixedMat = latentMat[fixedIndices,]
+  }
   
   # add in cluster effect if necessary
   if((family == "binomial" && clusterEffect) || family == "normal") {
@@ -917,7 +921,8 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
        rw2dSummary=rw2dSummary, rw2dMat=rw2dCoefMat, rw2dPrior=rwIntPrior, 
        rw2dMatchWithKnotsFun=rw2dMatchWithKnotsFun, rw2dKnotCoords=rw2dKnotCoords, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
-       predMat=predMatClustEffect, obsMat=obsMatClustEffect, hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
+       predMat=predMatClustEffect, obsMat=obsMatClustEffect, fixedMat=fixedMat, 
+       hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
        modelFitTimes=modelFitTimes)
 }
 
