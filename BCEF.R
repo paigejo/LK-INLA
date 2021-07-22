@@ -432,7 +432,7 @@ for(i in startI:length(Ns)) {
   dev.off()
   
   # plot effect of PTC
-  rwKnots = bcefELK$rwKnots
+  rwKnots = bcefELK$rwKnots[[1]]
   rwSummary = bcefELK$rwSummary
   fixedSummary = bcefELK$fixedEffectSummary
   fixedMat = bcefELK$fixedMat

@@ -306,7 +306,7 @@ if(dataCase=="test"){
   a.wght<-  10.25
   nu<- .1
   separateRanges=FALSE
-  sampleN = 5000
+  sampleN = 100000
 } else {
   out = load("heaton/AllSatelliteTemps.RData")
   names(all.sat.temps)
@@ -459,7 +459,10 @@ datPred = data.frame(Lon=thisDataObject$xMissing[,1], Lat=thisDataObject$xMissin
                  ndvi=extract(ndviRaster, SpatialPoints(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), proj4string=CRS("+proj=longlat")),method="bilinear"))
 dat$Covar = dat$elev
 datPred$Covar = datPred$elev
-
+thisDiagonal = 0.0
+if(sampleN >= 100000) {
+  thisDiagonal = c(10.0, 0.0)
+}
 comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thisDataObject$y, 
                                                     predCoords=cbind(datPred$Lon, datPred$Lat), 
                                                     xObs=cbind(1, dat$Lon, dat$Lat, dat$elev, dat$ndvi, dat$elev*dat$ndvi), 
@@ -474,7 +477,7 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
                                                     verbose=TRUE, separateRanges=separateRanges, 
                                                     loadPrecomputationResults=TRUE, 
                                                     precomputationFileNameRoot=precomputationFileNameRoot, 
-                                                    diagonal=c(0.0)))
+                                                    diagonal=thisDiagonal))
 
 comp.timeELKall = comp.timeELKfit + comp.timeELKprecomputation
 
@@ -714,7 +717,7 @@ comp.timeELKfitFinalInt = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisD
                                                                    verbose=TRUE, separateRanges=separateRanges, 
                                                                    loadPrecomputationResults=TRUE, 
                                                                    precomputationFileNameRoot=precomputationFileNameRoot, 
-                                                                   diagonal=c(0.0)))
+                                                                   diagonal=thisDiagonal))
 
 comp.timeELKfitFinalIntAll = comp.timeELKfitFinalInt + comp.timeELKprecomputation
 
@@ -723,6 +726,119 @@ save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.t
      file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 
 # * plot results ----
+# replot LK results with same scales
+xrange = range(all.sat.temps$Lon)
+yrange = range(all.sat.temps$Lat)
+
+# LK plots
+pdf(paste0("Figures/applicationHeaton/LKbasicPreds", thisFileNameRoot, ".pdf"), width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$yHat, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="LK predictions (linear covariate model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/LKbasicSDs", thisFileNameRoot, ".pdf"), width=5, height=5)
+sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+sdsFinalInt = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
+zlim = range(c(finalResults$standError, sds, sdsFinalInt))
+quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), finalResults$standError, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="LK SD (linear covariate model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/LKbasicResids", thisFileNameRoot, ".pdf"), width=5, height=5)
+ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, 
+               fitELK$preds-datPred$TrueTemp, 
+               fitELKfinalInt$preds-datPred$TrueTemp), na.rm=TRUE)
+plot(datPred$elev, finalResults$yHat-thisDataObject$TrueTempMissing, 
+     xlab="Elevation (m)", ylab="LK residuals", 
+     main="LK residuals Vs. elevation", 
+     pch=19, cex=.1, col="blue", ylim=ylim)
+dev.off()
+
+# ELK plots
+pdf(paste0("Figures/applicationHeaton/ELKbasicPredsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
+zlim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), fitELK$preds, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK predictions (linear covariate model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/ELKbasicSDsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
+sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+sdsFinalInt = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
+zlim = range(c(finalResults$standError, sds, sdsFinalInt))
+quilt.plot(cbind(datPred$Lon, datPred$Lat), sds, nx=500, ny=300, 
+           xlim=xrange, ylim=yrange, main="ELK SD (linear covariate model)", 
+           xlab="Longitude", ylab="Latitude", zlim=zlim)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/ELKbasicResidsNDVIxELEV", thisFileNameRoot, ".pdf"), width=5, height=5)
+ylim = range(c(finalResults$yHat-thisDataObject$TrueTempMissing, 
+               fitELK$preds-datPred$TrueTemp, 
+               fitELKfinalInt$preds-datPred$TrueTemp), na.rm=TRUE)
+plot(datPred$elev, fitELK$preds-datPred$TrueTemp, 
+     xlab="Elevation (m)", ylab="LK residuals", 
+     main="ELK residuals Vs. elevation", 
+     pch=19, cex=.1, col="blue", ylim=ylim)
+dev.off()
+
+# calculate distance to nearest observation
+dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+nndists = apply(dists, 1, min)
+
+pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+predLim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+plotWithColor(finalResults$yHat, fitELK$preds, nndists, colScale=yellowBlueCols, 
+              xlab="LatticeKrig", ylab="ELK", xlim=predLim, ylim=predLim, 
+              main="Prediction comparison", 
+              pch=19, cex=.2, ordering="increasing")
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/LK-ELKfinalIntPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+predLim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+plotWithColor(finalResults$yHat, fitELKfinalInt$preds, nndists, colScale=yellowBlueCols, 
+              xlab="LatticeKrig", ylab="ELK with 2D RW", xlim=predLim, ylim=predLim, 
+              main="Prediction comparison", 
+              pch=19, cex=.2, ordering="increasing")
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/ELKbasic-ELKfinalIntPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+predLim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))
+plotWithColor(fitELK$preds, fitELKfinalInt$preds, nndists, colScale=yellowBlueCols, 
+              xlab="ELK (no 2D RW)", ylab="ELK (with 2D RW)", xlim=predLim, ylim=predLim, 
+              main="Prediction comparison", 
+              pch=19, cex=.2, ordering="increasing")
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/LK-ELKbasicSDsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+sdLim = range(c(finalResults$standError, sds, sdsFinalInt))
+plotWithColor(finalResults$standError, sds, nndists, colScale=yellowBlueCols, 
+              xlab="LatticeKrig", ylab="ELK (no 2D RW)", xlim=sdLim, ylim=sdLim, 
+              main="SD comparison", 
+              pch=19, cex=.2, ordering="increasing")
+abline(0, 1, lty=2)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/LK-ELKfinalIntSDsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+sdLim = range(c(finalResults$standError, sds, sdsFinalInt))
+plotWithColor(finalResults$standError, sdsFinalInt, nndists, colScale=yellowBlueCols, 
+              xlab="LatticeKrig", ylab="ELK (with 2D RW)", xlim=sdLim, ylim=sdLim, 
+              main="SD comparison", 
+              pch=19, cex=.2, ordering="increasing")
+abline(0, 1, lty=2)
+dev.off()
+
+pdf(paste0("Figures/applicationHeaton/ELKbasic-ELKfinalIntSDsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
+sdLim = range(c(finalResults$standError, sds, sdsFinalInt))
+plotWithColor(sds, sdsFinalInt, nndists, colScale=yellowBlueCols, 
+              xlab="ELK (no 2D RW)", ylab="ELK (with 2D RW)", xlim=sdLim, ylim=sdLim, 
+              main="SD comparison", 
+              pch=19, cex=.2, ordering="increasing")
+abline(0, 1, lty=2)
+dev.off()
+
 # ELK nonlinear plots
 xrange = range(all.sat.temps$Lon)
 yrange = range(all.sat.temps$Lat)
