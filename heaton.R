@@ -489,7 +489,7 @@ out = load(paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
 
 # * get scoring rules ----
 scoresELK = getScores(datPred$TrueTemp, est=fitELK$preds, var=fitELK$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
-                      distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=FALSE, getAverage=FALSE)
+                      distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
 
 # * Plot results ----
 # replot LK results with same scales

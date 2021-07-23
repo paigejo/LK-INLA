@@ -470,7 +470,7 @@ intervalScore = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
   }
   
   # calculate interval score
-  alpha = 1 - signficance
+  alpha = 1 - significance
   theseScores = upper - lower + 
     2/alpha * (lower - truth) * as.numeric(!greaterThanLower) + 
     2/alpha * (truth - upper) * as.numeric(!lessThanUpper)
