@@ -64,24 +64,26 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   thisVar = out$var
   
   # calculate coverage and credible interval width with and without binomial variation
-  coverage = coverage(truth, est, var, lower, upper, estMat=estMat, 
+  intScore = intervalScore(truth, est, var, lower, upper, estMat=estMat, 
                       significance=significance, returnIntervalWidth=TRUE, 
                       doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject, getAverage=getAverage)
   if(getAverage) {
-    thisCoverage = coverage[1]
-    thisWidth = coverage[2]
+    thisIntScore = intScore[1]
+    thisCoverage = intScore[2]
+    thisWidth = intScore[3]
   } else {
-    thisCoverage = coverage[,1]
-    thisWidth = coverage[,2]
+    thisIntScore = intScore[,1]
+    thisCoverage = intScore[,2]
+    thisWidth = intScore[,3]
   }
   
   # calculate CRPS
   thisCRPS = crps(truth, est, var, estMat=estMat, getAverage=getAverage)
   
   # collect the results in a data frame
-  results = matrix(c(thisBias, thisVar, thisMSE, sqrt(thisMSE), thisCRPS, thisCoverage, 
+  results = matrix(c(thisBias, thisVar, thisMSE, sqrt(thisMSE), thisCRPS, thisIntScore, thisCoverage, 
                      thisWidth), ncol=7)
-  colnames(results) = c("Bias", "Var", "MSE", "RMSE", "CRPS", "Coverage", "Width")
+  colnames(results) = c("Bias", "Var", "MSE", "RMSE", "CRPS", "IntervalScore", "Coverage", "Width")
   results = as.data.frame(results)
   
   # include both binned and pooled results in one final table
@@ -241,6 +243,7 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
 # my.var: a vector of logit-scale predictive variances of the same length as truth
 # estMat: if available, use these probability draws in the integration. Use this argument 
 #         when a gaussian approximation to the (possibly transformed) posterior is unreasonable
+# getAverage: if FALSE, returns score for individual observations. Otherwise for all observations
 crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL, getAverage=TRUE){
   if(!is.null(est) && !is.null(my.var) && is.null(estMat)) {
     sig = sqrt(my.var)
@@ -374,6 +377,129 @@ crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL, getAverage=TRUE){
     mean(res)
   else
     res
+}
+
+# either include both lower and upper, or include either: 
+#    - the joint estimate draw matrix
+#    - estimates and variances (assumes gaussian)
+# truth: the true empirical proportions of mortality rates within the regions or enumeration areas of interest
+# lower: the lower end of the credible interval
+# upper: the upper end of the credible interval
+# estMat: a matrix of joint draws of estimates, with number of rows equal to the length of truth, a number of 
+#         columns equal to the number of draws. If not included, a lgaussian distribution is assumed. Can be 
+#         Gaussian or discrete values such as empirical proportions
+# significance: the significance level of the credible interval. By default 80%
+# doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
+# ns: a vector of maximum possible counts (denominators) for each observation. Used only for random/fuzzy reject. 
+#     Can be left out, in which case it will be inferred from the minimum draw difference in each row of estMat.
+# getAverage: if FALSE, returns score for individual observations. Otherwise for all observations
+# NOTE: this does not account for fuzzy CIs for discrete data. Defines on p 13 of: 
+# https://www.tandfonline.com/doi/pdf/10.1198/016214506000001437?casa_token=0vXXqMZ3M2IAAAAA:BYmw_z2zaASEcAvFrNDf6PQ157vq6FAQuDuI9depRZp44RJ_M8zbY47CN_KGXHMXP9CHJL02bTDT
+intervalScore = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
+                         estMat=NULL, significance=.8, returnIntervalWidth=FALSE, 
+                         returnCoverage=FALSE, doFuzzyReject=TRUE, getAverage=TRUE, ns=NULL){
+  
+  if(any(is.null(lower)) || any(is.null(upper))) {
+    # if the user did not supply their own credible intervals, we must get them ourselves given the other information
+    
+    if(is.null(estMat) && (is.null(est) || is.null(var)))
+      stop("either include both lower and upper, est and var, or estMat")
+    
+    if(!is.null(est) && !is.null(var) && is.null(estMat)) {
+      # in this case, we must calculate lower and upper assuming gaussianity
+      lower = qnorm((1 - significance) / 2, est, sqrt(var))
+      upper = qnorm(1 - (1 - significance) / 2, est, sqrt(var))
+    }
+    else {
+      # we don't have information about the predictive distribution, and don't assume normality. 
+      # Instead, use the user supplied to probability matrix estMat
+      
+      # take the quantiles of the probability draws
+      CIs = apply(estMat, 1, function(ps) {quantile(ps, probs=c((1 - significance) / 2, 1 - (1 - significance) / 2))})
+      lower = CIs[1,]
+      upper = CIs[2,]
+    }
+  }
+  
+  if(any(lower > upper)) {
+    warning("lower > upper, reordering")
+    tmp = lower
+    wrongOrder = lower > upper
+    lower[wrongOrder] = upper[wrongOrder]
+    upper[wrongOrder] = tmp[wrongOrder]
+  }
+  
+  greaterThanLower = lower <= truth
+  lessThanUpper = upper >= truth
+  if(returnCoverage) {
+    cvg = greaterThanLower & lessThanUpper
+  }
+  
+  if(returnIntervalWidth)
+    width = upper - lower
+  
+  if(doFuzzyReject) {
+    # in this case, we fuzy reject if the truth is at the edge of the coverage interval. First 
+    # determine what values are at the edge of the intervals, then determine the probability of rejection 
+    # for each, then randomly reject
+    atLowerEdge = which(lower == truth)
+    atUpperEdge = which(upper == truth)
+    
+    probRejectLower = sapply(atLowerEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] < lower[i])) / mean(estMat[i,] == lower[i])})
+    probRejectUpper = sapply(atUpperEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] > upper[i])) / mean(estMat[i,] == upper[i])})
+    
+    rejectLower = probRejectLower
+    rejectUpper = probRejectUpper
+    
+    # determine minimum differences between probabilities
+    if(is.null(ns))
+      deltas = apply(estMat, 1, function(x) {min(diff(sort(unique(x))))})
+    else
+      deltas = 1 / ns
+    
+    # reduce CI width based on fuzzy boundaries
+    width = width - deltas*rejectLower - deltas*rejectUpper
+    upper = upper - deltas*rejectUpper
+    lower = lower + deltas*rejectLower
+    # width = upper - lower (this should be the same as above)
+    
+    if(returnCoverage) {
+      if(length(atLowerEdge) != 0) {
+        cvg[atLowerEdge] = sapply(1:length(atLowerEdge), function(i) {min(cvg[atLowerEdge][i], (1-rejectLower[i]))})
+        
+      }
+      if(length(atUpperEdge) != 0) {
+        cvg[atUpperEdge] = sapply(1:length(atUpperEdge), function(i) {min(cvg[atUpperEdge][i], (1-rejectUpper[i]))})
+      }
+    }
+  }
+  
+  # calculate interval score
+  alpha = 1 - signficance
+  theseScores = upper - lower + 
+    2/alpha * (lower - truth) * as.numeric(!greaterThanLower) + 
+    2/alpha * (truth - upper) * as.numeric(!lessThanUpper)
+  
+  if(getAverage)
+    allResults = c(intScore=mean(theseScores))
+  else
+    allResults = c(intScore=theseScores)
+  
+  if(returnCoverage) {
+    if(getAverage)
+      allResults = c(allResults, coverage=mean(cvg))
+    else
+      allResults = cbind(allResults, coverage=cvg)
+  }
+  
+  if(returnIntervalWidth) {
+    if(getAverage)
+      allResults = c(allResults, width=mean(width))
+    else
+      allResults = cbind(allResults, width=width)
+  }
+  
+  allResults
 }
 
 # averages a list of many tables, each returned from the getScores function with distanceBreaks set by user

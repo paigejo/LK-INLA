@@ -461,7 +461,7 @@ dat$Covar = dat$elev
 datPred$Covar = datPred$elev
 thisDiagonal = 0.0
 if(sampleN >= 100000) {
-  thisDiagonal = c(10.0, 0.0)
+  thisDiagonal = c(10.0, 1.0, 0.0)
 }
 comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thisDataObject$y, 
                                                     predCoords=cbind(datPred$Lon, datPred$Lat), 
@@ -482,9 +482,14 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
 comp.timeELKall = comp.timeELKfit + comp.timeELKprecomputation
 
 # * save results ----
+fitELK$mod$.args = NULL
 save(fitELK, comp.timeELKall, comp.timeELKfit, comp.timeELKprecomputation, 
      file=paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
 out = load(paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
+
+# * get scoring rules ----
+scoresELK = getScores(datPred$TrueTemp, est=fitELK$preds, var=fitELK$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
+                      distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=FALSE, getAverage=FALSE)
 
 # * Plot results ----
 # replot LK results with same scales
@@ -580,6 +585,7 @@ dev.off()
 # comp.timeELKnonlinearAll = comp.timeELKnonlinearFit + comp.timeELKprecomputation
 # 
 # # * save results ----
+# fitELKnonlinear$mod$.args = NULL
 # save(fitELKnonlinear, comp.timeELKnonlinearAll, comp.timeELKnonlinearFit, comp.timeELKprecomputation,
 #      file=paste0("savedOutput/heaton/resultsELKnonlinear", thisFileNameRoot, ".rda"))
 # out = load(paste0("savedOutput/heaton/resultsELKnonlinear", thisFileNameRoot, ".rda"))
@@ -722,6 +728,7 @@ comp.timeELKfitFinalInt = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisD
 comp.timeELKfitFinalIntAll = comp.timeELKfitFinalInt + comp.timeELKprecomputation
 
 # * save results ----
+fitELKfinalInt$mod$.args = NULL
 save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation,
      file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 

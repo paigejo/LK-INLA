@@ -110,6 +110,16 @@ coordsOrig = SpatialPoints(predPoints, proj4string=CRS(fromproj4))
 predPointsLonLat = spTransform(coordsOrig, CRS("+init=epsg:4326"))
 predPointsLonLat = attr(predPointsLonLat, "coords")
 
+# rotate and center prediction points
+rotationAngle = 49.5 * (pi/180)
+center = colMeans(predPoints)
+centered = sweep(predPoints, 2, center, "-")
+rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
+                    c(sin(rotationAngle), cos(rotationAngle)))
+rotationMatInverse = t(rotationMat)
+rotatedCentered = t(rotationMat %*% t(centered))
+rotatedPredPoints = rotatedCentered
+
 # get percent tree cover ----
 ptc = raster("~/git/LK-INLA/PTC_2000.tif", values= TRUE)
 predPTC = extract(ptc, SpatialPoints(predPoints, proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
@@ -606,19 +616,24 @@ for(i in startI:length(Ns)) {
   dev.off()
   
   # fit LK model ----
+  # easiest way is to rotate the observation and predictions coordinates 
+  # and run LK on those rotated data
+  
   if(fitModels) {
     startTime = proc.time()
     # xTransformed
-    bcefLK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-                      seed=1, rwModel="rw1", nNonlinearBasis=30, 
-                      normalize=TRUE, fastNormalize=TRUE, 
-                      intStrategy="ccd", strategy="gaussian", 
-                      printVerboseTimings=FALSE, priorPar=priorPar, 
-                      loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-                      savePrecomputationResults=savePrecomputationResults, 
-                      precomputationFileNameRoot=precomputationFileNameRoot, 
-                      previousFit=lastMod)
-    bcefLK = fitLKStandard(cbind(BCEFSubset$x, BCEFSubset$y), obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, simpleMod=TRUE, normalize=FALSE, 
+    # bcefLK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
+    #                   seed=1, rwModel="rw1", nNonlinearBasis=30, 
+    #                   normalize=TRUE, fastNormalize=TRUE, 
+    #                   intStrategy="ccd", strategy="gaussian", 
+    #                   printVerboseTimings=FALSE, priorPar=priorPar, 
+    #                   loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
+    #                   savePrecomputationResults=savePrecomputationResults, 
+    #                   precomputationFileNameRoot=precomputationFileNameRoot, 
+    #                   previousFit=lastMod)
+    # LKinfo = ELKBasis2LKinfo(latInfo, nu=1.5, lambdaStart=.1, a.wghtStart=5)
+    
+    bcefLK = fitLKStandard(cbind(BCEFSubset$xTransformed, BCEFSubset$yTransformed), BCEFSubset$FCH, predCoords=rotatedPredPoints, xObs=NULL, xPred=NULL, NC=25, nLayer=3, normalize=TRUE, 
                          nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8)
     totalTime = proc.time() - startTime
     lastMod = bcefELK$mod
@@ -637,11 +652,11 @@ for(i in startI:length(Ns)) {
   # (1000, 16), 
   
   # plot predictions ----
-  preds = exp(bcefELK$preds)
-  predSDs = bcefELK$sigmas
-  predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  preds = bcefLK$preds
+  predSDs = bcefLK$sigmas
+  predCIWidths = bcefLK$upper - bcefLK$lower
   
-  png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/LKpreds_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, preds, col=yellowBlueCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
@@ -649,43 +664,43 @@ for(i in startI:length(Ns)) {
   
   require(viridis)
   magmaCols = magma(64)
-  png(paste0("Figures/BCEF/CIWidth_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/LKCIWidth_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, predCIWidths, col=magmaCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
   
-  # plot effect of PTC
-  rwKnots = bcefELK$rwKnots
-  rwSummary = bcefELK$rwSummary
-  fixedSummary = bcefELK$fixedEffectSummary
-  fixedMat = bcefELK$fixedMat
-  ptcMat = exp(bcefELK$rwMat + outer(rwKnots, fixedMat[2,]))
-  # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
-  # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
-  # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
-  rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
-  rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
-  rwEst = 100*(rowMeans(ptcMat)-1)
-  ylim=range(c(rwEst, rwLower, rwUpper))
-  pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
-  plot(rwKnots, rwEst, ylim=ylim, type="l", 
-       xlab="Percent Tree Cover", ylab="Percent Change Forest Canopy Height")
-  lines(rwKnots, rwLower, lty=2)
-  lines(rwKnots, rwUpper, lty=2)
-  dev.off()
+  # # plot effect of PTC
+  # rwKnots = bcefELK$rwKnots
+  # rwSummary = bcefELK$rwSummary
+  # fixedSummary = bcefELK$fixedEffectSummary
+  # fixedMat = bcefELK$fixedMat
+  # ptcMat = exp(bcefELK$rwMat + outer(rwKnots, fixedMat[2,]))
+  # # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
+  # # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
+  # # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
+  # rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
+  # rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
+  # rwEst = 100*(rowMeans(ptcMat)-1)
+  # ylim=range(c(rwEst, rwLower, rwUpper))
+  # pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
+  # plot(rwKnots, rwEst, ylim=ylim, type="l", 
+  #      xlab="Percent Tree Cover", ylab="Percent Change Forest Canopy Height")
+  # lines(rwKnots, rwLower, lty=2)
+  # lines(rwKnots, rwUpper, lty=2)
+  # dev.off()
   
-  # plot individual spatial layers
-  for(i in 1:length(latInfo)) {
-    Amati = makeA(predPoints, latInfo, maxLayer=i, thisLayer=i)
-    predsi = as.numeric(Amati %*% bcefELK$coefPreds[[i]])
-    
-    png(paste0("Figures/BCEF/logPredsLayer", i, "_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
-    quilt.plot(predPoints, predsi, col=yellowBlueCols, 
-               nx=length(xGrid)-1, ny=length(yGrid)-1, 
-               xlab="Easting (km)", ylab="Northing (km)")
-    dev.off()
-  }
+  # # plot individual spatial layers
+  # for(i in 1:length(latInfo)) {
+  #   Amati = makeA(predPoints, latInfo, maxLayer=i, thisLayer=i)
+  #   predsi = as.numeric(Amati %*% bcefELK$coefPreds[[i]])
+  #   
+  #   png(paste0("Figures/BCEF/LKlogPredsLayer", i, "_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  #   quilt.plot(predPoints, predsi, col=yellowBlueCols, 
+  #              nx=length(xGrid)-1, ny=length(yGrid)-1, 
+  #              xlab="Easting (km)", ylab="Northing (km)")
+  #   dev.off()
+  # }
   
   # plot predictions versus observed
   preds = bcefELK$obsPreds
