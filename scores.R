@@ -66,6 +66,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   # calculate coverage and credible interval width with and without binomial variation
   intScore = intervalScore(truth, est, var, lower, upper, estMat=estMat, 
                       significance=significance, returnIntervalWidth=TRUE, 
+                      returnCoverage=TRUE, 
                       doFuzzyReject=doFuzzyReject, getAverage=getAverage)
   if(getAverage) {
     thisIntScore = intScore[1]
