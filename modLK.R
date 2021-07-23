@@ -84,6 +84,7 @@ fitLKSimple = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xP
 # NOTE: lambda is sigma^2 / rho
 fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, xPred=NULL, NC=5, nLayer=3, normalize=TRUE, 
                          nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, doSEs=TRUE, significanceCI=.8, 
+                         calcHessian=TRUE, 
                          lowerBoundLogLambda =-16,
                          upperBoundLogLambda = 4,
                          lowerBoundLogNu =-15,
@@ -336,10 +337,12 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
     interceptSummary = c(Est=0, SD=0, Qlower=0, Q50=0, Qupper=0)
   
   # to calculate summaries for the parameters, must calculate inverse of negative hessian
-  print("Calculating hessian...")
   startTimeCovSEs = proc.time()[3]
-  hess = hessian(outerFun, result$par, thisVerbose=FALSE)
-  parSigma = solve(-hess)
+  if(calcHessian) {
+    print("Calculating hessian...")
+    hess = hessian(outerFun, result$par, thisVerbose=FALSE)
+    parSigma = solve(-hess)
+  }
   
   # make a function to convert from a vector of parameters to a final set of different, named parameters
   getParametersFinal = function(parameters) {
@@ -393,31 +396,35 @@ fitLKStandard = function(obsCoords, obsValues, predCoords=obsCoords, xObs=NULL, 
   
   # simulate possible parameter values and do any necessary transformations for any parameters from the 
   # optimization scale
-  U = try(chol(parSigma))
-  if(!class(U) == "try-error") {
-    L = t(U)
-    zSim = matrix(rnorm(nsimConditional * nrow(L)), nrow=nrow(L))
-    parSim = L %*% zSim
-    parSim = sweep(parSim, 1, result$par, "+")
-    
-    finalParSim = apply(parSim, 2, getParametersFinal)
-    
-    getSummaryStatistics = function(draws) {
-      c(Est=mean(draws), SD=sd(draws), 
-        Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
-        Q50=quantile(probs=0.5, draws), 
-        Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+  if(calcHessian) {
+    U = try(chol(parSigma))
+    if(class(U) != "try-error") {
+      L = t(U)
+      zSim = matrix(rnorm(nsimConditional * nrow(L)), nrow=nrow(L))
+      parSim = L %*% zSim
+      parSim = sweep(parSim, 1, result$par, "+")
+      
+      finalParSim = apply(parSim, 2, getParametersFinal)
+      
+      getSummaryStatistics = function(draws) {
+        c(Est=mean(draws), SD=sd(draws), 
+          Qlower=quantile(probs=(1 - significanceCI) / 2, draws), 
+          Q50=quantile(probs=0.5, draws), 
+          Qupper=quantile(probs=1 - (1 - significanceCI) / 2, draws))
+      }
+      
+      parameterSummaryTable = t(apply(finalParSim, 1, getSummaryStatistics))
+      summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
+      colnames(parameterSummaryTable) = summaryNames
+    } else {
+      warning("bad hessian: fixing singular hyperparameter distribution to the estimates")
+      finalParSim = matrix(rep(getParametersFinal(result$par), nsimConditional), ncol=nsimConditional)
+      parameterSummaryTable = cbind(getParametersFinal(result$par), NA, NA, NA, NA)
     }
-    
-    parameterSummaryTable = t(apply(finalParSim, 1, getSummaryStatistics))
-    summaryNames = c("Est", "SD", "Qlower", "Q50", "Qupper")
-    colnames(parameterSummaryTable) = summaryNames
   } else {
-    warning("bad hessian: fixing singular hyperparameter distribution to the estimates")
     finalParSim = matrix(rep(getParametersFinal(result$par), nsimConditional), ncol=nsimConditional)
     parameterSummaryTable = cbind(getParametersFinal(result$par), NA, NA, NA, NA)
   }
-  
   
   # # for each simulated set of parameters, call LKrig and calculate the reparameterizations
   # getMLEs = function(parameters) {
