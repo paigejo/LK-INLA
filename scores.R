@@ -14,7 +14,7 @@
 # breaks: the number of equal spaced bins to break the scores into as a function of distance
 # NOTE: Discrete, count level credible intervals are estimated based on the input estMat along with coverage and CRPS
 getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=NULL, significance=.8, 
-                     distances=NULL, breaks=30, doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE) {
+                     distances=NULL, breaks=30, doFuzzyReject=TRUE, getAverage=TRUE) {
   
   # if distances is included, must also break down scoring rules by distance bins
   if(!is.null(distances)) {
@@ -36,7 +36,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
       if(!is.null(estMat))
         newEstMat = matrix(estMat[thisDatI,], ncol=ncol(estMat))
       getScores(truth[thisDatI], est[thisDatI], var[thisDatI], lower[thisDatI], upper[thisDatI], 
-                newEstMat, significance, doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject)
+                newEstMat, significance, doFuzzyReject=doFuzzyReject)
     }
     
     # calculate scores for each bin individually
@@ -66,7 +66,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   # calculate coverage and credible interval width with and without binomial variation
   intScore = intervalScore(truth, est, var, lower, upper, estMat=estMat, 
                       significance=significance, returnIntervalWidth=TRUE, 
-                      doRandomReject=doRandomReject, doFuzzyReject=doFuzzyReject, getAverage=getAverage)
+                      doFuzzyReject=doFuzzyReject, getAverage=getAverage)
   if(getAverage) {
     thisIntScore = intScore[1]
     thisCoverage = intScore[2]
@@ -141,12 +141,12 @@ mse <- function(truth, est, weights=NULL, getAverage=TRUE){
 #         columns equal to the number of draws. If not included, a lgaussian distribution is assumed. Can be 
 #         Gaussian or discrete values such as empirical proportions
 # significance: the significance level of the credible interval. By default 80%
-# doRandomReject, doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
+# doFuzzyReject: based on https://www.jstor.org/stable/pdf/20061193.pdf
 # ns: a vector of maximum possible counts (denominators) for each observation. Used only for random/fuzzy reject. 
 #     Can be left out, in which case it will be inferred from the minimum draw difference in each row of estMat.
 coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, 
                     estMat=NULL, significance=.8, returnIntervalWidth=FALSE, 
-                    doRandomReject=FALSE, doFuzzyReject=TRUE, getAverage=TRUE, ns=NULL){
+                    doFuzzyReject=TRUE, getAverage=TRUE, ns=NULL){
   
   if(any(is.null(lower)) || any(is.null(upper))) {
     # if the user did not supply their own credible intervals, we must get them ourselves given the other information
@@ -183,7 +183,7 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
   if(returnIntervalWidth)
     width = upper - lower
   
-  if(doRandomReject) {
+  if(doFuzzyReject) {
     # in this case, we sometimes randomly reject if the truth is at the edge of the coverage interval. First 
     # determine what values are at the edge of the intervals, then determine the probability of rejection 
     # for each, then randomly reject
@@ -193,13 +193,8 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     probRejectLower = sapply(atLowerEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] < lower[i])) / mean(estMat[i,] == lower[i])})
     probRejectUpper = sapply(atUpperEdge, function(i) {((1 - significance) / 2 - mean(estMat[i,] > upper[i])) / mean(estMat[i,] == upper[i])})
     
-    if(doFuzzyReject) {
-      rejectLower = probRejectLower
-      rejectUpper = probRejectUpper
-    } else {
-      rejectLower = runif(length(atLowerEdge)) <= probRejectLower
-      rejectUpper = runif(length(atUpperEdge)) <= probRejectUpper
-    }
+    rejectLower = probRejectLower
+    rejectUpper = probRejectUpper
     
     # determine minimum differences between probabilities
     if(is.null(ns))

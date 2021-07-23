@@ -587,10 +587,11 @@ for(i in startI:length(Ns)) {
 # do the same thing but with LatticeKrig
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 Ns = c(1000, 5000, 25000, 100000)
+NC = 25
+nlevel = 3
+thisNCsText = paste0("L", nlevel, "_NC", NC)
 fitModels=TRUE
-lastMod = NULL
-startI=3
-startI=1
+startI=4
 for(i in startI:length(Ns)) {
   sampleN = ceiling(nrow(BCEF)/2)
   sampleN = sum(BCEF$holdout == 0)
@@ -611,20 +612,6 @@ for(i in startI:length(Ns)) {
   
   if(fitModels) {
     startTime = proc.time()
-    # xTransformed
-    # bcefLK <- modBCEF(BCEFSubset, predPoints, predPTC, latInfo=latInfo, 
-    #                   seed=1, rwModel="rw1", nNonlinearBasis=30, 
-    #                   normalize=TRUE, fastNormalize=TRUE, 
-    #                   intStrategy="ccd", strategy="gaussian", 
-    #                   printVerboseTimings=FALSE, priorPar=priorPar, 
-    #                   loadPrecomputationResults=!savePrecomputationResults, separateRanges=separateRanges, 
-    #                   savePrecomputationResults=savePrecomputationResults, 
-    #                   precomputationFileNameRoot=precomputationFileNameRoot, 
-    #                   previousFit=lastMod)
-    # LKinfo = ELKBasis2LKinfo(latInfo, nu=1.5, lambdaStart=.1, a.wghtStart=5)
-    
-    NC = 25
-    nlevel = 3
     bcefLK = fitLKStandard(cbind(BCEFSubset$xTransformed, BCEFSubset$yTransformed), BCEFSubset$FCH, predCoords=rotatedPredPoints, xObs=NULL, xPred=NULL, NC=NC, nLayer=nlevel, normalize=TRUE, 
                          nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8, calcHessian=FALSE)
     totalTime = proc.time() - startTime
@@ -639,7 +626,6 @@ for(i in startI:length(Ns)) {
   preds = bcefLK$preds
   predSDs = bcefLK$sigmas
   predCIWidths = bcefLK$upper - bcefLK$lower
-  thisNCsText = paste0("L", nlevel, "_NC", NC)
   png(paste0("Figures/BCEF/LKpreds_", thisNCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, preds, col=yellowBlueCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
