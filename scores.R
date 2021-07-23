@@ -105,9 +105,9 @@ mse <- function(truth, est, weights=NULL, getAverage=TRUE){
   if(!is.null(weights)) {
     thisVar = (res - sum(res*weights))^2
     if(getAverage) {
-      MSE = sum(res^2 * weights)
-      bias=sum(res * weights)
-      thisVar = sum(thisVar * weights)
+      MSE = sum(res^2 * weights, na.rm=TRUE)
+      bias=sum(res * weights, na.rm=TRUE)
+      thisVar = sum(thisVar * weights, na.rm=TRUE)
     } else {
       MSE = res^2
       bias = res
@@ -118,9 +118,9 @@ mse <- function(truth, est, weights=NULL, getAverage=TRUE){
   else {
     thisVar = (res - mean(res))^2
     if(getAverage) {
-      MSE = mean(res^2)
-      bias=mean(res)
-      thisVar = mean(thisVar)
+      MSE = mean(res^2, na.rm=TRUE)
+      bias=mean(res, na.rm=TRUE)
+      thisVar = mean(thisVar, na.rm=TRUE)
     } else {
       MSE = res^2
       bias=res
@@ -220,13 +220,13 @@ coverage = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
   }
   
   if(getAverage)
-    allResults = c(coverage=mean(res))
+    allResults = c(coverage=mean(res, na.rm=TRUE))
   else
     allResults = c(coverage=res)
   
   if(returnIntervalWidth) {
     if(getAverage)
-      allResults = c(allResults, width=mean(width))
+      allResults = c(allResults, width=mean(width, na.rm=TRUE))
     else
       allResults = cbind(allResults, width=width)
   }
@@ -370,7 +370,7 @@ crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL, getAverage=TRUE){
   }
   
   if(getAverage)
-    mean(res)
+    mean(res, na.rm=TRUE)
   else
     res
 }
@@ -477,20 +477,20 @@ intervalScore = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL,
     2/alpha * (truth - upper) * as.numeric(!lessThanUpper)
   
   if(getAverage)
-    allResults = c(intScore=mean(theseScores))
+    allResults = c(intScore=mean(theseScores, na.rm=TRUE))
   else
     allResults = c(intScore=theseScores)
   
   if(returnCoverage) {
     if(getAverage)
-      allResults = c(allResults, coverage=mean(cvg))
+      allResults = c(allResults, coverage=mean(cvg, na.rm=TRUE))
     else
       allResults = cbind(allResults, coverage=cvg)
   }
   
   if(returnIntervalWidth) {
     if(getAverage)
-      allResults = c(allResults, width=mean(width))
+      allResults = c(allResults, width=mean(width, na.rm=TRUE))
     else
       allResults = cbind(allResults, width=width)
   }
