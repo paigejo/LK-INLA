@@ -98,12 +98,12 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
 # calculate bias, variance, and MSE
 mse <- function(truth, est, weights=NULL, getAverage=TRUE){
   if(!is.null(weights))
-    weights = weights / sum(weights)
+    weights = weights / sum(weights, na.rm=TRUE)
   
   res = est - truth
   
   if(!is.null(weights)) {
-    thisVar = (res - sum(res*weights))^2
+    thisVar = (res - sum(res*weights, na.rm=TRUE))^2
     if(getAverage) {
       MSE = sum(res^2 * weights, na.rm=TRUE)
       bias=sum(res * weights, na.rm=TRUE)
@@ -116,7 +116,7 @@ mse <- function(truth, est, weights=NULL, getAverage=TRUE){
     out = list(MSE=MSE, bias=bias, var=thisVar)
   }
   else {
-    thisVar = (res - mean(res))^2
+    thisVar = (res - mean(res, na.rm=TRUE))^2
     if(getAverage) {
       MSE = mean(res^2, na.rm=TRUE)
       bias=mean(res, na.rm=TRUE)
@@ -349,13 +349,13 @@ crps <- function(truth, est=NULL, my.var=NULL, estMat=NULL, getAverage=TRUE){
       firstGreater = match(TRUE, sorted >= thisTruth)
       vals = (1:length(sorted))/length(sorted)
       if(is.na(firstGreater))
-        return(sum((vals)^2 * deltas))
+        return(sum((vals)^2 * deltas, na.rm=TRUE))
       else if(firstGreater == 1)
-        return(deltas[1] + sum((1-vals[1:(length(sorted)-1)])^2 * deltas[2:length(deltas)]))
+        return(deltas[1] + sum((1-vals[1:(length(sorted)-1)])^2 * deltas[2:length(deltas)], na.rm=TRUE))
       else {
-        left = sum(vals[1:(firstGreater-1)]^2 * deltas[1:(firstGreater-1)])
-        mid = sum((1 - vals[firstGreater-1])^2 * deltas[firstGreater])
-        right = ifelse(firstGreater == length(vals), 0, sum((1 - vals[firstGreater:(length(vals)-1)])^2 * deltas[(firstGreater+1):length(deltas)]))
+        left = sum(vals[1:(firstGreater-1)]^2 * deltas[1:(firstGreater-1)], na.rm=TRUE)
+        mid = sum((1 - vals[firstGreater-1])^2 * deltas[firstGreater], na.rm=TRUE)
+        right = ifelse(firstGreater == length(vals), 0, sum((1 - vals[firstGreater:(length(vals)-1)])^2 * deltas[(firstGreater+1):length(deltas)], na.rm=TRUE))
         return(left+mid+right)
       }
       
