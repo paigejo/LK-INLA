@@ -83,7 +83,7 @@ getScores = function(truth, est=NULL, var=NULL, lower=NULL, upper=NULL, estMat=N
   
   # collect the results in a data frame
   results = matrix(c(thisBias, thisVar, thisMSE, sqrt(thisMSE), thisCRPS, thisIntScore, thisCoverage, 
-                     thisWidth), ncol=7)
+                     thisWidth), ncol=8)
   colnames(results) = c("Bias", "Var", "MSE", "RMSE", "CRPS", "IntervalScore", "Coverage", "Width")
   results = as.data.frame(results)
   
