@@ -2264,7 +2264,10 @@ constructRegions = function() {
 # regionMap = constructRegions()
 # save(regionMap, file="regionMap.RData")
 
-
+# calculate true object size
+trueObjectSize = function(x) {
+  length(serialize(x,NULL))
+}
 
 
 

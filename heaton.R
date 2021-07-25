@@ -290,6 +290,7 @@ if(makePlots) {
 # * Setup ----
 dataCase = "full"
 dataCase = "test"
+dataCase = "full"
 dataCaseText = ifelse(dataCase == "test", "_test", "")
 if(dataCase=="test"){
   # load("heaton/heatoncomparison-master/Data/SmallTestData.RData")
@@ -346,10 +347,6 @@ thisDataObject$TrueTemp = all.sat.temps$TrueTemp[thisDataObjectI]
 thisDataObject$TrueTempMissing = all.sat.temps$TrueTemp[thisDataObjectMissingI]
 thisDataObject$TrueTempMissingMasked = all.sat.temps$MaskTemp[thisDataObjectMissingI]
 
-NCtext = paste("_NC", 10, 20, sep="_")
-thisLatticeNameRoot = NCtext
-thisFileNameRoot = paste0("_N", sampleN, NCtext, "_sepRanges", separateRanges)
-
 elev = extract(elevRaster, SpatialPoints(thisDataObject$x, proj4string=CRS("+proj=longlat")),method="bilinear")
 elevPred = extract(elevRaster, SpatialPoints(thisDataObject$xMissing, proj4string=CRS("+proj=longlat")),method="bilinear")
 thisDataObject$elev = elev
@@ -361,6 +358,12 @@ LKinfoFinal<- LKrigSetup( thisDataObject$x,
                           nlevel = nlevel,
                           a.wght = a.wght,
                           nu = nu)
+
+latInfo = LKinfo2ELKBasis(LKinfoFinal)
+
+NCtext = do.call("paste", c(list("_NC"), lapply(latInfo, function(x){x$NC}), sep="_"))
+thisLatticeNameRoot = NCtext
+thisFileNameRoot = paste0("_N", sampleN, NCtext, "_sepRanges", separateRanges)
 
 # * Fit model ----
 require(spam64)
@@ -386,18 +389,34 @@ comp.timeLKci <- system.time(standardError<- sqrt(
 
 
 yHat<- outputSim$ghat
-CI80Lower<- yHat + qnorm(.1) * standardError
-CI80Upper<- yHat + qnorm(.9) * standardError
+CI95Lower<- yHat + qnorm(.025) * standardError
+CI95Upper<- yHat + qnorm(.975) * standardError
 
 comp.timeLK = comp.timeLKfit + comp.timeLKse + comp.timeLKci
-
-# * Save results ----
 
 finalResults<- list(x=thisDataObject$xMissing,
                     yHat=yHat, 
                     standError=standardError)
 
-save( finalResults, fitLK, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, file=paste0("savedOutput/heaton/resultsLK", thisFileNameRoot, ".rda") )
+# * get scoring rules ----
+scoresLK = getScores(datPred$TrueTemp, est=finalResults$yHat, var=finalResults$standError^2, 
+                     lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
+                     distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+
+# calculate distance to nearest observation
+if(nrow(thisDataObject$x) > 50000) {
+  mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
+  dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+} else {
+  dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+}
+nndists = apply(dists, 1, min)
+scoresLK = cbind(NNDist=nndists, scoresLK)
+
+# * Save results ----
+
+save( finalResults, fitLK, comp.timeLK, comp.timeLKfit, comp.timeLKse, comp.timeLKci, scoresLK, 
+      file=paste0("savedOutput/heaton/resultsLK", thisFileNameRoot, ".rda") )
 load(paste0("savedOutput/heaton/resultsLK", thisFileNameRoot, ".rda")) 
 
 # * Plot results ----
@@ -481,15 +500,29 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
 
 comp.timeELKall = comp.timeELKfit + comp.timeELKprecomputation
 
-# * save results ----
-fitELK$mod$.args = NULL
-save(fitELK, comp.timeELKall, comp.timeELKfit, comp.timeELKprecomputation, 
-     file=paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
-out = load(paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
-
 # * get scoring rules ----
 scoresELK = getScores(datPred$TrueTemp, est=fitELK$preds, var=fitELK$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+
+# calculate distance to nearest observation
+if(!exists(nndists)) {
+  if(nrow(thisDataObject$x) > 50000) {
+    mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
+    dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+  } else {
+    dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+  }
+  nndists = apply(dists, 1, min)
+}
+
+scoresELK = cbind(NNDist=nndists, scoresELK)
+
+# * save results ----
+fitELK$mod$.args = NULL
+fitELKfinalInt$mod$all.hyper = NULL
+save(fitELK, comp.timeELKall, comp.timeELKfit, comp.timeELKprecomputation, scoresELK, 
+     file=paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
+out = load(paste0("savedOutput/heaton/resultsELK", thisFileNameRoot, ".rda"))
 
 # * Plot results ----
 # replot LK results with same scales
@@ -545,8 +578,15 @@ plot(datPred$elev, fitELK$preds-datPred$TrueTemp,
 dev.off()
 
 # calculate distance to nearest observation
-dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
-nndists = apply(dists, 1, min)
+if(!exists(nndists)) {
+  if(nrow(thisDataObject$x) > 50000) {
+    mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
+    dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+  } else {
+    dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+  }
+  nndists = apply(dists, 1, min)
+}
 
 pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
 plotWithColor(finalResults$yHat, fitELK$preds, nndists, colScale=yellowBlueCols, 
@@ -727,8 +767,25 @@ comp.timeELKfitFinalInt = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisD
 
 comp.timeELKfitFinalIntAll = comp.timeELKfitFinalInt + comp.timeELKprecomputation
 
+# * get scoring rules ----
+scoresELKfinalInt = getScores(datPred$TrueTemp, est=fitELKfinalInt$preds, var=fitELKfinalInt$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
+                      distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+
+# calculate distance to nearest observation
+if(!exists(nndists)) {
+  if(nrow(thisDataObject$x) > 50000) {
+    mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
+    dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+  } else {
+    dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+  }
+  nndists = apply(dists, 1, min)
+}
+scoresELK = cbind(NNDist=nndists, scoresELKfinalInt)
+
 # * save results ----
 fitELKfinalInt$mod$.args = NULL
+fitELKfinalInt$mod$all.hyper = NULL
 save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation,
      file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 
@@ -790,10 +847,6 @@ plot(datPred$elev, fitELK$preds-datPred$TrueTemp,
      main="ELK residuals Vs. elevation", 
      pch=19, cex=.1, col="blue", ylim=ylim)
 dev.off()
-
-# calculate distance to nearest observation
-dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
-nndists = apply(dists, 1, min)
 
 pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
 predLim = range(c(finalResults$yHat, fitELK$preds, fitELKfinalInt$preds))

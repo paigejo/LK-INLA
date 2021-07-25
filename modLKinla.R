@@ -159,9 +159,17 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     rwIntInds = rwIntIndsAll$ind
     rwIntIndsNew = rwIntIndsNewAll$ind
     
+    # generate a simple function for matching coordinates with associated 2d knots. Give it 
+    # its own environment, since this environment is very large due to INLA model
     rw2dMatchWithKnotsFun = function(covCoords) {
       matchWith2dKnots(covCoords, nrow=nrowInteraction, ncol=ncolInteraction)
     }
+    
+    funEnv = new.env(parent=.GlobalEnv)
+    assign("nrowInteraction", nrowInteraction, envir=funEnv)
+    assign("ncolInteraction", ncolInteraction, envir=funEnv)
+    environment(rw2dMatchWithKnotsFun) = funEnv
+    
     rw2dKnotCoords = get2dKnotCoords(rbind(covcoordsObs, covcoordsPred))
     
     rwIntA = list(1)
