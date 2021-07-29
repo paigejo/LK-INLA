@@ -655,6 +655,73 @@ aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c(
   out
 }
 
+aggregateScoresByDistanceBasic = function(singleScores, breaks=30, dat=NULL, distanceVar="NNDist", 
+                                          distanceBreaksType=c("quantiles", "even"), 
+                                          nPerBin=NULL, maxDist=Inf) {
+  
+  distanceBreaksType = match.arg(distanceBreaksType)
+  
+  # Now determine distance to which type of point we use
+  distanceVarI = grep(distanceVar, colnames(singleScores))
+  distances = singleScores[,distanceVarI]
+  
+  # remove distances beyond the maximum of breaks
+  if(length(breaks) != 1) {
+    maxDist = min(maxDist, max(breaks))
+  }
+  badDistances = distances >= maxDist
+  singleScores = singleScores[!badDistances,]
+  distances = distances[!badDistances]
+  
+  # sort table by distances
+  sortI = sort(distances, index.return=TRUE)$ix
+  singleScores = singleScores[sortI,]
+  distances = distances[sortI]
+  
+  # calculate default breaks for the bin limits if necessary
+  if(length(breaks) == 1) {
+    nBreaks = breaks
+    if(distanceBreaksType == "even" && is.null(nPerBin)) {
+      breaks = seq(0, max(distances), l=nBreaks)
+    } else {
+      if(is.null(nPerBin))
+        nPerBin = ceiling(nrow(singleScores)/nBreaks)
+      
+      # get endpoints of the bins, average their values when calculating breaks
+      startI = seq(nPerBin+1, nrow(singleScores), by=nPerBin)
+      endI = startI - 1
+      breaks = c(0, c(rowMeans(cbind(distances[startI], distances[endI]))), distances[length(distances)]+1e-6)
+    }
+  }
+  
+  # construct the distance bins with which to group the data and compute scores within
+  binsI = cut(distances, breaks, labels=1:(length(breaks)-1), include.lowest=TRUE)
+  centers = breaks[1:(length(breaks)-1)] + diff(breaks)/2
+  uniqueBinsI = sort(unique(binsI))
+  
+  # determine the number of observations per bin
+  nPerBin = as.numeric(table(binsI))
+  
+  # helper function to compute the scoring rules for a given bin
+  getSubScores = function(uniqueBinI) {
+    thisDatI = binsI == uniqueBinI
+    
+    colMeans(singleScores[thisDatI,-distanceVarI], na.rm=TRUE)
+  }
+  
+  # calculate scores for each bin individually
+  binnedScores = t(sapply(uniqueBinsI, getSubScores))
+  
+  # make sure each variable in binnedScores is a numeric, not a list...
+  temp = matrix(unlist(binnedScores), nrow=length(uniqueBinsI))
+  theseNames = colnames(binnedScores)
+  binnedScores = data.frame(temp)
+  names(binnedScores) = theseNames
+  out = as.data.frame(cbind(nPerBin=nPerBin[uniqueBinsI], binnedScores))
+  out[[distanceVar]] = centers[uniqueBinsI]
+  out
+}
+
 
 
 

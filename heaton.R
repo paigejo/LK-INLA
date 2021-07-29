@@ -352,6 +352,11 @@ elevPred = extract(elevRaster, SpatialPoints(thisDataObject$xMissing, proj4strin
 thisDataObject$elev = elev
 thisDataObject$elevPred = elevPred
 
+ndvi = extract(ndviRaster, SpatialPoints(thisDataObject$x, proj4string=CRS("+proj=longlat")),method="bilinear")
+ndviPred = extract(ndviRaster, SpatialPoints(thisDataObject$xMissing, proj4string=CRS("+proj=longlat")),method="bilinear")
+thisDataObject$ndvi = ndvi
+thisDataObject$ndviPred = ndviPred
+
 # setup LKrig object
 LKinfoFinal<- LKrigSetup( thisDataObject$x,
                           NC = NC,
@@ -368,8 +373,9 @@ thisFileNameRoot = paste0("_N", sampleN, NCtext, "_sepRanges", separateRanges)
 # * Fit model ----
 require(spam64)
 comp.timeLKfit <- system.time(fitLK<- LatticeKrig(thisDataObject$x, thisDataObject$y, 
-                                                     LKinfo=LKinfoFinal, Z=thisDataObject$elev, 
-                                                     verbose=TRUE))
+                                                  LKinfo=LKinfoFinal, 
+                                                  Z=cbind(thisDataObject$elev, thisDataObject$ndvi, thisDataObject$elev*thisDataObject$ndvi), 
+                                                  verbose=TRUE))
 
 # * Get SEs ----
 set.seed(234)
@@ -379,7 +385,7 @@ comp.timeLKse =
   system.time(outputSim<- 
                 LKrig.sim.conditional(fitLK,
                                       x.grid = thisDataObject$xMissing, 
-                                      Z.grid = matrix(thisDataObject$elevPred, ncol=1), 
+                                      Z.grid = cbind(thisDataObject$elevPred, thisDataObject$ndviPred, thisDataObject$elevPred*thisDataObject$ndviPred), 
                                       M = M))
 
 # * Get CIs ----
@@ -399,18 +405,20 @@ finalResults<- list(x=thisDataObject$xMissing,
                     standError=standardError)
 
 # * get scoring rules ----
-scoresLK = getScores(datPred$TrueTemp, est=finalResults$yHat, var=finalResults$standError^2, 
+scoresLK = getScores(thisDataObject$TrueTempMissing, est=finalResults$yHat, var=finalResults$standError^2, 
                      lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
                      distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
 
 # calculate distance to nearest observation
 if(nrow(thisDataObject$x) > 50000) {
   mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
-  dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+  dists = fields.rdist.near(thisDataObject$xMissing, thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+  out = aggregate(dists$ra, by=list(dists$ind[,1]), FUN=min)
+  nndists = out[,2]
 } else {
-  dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+  dists = rdist(thisDataObject$xMissing, thisDataObject$x)
+  nndists = apply(dists, 1, min)
 }
-nndists = apply(dists, 1, min)
 scoresLK = cbind(NNDist=nndists, scoresLK)
 
 # * Save results ----
@@ -501,18 +509,21 @@ comp.timeELKfit = system.time(fitELK <- fitLKINLAStandard2(thisDataObject$x, thi
 comp.timeELKall = comp.timeELKfit + comp.timeELKprecomputation
 
 # * get scoring rules ----
-scoresELK = getScores(datPred$TrueTemp, est=fitELK$preds, var=fitELK$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
+sds = rowMeans(outer(fitELK$sigmasNoNugget^2, fitELK$clusterVars, function(x, y) {sqrt(x + y)}))
+scoresELK = getScores(datPred$TrueTemp, est=fitELK$preds, var=sds^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
 
 # calculate distance to nearest observation
-if(!exists(nndists)) {
+if(!exists("nndists")) {
   if(nrow(thisDataObject$x) > 50000) {
     mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
     dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+    out = aggregate(dists$ra, by=list(dists$ind[,1]), FUN=min)
+    nndists = out[,2]
   } else {
     dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+    nndists = apply(dists, 1, min)
   }
-  nndists = apply(dists, 1, min)
 }
 
 scoresELK = cbind(NNDist=nndists, scoresELK)
@@ -578,14 +589,16 @@ plot(datPred$elev, fitELK$preds-datPred$TrueTemp,
 dev.off()
 
 # calculate distance to nearest observation
-if(!exists(nndists)) {
+if(!exists("nndists")) {
   if(nrow(thisDataObject$x) > 50000) {
     mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
     dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+    out = aggregate(dists$ra, by=list(dists$ind[,1]), FUN=min)
+    nndists = out[,2]
   } else {
     dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+    nndists = apply(dists, 1, min)
   }
-  nndists = apply(dists, 1, min)
 }
 
 pdf(paste0("Figures/applicationHeaton/LK-ELKbasicPredsComparison", thisFileNameRoot, ".pdf"), width=5, height=5)
@@ -740,9 +753,6 @@ dev.off()
 # abline(0, 1, lty=2)
 # dev.off()
 # 
-# # * Provide Tables ----
-# tabLK = 
-#   fitLK$MLE
 
 # try fitting ELK with rw2d covariate interaction ----
 
@@ -768,26 +778,30 @@ comp.timeELKfitFinalInt = system.time(fitELKfinalInt <- fitLKINLAStandard2(thisD
 comp.timeELKfitFinalIntAll = comp.timeELKfitFinalInt + comp.timeELKprecomputation
 
 # * get scoring rules ----
-scoresELKfinalInt = getScores(datPred$TrueTemp, est=fitELKfinalInt$preds, var=fitELKfinalInt$sigmas^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
+sds = rowMeans(outer(fitELKfinalInt$sigmasNoNugget^2, fitELKfinalInt$clusterVars, function(x, y) {sqrt(x + y)}))
+scoresELKfinalInt = getScores(datPred$TrueTemp, est=fitELKfinalInt$preds, var=sds^2, lower=NULL, upper=NULL, estMat=NULL, significance=.95, 
                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
 
 # calculate distance to nearest observation
-if(!exists(nndists)) {
+if(!exists("nndists")) {
   if(nrow(thisDataObject$x) > 50000) {
     mean.neighbor = nrow(thisDataObject$x)/(5*2.5) *pi * .8
     dists = fields.rdist.near(cbind(datPred$Lon, datPred$Lat), thisDataObject$x, 1, mean.neighbor=mean.neighbor)
+    out = aggregate(dists$ra, by=list(dists$ind[,1]), FUN=min)
+    nndists = out[,2]
   } else {
     dists = rdist(cbind(datPred$Lon, datPred$Lat), thisDataObject$x)
+    nndists = apply(dists, 1, min)
   }
-  nndists = apply(dists, 1, min)
 }
-scoresELK = cbind(NNDist=nndists, scoresELKfinalInt)
+scoresELKfinalInt = cbind(NNDist=nndists, scoresELKfinalInt)
 
 # * save results ----
 fitELKfinalInt$mod$.args = NULL
 fitELKfinalInt$mod$all.hyper = NULL
 save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation,
      file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
+out = load(paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 
 # * plot results ----
 # replot LK results with same scales
@@ -952,6 +966,13 @@ quilt.plot(knotCoords, knotVals, nx=30, ny=30,
            xlab="Elevation (m)", ylab="NDVI", 
            main="RW2D Mean", col=makeGreenBlueDivergingColors(64, range(knotVals), 0, TRUE))
 dev.off()
+
+# Make score tables ----
+allScores = rbind(colMeans(scoresLK, na.rm=TRUE), 
+                  colMeans(scoresELK, na.rm=TRUE), 
+                  colMeans(scoresELKfinalInt, na.rm=TRUE))
+rownames(allScores) = c("LK", "ELK", "ELK_RW2D")
+allScores
 
 ##### Final models ----
 
