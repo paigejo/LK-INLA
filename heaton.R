@@ -799,7 +799,7 @@ scoresELKfinalInt = cbind(NNDist=nndists, scoresELKfinalInt)
 # * save results ----
 fitELKfinalInt$mod$.args = NULL
 fitELKfinalInt$mod$all.hyper = NULL
-save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation,
+save(fitELKfinalInt, comp.timeELKfitFinalIntAll, comp.timeELKfitFinalInt, comp.timeELKprecomputation, scoresELKfinalInt, 
      file=paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 out = load(paste0("savedOutput/heaton/resultsELKfinalInt", thisFileNameRoot, ".rda"))
 
@@ -967,12 +967,70 @@ quilt.plot(knotCoords, knotVals, nx=30, ny=30,
            main="RW2D Mean", col=makeGreenBlueDivergingColors(64, range(knotVals), 0, TRUE))
 dev.off()
 
+# scoring rule plots
+scoresLKBinned = aggregateScoresByDistanceBasic(scoresLK, breaks=10)
+scoresELKBinned = aggregateScoresByDistanceBasic(scoresELK, breaks=10)
+scoresELKfinalIntBinned = aggregateScoresByDistanceBasic(scoresELKfinalInt, breaks=10)
+for(i in 2:ncol(scoresLK)) {
+  scoreName = colnames(scoresLK)[i]
+  
+  # spatial plots
+  zlim = range(c(scoresLK[,i], scoresELK[,i], scoresELKfinalInt[,i]), na.rm=TRUE)
+  
+  pdf(paste0("Figures/applicationHeaton/LKbasicSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), scoresLK[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("LK ", scoreName), 
+             xlab="Longitude", ylab="Latitude", zlim=zlim)
+  dev.off()
+  
+  pdf(paste0("Figures/applicationHeaton/ELKbasicSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), scoresELK[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("LK ", scoreName), 
+             xlab="Longitude", ylab="Latitude", zlim=zlim)
+  dev.off()
+  
+  pdf(paste0("Figures/applicationHeaton/ELKfinalIntSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(thisDataObject$xMissing[,1], thisDataObject$xMissing[,2]), scoresELK[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("LK ", scoreName), 
+             xlab="Longitude", ylab="Latitude", zlim=zlim)
+  dev.off()
+  
+  # binned by distance plots
+  ylim = range(c(scoresLKBinned[,i], scoresELKBinned[,i], scoresELKfinalIntBinned[,i]), na.rm=TRUE)
+  cols = c("black", "blue", "purple")
+  pch = c(15, 16, 17)
+  lty = c(5, 4, 3)
+  pdf(paste0("Figures/applicationHeaton/distanceBinnedScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  plot(scoresLKBinned$NNDist, scoresLKBinned[,i], 
+    main=paste0(scoreName, " versus distance"), ylim=ylim, 
+    xlab="Nearest neighbor distance", ylab=scoreName, 
+    col=cols[1], pch=pch[1])
+  lines(scoresLKBinned$NNDist, scoresLKBinned[,i], 
+       col=cols[1], pch=pch[1], lty=lty[1])
+  
+  points(scoresELKBinned$NNDist, scoresELKBinned[,i],  
+       col=cols[2], pch=pch[2])
+  lines(scoresELKBinned$NNDist, scoresELKBinned[,i], 
+        col=cols[2], pch=pch[2], lty=lty[2])
+  
+  points(scoresELKfinalIntBinned$NNDist, scoresELKfinalIntBinned[,i],  
+         col=cols[3], pch=pch[3])
+  lines(scoresELKfinalIntBinned$NNDist, scoresELKfinalIntBinned[,i], 
+        col=cols[3], pch=pch[3], lty=lty[3])
+  
+  legend("bottomright", legend=c("LK", "ELK", "ELK RW2D"), 
+         pch=pch, lty=lty, col=cols)
+  dev.off()
+}
+
 # Make score tables ----
 allScores = rbind(colMeans(scoresLK, na.rm=TRUE), 
                   colMeans(scoresELK, na.rm=TRUE), 
                   colMeans(scoresELKfinalInt, na.rm=TRUE))
 rownames(allScores) = c("LK", "ELK", "ELK_RW2D")
 allScores
+
+print(xtable(allScores[,-c(1, 3:4)]), digits=c(1, rep(2, 5)))
 
 ##### Final models ----
 

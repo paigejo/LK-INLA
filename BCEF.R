@@ -243,6 +243,10 @@ NCs = c(25, 245) # 1km and .1km
 separateRanges = TRUE
 nLayer = length(NCs)
 
+NCs = c(20) # 1km and .1km
+separateRanges = FALSE
+nLayer = 2
+
 NCs = c(40) # 1km and .1km
 separateRanges = FALSE
 nLayer = 4
@@ -316,6 +320,12 @@ if(makeAllPlots) {
   }
   dev.off()
 }
+
+# linear model tests ----
+mod = lm(FCH~PTC, data=BCEF)
+summary(mod)
+hist(residuals(mod))
+hist(BCEF$PTC)
 
 # Run the ELK analysis ----
 fitModels=TRUE
@@ -417,8 +427,23 @@ for(i in startI:length(Ns)) {
   # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
   predCIWidths = bcefELK$upper - bcefELK$lower
   
+  predMatRestricted = bcefELK$predMat
+  predMatRestricted[predMatRestricted > 40] = 40
+  predMatRestricted[predMatRestricted < 0] = 0
+  predsRestricted = rowMeans(predMatRestricted)
+  lowerRestricted = apply(predMatRestricted, 1, quantile, prob=.1)
+  upperRestricted = apply(predMatRestricted, 1, quantile, prob=.9)
+  predSDsRestricted = apply(predMatRestricted, 1, sd)
+  predCIWidthsRestricted = upperRestricted - lowerRestricted
+  
   png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, preds, col=yellowBlueCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  png(paste0("Figures/BCEF/ELKpredsRestricted_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  quilt.plot(predPoints, predsRestricted, col=yellowBlueCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
@@ -427,6 +452,12 @@ for(i in startI:length(Ns)) {
   magmaCols = magma(64)
   png(paste0("Figures/BCEF/CIWidth_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
   quilt.plot(predPoints, predCIWidths, col=magmaCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  png(paste0("Figures/BCEF/ELKCIWidthRestricted_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  quilt.plot(predPoints, predCIWidthsRestricted, col=magmaCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
@@ -454,9 +485,9 @@ for(i in startI:length(Ns)) {
   # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
   # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
   # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
-  rwLower = 100*apply(ptcMat, 1, quantile, prob=.1)
-  rwUpper = 100*apply(ptcMat, 1, quantile, prob=.9)
-  rwEst = 100*rowMeans(ptcMat)
+  rwLower = apply(ptcMat, 1, quantile, prob=.1)
+  rwUpper = apply(ptcMat, 1, quantile, prob=.9)
+  rwEst = rowMeans(ptcMat)
   ylim=range(c(rwEst, rwLower, rwUpper))
   pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
   plot(rwKnots, rwEst, ylim=ylim, type="l", 

@@ -31,7 +31,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
                               rwIntPrior=NULL, 
                               intStrategy="grid", strategy="gaussian", fastNormalize=TRUE, 
                               predictionType=c("mean", "median"), significanceCI=0.8, 
-                              printVerboseTimings=FALSE, nPostSamples=1000, family=c("normal", "binomial", "betabinomial"),
+                              printVerboseTimings=FALSE, nPostSamples=1000, family=c("normal", "binomial", "betabinomial", "gamma"),
                               obsNs=rep(1, length(obsValues)), clusterEffect=TRUE, latInfo=NULL, 
                               initialEffectiveRange=NULL, initialAlphas=rep(1/nLayer, nLayer-1), 
                               effRangeRange=NULL, predClusterI=rep(TRUE, nrow(predCoords)), 
@@ -51,7 +51,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   if(!clusterEffect && family == "normal")
     stop("cluster effect must be included for the normal family")
   
-  if(family != "normal" && length(c(nonlinearCovariateInteractionInds, nonlinearCovariateInds)) > 0) {
+  if(!(family %in% c("normal", "gamma")) && length(c(nonlinearCovariateInteractionInds, nonlinearCovariateInds)) > 0) {
     warning("nonlinear covariates have not yet been tested for non-Gaussian responses")
   }
   
@@ -93,7 +93,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     }
     nKnotsNonlinear = rep(nKnotsNonlinear, nNonlinear)
   }
-  if(family != "normal" && nNonlinear > 0) {
+  if(!(family %in% c("normal", "gamma")) && nNonlinear > 0) {
     stop("nonlinear effects are currently only implemented for gaussian data")
   }
   
@@ -279,7 +279,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   if(nNonlinear != 0) {
     nonlinearA = as.list(rep(1, nNonlinear))
   }
-  if(family == "normal") {
+  if(family == "normal" || family == "gamma") {
     if(!is.null(xObs)) {
       stack.est = inla.stack(A =c(list(AEst, 1), nonlinearA, rwIntA), 
                              effects =c(list(field=latticeInds, X=xObs), rwEffects, rwIntEffect), 
@@ -379,7 +379,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   for(i in 1:length(diagonal)) {
     controls = list(strategy=strategy, int.strategy=intStrategy, diagonal=diagonal[i]) 
     
-    if(family == "normal") {
+    if(family == "normal" || family == "gamma") {
       if(!is.null(xObs)) {
         
         formulaText = "y ~ - 1 + X + f(field, model=rgen)"
@@ -520,7 +520,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   # 4-(3 + nLayer - 1): multivariateLogit alpha
   hyperMat = sapply(postSamples, function(x) {x$hyperpar})
   
-  if(family == "normal") {
+  if(family == "normal" || family == "gamma") {
     rw2dInds = NULL
     if(nonlinearInteraction) {
       rw2dInds = nrow(hyperMat)
@@ -777,7 +777,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   }
   
   # add in cluster effect if necessary
-  if((family == "binomial" && clusterEffect) || family == "normal") {
+  if((family == "binomial" && clusterEffect) || family %in% c("normal", "gamma")) {
     # get betabinomial overdispersion parameter
     clusterVarI = which(grepl("clusterVar", hyperNames))
     clusterVars = mat[clusterVarI,]
@@ -810,6 +810,11 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     predMatClustEffect = expit(predMatClustEffect)
     obsMat = expit(obsMat)
     obsMatClustEffect = expit(obsMatClustEffect)
+  } else if(family == "gamma") {
+    predMat = exp(predMat)
+    predMatClustEffect = exp(predMatClustEffect)
+    obsMat = exp(obsMat)
+    obsMatClustEffect = exp(obsMatClustEffect)
   }
   
   # compute predictive credible intervals ----
@@ -848,20 +853,31 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     medianObs = apply(obsMat, 1, median)
     medianPredsNoNugget = medianPreds
     medianObsNoNugget = medianObs
-      
-    predSDs = apply(predMatClustEffect, 1, sd)
-    lowerPreds = apply(predMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
-    upperPreds = apply(predMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
+    
     predSDsNoNugget = apply(predMat, 1, sd)
     lowerPredsNoNugget = apply(predMat, 1, quantile, probs=(1-significanceCI)/2)
     upperPredsNoNugget = apply(predMat, 1, quantile, probs=1-(1-significanceCI)/2)
-    
-    obsSDs = apply(obsMatClustEffect, 1, sd)
-    lowerObs = apply(obsMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
-    upperObs = apply(obsMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
     obsSDsNoNugget = apply(obsMat, 1, sd)
     lowerObsNoNugget = apply(obsMat, 1, quantile, probs=(1-significanceCI)/2)
     upperObsNoNugget = apply(obsMat, 1, quantile, probs=1-(1-significanceCI)/2)
+    if(family == "normal") {
+      # in this case, we can improve the SD and CI interval estimates using closed form due to Gaussian distribution
+      predSDs = rowMeans(outer(predSDsNoNugget^2, clusterVars, function(x, y) {sqrt(x + y)}))
+      lowerPreds = preds + qnorm(sd=predSDs, p=(1-significanceCI)/2)
+      upperPreds = preds + qnorm(sd=predSDs, p=1-(1-significanceCI)/2)
+      
+      obsSDs = rowMeans(outer(obsSDsNoNugget^2, clusterVars, function(x, y) {sqrt(x + y)}))
+      lowerObs = obsPreds + qnorm(sd=obsSDs, p=(1-significanceCI)/2)
+      upperObs = obsPreds + qnorm(sd=obsSDs, p=1-(1-significanceCI)/2)
+    } else {
+      predSDs = apply(predMatClustEffect, 1, sd)
+      lowerPreds = apply(predMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
+      upperPreds = apply(predMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
+      
+      obsSDs = apply(obsMatClustEffect, 1, sd)
+      lowerObs = apply(obsMatClustEffect, 1, quantile, probs=(1-significanceCI)/2)
+      upperObs = apply(obsMatClustEffect, 1, quantile, probs=1-(1-significanceCI)/2)
+    }
   }
   
   if(!is.null(xObs) && all(xObs[,1]==1))
@@ -939,7 +955,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
        rw2dMatchWithKnotsFun=rw2dMatchWithKnotsFun, rw2dKnotCoords=rw2dKnotCoords, 
        # the rest of the outputs are saved to be used for spatial aggregations later on
        predMat=predMatClustEffect, obsMat=obsMatClustEffect, fixedMat=fixedMat, 
-       hyperMat=hyperMat, clusterVars=clusterVars, rhos=rhos, 
+       hyperMat=hyperMat, basisMat=basisCoefMat, clusterVars=clusterVars, rhos=rhos, 
        modelFitTimes=modelFitTimes)
 }
 
@@ -990,6 +1006,8 @@ getRandomWalkPriors = function(y, models=c("rw1", "rw2"), priorType=c("pc.prec",
     n = nTemp
   if(family == "normal") {
     family = "gaussian"
+  } else if(family == "gamma") {
+    family = Gamma(link="log")
   }
   
   # now expand input arguments to match the number of random walk priors
@@ -1028,6 +1046,8 @@ getRandomWalkPriors = function(y, models=c("rw1", "rw2"), priorType=c("pc.prec",
           u = .5
         else if(family$family == "binomial" && family$link == "probit")
           u = .33
+        else if(family$family == "Gamma" && family$link == "log")
+          u = 1
         else
           stop(paste0("No default prior values for family '", family$family, "' and link '", family$link, "'. In this case, user must specify paramList"))
       }

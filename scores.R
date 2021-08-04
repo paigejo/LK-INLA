@@ -655,7 +655,7 @@ aggregateScoresByDistance = function(singleScores, breaks=30, observationType=c(
   out
 }
 
-aggregateScoresByDistanceBasic = function(singleScores, breaks=30, dat=NULL, distanceVar="NNDist", 
+aggregateScoresByDistanceBasic = function(singleScores, breaks=30, distanceVar="NNDist", 
                                           distanceBreaksType=c("quantiles", "even"), 
                                           nPerBin=NULL, maxDist=Inf) {
   
