@@ -1314,7 +1314,7 @@ fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"),
   if(separateRanges)
     nLayer = length(NC)
   
-  c(fitLKINLAStandard2(obsCoords=obsCoords, obsValues=obsValues, predPts=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC, nBuffer=nBuffer, priorPar=priorPar, 
+  c(fitLKINLAStandard2(obsCoords=obsCoords, obsValues=obsValues, predCoords=predPts, nu=nu, seed=seed, nLayer=nLayer, NC=NC, nBuffer=nBuffer, priorPar=priorPar, 
                        dirichletConcentration=dirichletConcentration, 
                        xObs=xObs, xPred=xPred, 
                        normalize=normalize, intStrategy=intStrategy, 
