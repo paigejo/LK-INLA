@@ -130,15 +130,13 @@ if(FALSE) {
   png("Figures/BCEF/PTC.png", width=500, height=500)
   quilt.plot(predPoints, predPTC, col=blueGreenCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)", 
-             xlim=xlim, ylim=ylim)
+             xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
   
   png("Figures/BCEF/PTCData.png", width=500, height=500)
   quilt.plot(BCEF$x, BCEF$y, BCEF$PTC, col=blueGreenCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)", 
-             xlim=xlim, ylim=ylim)
+             xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
   
   xlimTest = c(275, 279)
@@ -251,6 +249,9 @@ NCs = c(40) # 1km and .1km
 separateRanges = FALSE
 nLayer = 4
 
+family = "normal"
+family = "gamma"
+
 latInfo = makeLatGrids(xRange, yRange, NC=NCs, nLayer=nLayer)
 NCs = sapply(latInfo, function(x) {x$NC})
 NCsText = paste(c("NC", NCs), collapse="_")
@@ -360,17 +361,17 @@ for(i in startI:length(Ns)) {
     sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
   }
   
+  # training data
   BCEFSubset = BCEF[sampleDataI,]
   ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
   BCEFSubset$PTC = ptcSubset
   
-  # check to make sure PTC from downloaded data agrees with BCEF dataset
-  # mean(abs(ptcSubset - BCEFSubset$PTC) / BCEFSubset$PTC)
-  pdf(paste0("Figures/BCEF/PTCcheck_N", sampleN, ".pdf"), width=5, height=5)
-  plot(BCEFSubset$PTC, ptcSubset, pch=19, cex=.1, 
-       xlab="Dataset PTC", ylab="Downloaded raster PTC")
-  abline(0, 1)
-  dev.off()
+  # testing data and prediction grid
+  leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+  BCEFLeftOutSubset = BCEF[leftOutDataI,]
+  ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+  BCEFLeftOutSubset$PTC = ptcSubset
+  leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
   
   # fit ELK model ----
   # priorPar are the spatial parameters
@@ -379,21 +380,28 @@ for(i in startI:length(Ns)) {
   priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=length(NCs), separateRanges=separateRanges, 
                         latticeInfo=latInfo, useUrbanPrior=FALSE)
   if(fitModels) {
-    startTime = proc.time()
     if(sampleN > 25000) {
       thisDiagonal = c(10, 2, 0)
       thisIntStrategy = "eb"
+      thisDiagonal = c(4, 2, 0) # temp 3 and 4
+      thisIntStrategy = "eb"
+      thisDiagonal = c(2, 0) # temp 5 and 6
+      thisIntStrategy = "eb"
     } else {
-      thisDiagonal = 0
+      thisDiagonal = 0 # temp 1 and 2
       thisIntStrategy = "ccd"
     }
+    temp=1
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp5_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    startTime = proc.time()
+    startTime2 = Sys.time()
     bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
                                   obsValues=BCEFSubset$FCH, 
-                                  predCoords=predPoints, 
+                                  predCoords=rbind(as.matrix(predPoints), leftOutPredPoints), 
                                   xObs=cbind(1, BCEFSubset$PTC), 
-                                  xPred=cbind(1, predPTC), 
+                                  xPred=cbind(1, c(predPTC, BCEFLeftOutSubset$PTC)), 
                                   nonlinearCovariateInds=c(2), 
-                                  latInfo=latInfo, 
+                                  latInfo=latInfo, family=family, 
                                   seed=1, nKnotsNonlinear=30, 
                                   normalize=TRUE, fastNormalize=TRUE, 
                                   intStrategy=thisIntStrategy, strategy="gaussian", 
@@ -403,13 +411,17 @@ for(i in startI:length(Ns)) {
                                   savePrecomputationResults=FALSE, 
                                   precomputationFileNameRoot=precomputationFileNameRoot, 
                                   previousFit=lastMod, diagonal=thisDiagonal)
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp6_", NCsText, "_N", sampleN, "_", family, ".RData"))
     totalTime = proc.time() - startTime
+    totalTime2 = Sys.time() - startTime2
     lastMod = bcefELK$mod
     bcefELK$mod$.args = NULL
     bcefELK$mod$all.hyper = NULL
-    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))
+    totalTime
+    totalTime2
+    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
   } else {
-    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_grid.RData"))
+    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
@@ -436,13 +448,13 @@ for(i in startI:length(Ns)) {
   predSDsRestricted = apply(predMatRestricted, 1, sd)
   predCIWidthsRestricted = upperRestricted - lowerRestricted
   
-  png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   quilt.plot(predPoints, preds, col=yellowBlueCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
   
-  png(paste0("Figures/BCEF/ELKpredsRestricted_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/ELKpredsRestricted_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   quilt.plot(predPoints, predsRestricted, col=yellowBlueCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
@@ -450,13 +462,13 @@ for(i in startI:length(Ns)) {
   
   require(viridis)
   magmaCols = magma(64)
-  png(paste0("Figures/BCEF/CIWidth_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/CIWidth_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   quilt.plot(predPoints, predCIWidths, col=magmaCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
   dev.off()
   
-  png(paste0("Figures/BCEF/ELKCIWidthRestricted_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/ELKCIWidthRestricted_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   quilt.plot(predPoints, predCIWidthsRestricted, col=magmaCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
              xlab="Easting (km)", ylab="Northing (km)")
@@ -481,17 +493,27 @@ for(i in startI:length(Ns)) {
   # lines(rwKnots, rwLower, lty=2)
   # lines(rwKnots, rwUpper, lty=2)
   # dev.off()
-  ptcMat = bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,])
+  
   # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
   # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
   # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
-  rwLower = apply(ptcMat, 1, quantile, prob=.1)
-  rwUpper = apply(ptcMat, 1, quantile, prob=.9)
-  rwEst = rowMeans(ptcMat)
+  if(family == "normal") {
+    ptcMat = bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,])
+    rwLower = apply(ptcMat, 1, quantile, prob=.1)
+    rwUpper = apply(ptcMat, 1, quantile, prob=.9)
+    rwEst = rowMeans(ptcMat)
+    ylab="Change forest canopy height (m)"
+  } else if(family == "gamma") {
+    ptcMat = exp(bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,]))
+    rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
+    rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
+    rwEst = 100*(rowMeans(ptcMat)-1)
+    ylab="Percent change forest canopy height"
+  }
   ylim=range(c(rwEst, rwLower, rwUpper))
-  pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
+  pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, "_", family, ".pdf"), width=5, height=5)
   plot(rwKnots, rwEst, ylim=ylim, type="l", 
-       xlab="Percent Tree Cover", ylab="Change Forest Canopy Height")
+       xlab="Percent tree cover", ylab=ylab)
   lines(rwKnots, rwLower, lty=2)
   lines(rwKnots, rwUpper, lty=2)
   dev.off()
@@ -501,7 +523,7 @@ for(i in startI:length(Ns)) {
     Amati = makeA(predPoints, latInfo, maxLayer=i, thisLayer=i)
     predsi = as.numeric(Amati %*% bcefELK$coefPreds[[i]])
     
-    png(paste0("Figures/BCEF/logPredsLayer", i, "_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+    png(paste0("Figures/BCEF/logPredsLayer", i, "_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
     quilt.plot(predPoints, predsi, col=yellowBlueCols, 
                nx=length(xGrid)-1, ny=length(yGrid)-1, 
                xlab="Easting (km)", ylab="Northing (km)")
@@ -511,7 +533,7 @@ for(i in startI:length(Ns)) {
   # plot predictions versus observed
   preds = bcefELK$obsPreds
   observed = BCEFSubset$FCH
-  pdf(paste0("Figures/BCEF/obsVsPred_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
+  pdf(paste0("Figures/BCEF/obsVsPred_", NCsText, "_N", sampleN, "_", family, ".pdf"), width=5, height=5)
   plot(observed, exp(preds), pch=".", main="Observed Vs. Predicted FCH", 
        xlab="Observed FCH (m)", ylab="Median Prediction (m)")
   abline(0, 1, col="blue")
@@ -521,7 +543,7 @@ for(i in startI:length(Ns)) {
   xlimTest = c(275, 279)
   ylimTest = c(1651, 1654)
   preds = bcefELK$preds
-  png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   par(oma=c(0,0,0,3))
   quilt.plot(predPoints, exp(preds), col=blueGreenCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
@@ -548,7 +570,7 @@ for(i in startI:length(Ns)) {
   }
   dev.off()
   
-  png(paste0("Figures/BCEF/FCHTest_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/FCHTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   par(oma=c(0,0,0,3))
   quilt.plot(BCEF$x, BCEF$y, BCEF$FCH, col=blueGreenCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
@@ -575,7 +597,7 @@ for(i in startI:length(Ns)) {
   }
   dev.off()
   
-  png(paste0("Figures/BCEF/FCHTestSubset_", NCsText, "_N", sampleN, ".png"), width=500, height=500)
+  png(paste0("Figures/BCEF/FCHTestSubset_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   par(oma=c(0,0,0,3))
   quilt.plot(BCEFSubset$x, BCEFSubset$y, BCEFSubset$FCH, col=blueGreenCols, 
              nx=length(xGrid)-1, ny=length(yGrid)-1, 
@@ -608,8 +630,10 @@ for(i in startI:length(Ns)) {
 # do the same thing but with LatticeKrig
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 Ns = c(1000, 5000, 25000, 100000)
-NC = 25
-nlevel = 3
+# NC = 25
+# nlevel = 3
+NC = NCs[1]
+nlevel = nLayer
 thisNCsText = paste0("L", nlevel, "_NC", NC)
 fitModels=TRUE
 startI=4
@@ -625,16 +649,27 @@ for(i in startI:length(Ns)) {
     sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
   }
   
+  # training data
   BCEFSubset = BCEF[sampleDataI,]
   ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
   BCEFSubset$PTC = ptcSubset
+  
+  # testing data and prediction grid
+  leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+  BCEFLeftOutSubset = BCEF[leftOutDataI,]
+  ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+  BCEFLeftOutSubset$PTC = ptcSubset
+  leftOutPredPoints = cbind(BCEFLeftOutSubset$xTransformed, BCEFLeftOutSubset$yTransformed)
   
   # fit LK model ----
   
   if(fitModels) {
     startTime = proc.time()
-    bcefLK = fitLKStandard(cbind(BCEFSubset$xTransformed, BCEFSubset$yTransformed), BCEFSubset$FCH, predCoords=rotatedPredPoints, xObs=NULL, xPred=NULL, NC=NC, nLayer=nlevel, normalize=TRUE, 
-                         nBuffer=5, nu=1.5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8, calcHessian=FALSE)
+    bcefLK = fitLKStandard(cbind(BCEFSubset$xTransformed, BCEFSubset$yTransformed), BCEFSubset$FCH, 
+                           predCoords=rbind(rotatedPredPoints, leftOutPredPoints), 
+                           xObs=BCEFSubset$PTC, xPred=matrix(c(predPTC, BCEFLeftOutSubset$PTC), ncol=1), 
+                           NC=NC, nLayer=nlevel, normalize=TRUE, 
+                         nBuffer=5, verbose=TRUE, lambdaStart=.1, a.wghtStart=5, maxit=15, doSEs=TRUE, significanceCI=.8, calcHessian=TRUE)
     totalTime = proc.time() - startTime
     bcefLK$mod$.args = NULL
     save(bcefLK, totalTime, file=paste0("savedOutput/BCEF/bcefLK_L", nlevel, "_NC", NC, "_N", sampleN, "_grid.RData"))
@@ -1033,8 +1068,514 @@ for(i in startI:length(Ns)) {
   # dev.off()
 }
 
-# Construct SPDE mesh ----
-mesh = 
+# Run the ELK analysis with 2 separate layers ----
+
+##### construct rotated grid of lattice points ----
+
+# construct basis functions on the rotated centered coordinate system
+NCs = c(79, 313)
+separateRanges = TRUE
+nLayer = 2
+
+family = "gamma"
+
+latInfo = makeLatGrids(xRange, yRange, NC=NCs, nLayer=nLayer)
+NCs = sapply(latInfo, function(x) {x$NC})
+NCsText = paste(c("NC", NCs), collapse="_")
+Ms = getMs(latInfo=latInfo)
+Ms
+sapply(latInfo, function(x) {x$latWidth})
+
+# transform back to the original coordinate system
+for(i in 1:length(latInfo)) {
+  latInfo[[i]]$latCoords = t(t(rotationMat) %*% t(latInfo[[i]]$latCoords))
+  latInfo[[i]]$latCoords = sweep(latInfo[[i]]$latCoords, 2, center, "+")
+}
+
+# plot observations and basis knots
+xlim = range(c(latInfo[[1]]$latCoords[,1], allPoints[,1]))
+ylim = range(c(latInfo[[1]]$latCoords[,2], allPoints[,2]))
+
+# plot the lattice
+if(makeAllPlots) {
+  pdf(paste0("Figures/BCEF/lattice_", NCsText, ".pdf"), width=5, height=5)
+  plot(latInfo[[1]]$latCoords, type="n", 
+       xlim=xlim, ylim=ylim, asp=1, 
+       xlab="Easting (km)", ylab="Northing (km)")
+  cols = c("blue", "purple", "red")
+  sizes = c(.3, .75, .05)
+  for(i in 1:length(latInfo)) {
+    plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+  }
+  
+  polygon(chullPoints[,1], chullPoints[,2])
+  points(allPoints, pch=".", col="green")
+  dev.off()
+  
+  png(paste0("Figures/BCEF/latticeFCH_", NCsText, ".png"), width=500, height=500)
+  par(mar=c(5.1, 4.1, 4.1, 7))
+  plot(latInfo[[1]]$latCoords, type="n", 
+       xlim=xlim, ylim=ylim, asp=1, 
+       xlab="Easting (km)", ylab="Northing (km)")
+  cols = c("blue", "purple", "red")
+  sizes = c(.3, .75, .05)
+  for(i in 1:length(latInfo)) {
+    plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+  }
+  polygon(chullPoints[,1], chullPoints[,2])
+  plotWithColor(BCEF$x, BCEF$y, BCEF$FCH, xlab="Easting (km)", ylab="Northing (km)", 
+                colScale=yellowBlueCols, pch=19, cex=.1, new=FALSE)
+  dev.off()
+  
+  xlimTest = c(275, 279)
+  ylimTest = c(1651, 1654)
+  png("Figures/BCEF/PTCTest.png", width=500, height=500)
+  quilt.plot(predPoints, predPTC, col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)", 
+             xlim=xlimTest, ylim=ylimTest)
+  dev.off()
+  
+  png("Figures/BCEF/PTCDataTest.png", width=500, height=500)
+  quilt.plot(BCEF$x, BCEF$y, BCEF$PTC, col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)", 
+             xlim=xlimTest, ylim=ylimTest, asp=1)
+  cols = c("blue", "purple", "red")
+  sizes = c(.3, .02, .01)
+  for(i in 1:length(latInfo)) {
+    plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+  }
+  dev.off()
+}
+
+fitModels=TRUE
+lastMod = NULL
+
+# Run ELK with 2 separate layers
+precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
+if(!file.exists(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))) {
+  comp.timeELKprecomputation = system.time({
+    precomputedMatrices = precomputationsQ2(latInfo)
+    precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
+                                                          plotNormalizationSplines=FALSE)
+  })
+  
+  save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
+       file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+}
+
+Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
+Ns = c(1000, 5000, 25000, 100000)
+startI=1
+startI=4
+for(i in startI:length(Ns)) {
+  sampleN = ceiling(nrow(BCEF)/2)
+  sampleN = sum(BCEF$holdout == 0)
+  sampleN = Ns[i]
+  
+  set.seed(123)
+  if(sampleN == sum(BCEF$holdout == 0)) {
+    sampleDataI = BCEF$holdout == 0
+  } else {
+    sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
+  }
+  
+  # training data
+  BCEFSubset = BCEF[sampleDataI,]
+  ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+  BCEFSubset$PTC = ptcSubset
+  
+  # testing data and prediction grid
+  leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+  BCEFLeftOutSubset = BCEF[leftOutDataI,]
+  ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+  BCEFLeftOutSubset$PTC = ptcSubset
+  leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
+  
+  # fit ELK model ----
+  # priorPar are the spatial parameters
+  # priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
+  #                       latticeInfo=latInfo, useUrbanPrior=FALSE)
+  priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=length(NCs), separateRanges=separateRanges, 
+                        latticeInfo=latInfo, useUrbanPrior=FALSE)
+  if(fitModels) {
+    if(sampleN > 25000) {
+      thisDiagonal = c(10, 2, 0)
+      thisIntStrategy = "eb"
+      thisDiagonal = c(4, 2, 0) # temp 3 and 4
+      thisIntStrategy = "eb"
+      thisDiagonal = c(2, 0) # temp 5 and 6
+      thisIntStrategy = "eb"
+    } else {
+      thisDiagonal = 0 # temp 1 and 2
+      thisIntStrategy = "ccd"
+    }
+    temp=1
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    startTime = proc.time()
+    startTime2 = Sys.time()
+    bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
+                                  obsValues=BCEFSubset$FCH, 
+                                  predCoords=rbind(as.matrix(predPoints), leftOutPredPoints), 
+                                  xObs=cbind(1, BCEFSubset$PTC), 
+                                  xPred=cbind(1, c(predPTC, BCEFLeftOutSubset$PTC)), 
+                                  nonlinearCovariateInds=c(2), 
+                                  latInfo=latInfo, family=family, 
+                                  seed=1, nKnotsNonlinear=30, 
+                                  normalize=TRUE, fastNormalize=TRUE, 
+                                  intStrategy=thisIntStrategy, strategy="gaussian", 
+                                  printVerboseTimings=FALSE, priorPar=priorPar, 
+                                  loadPrecomputationResults=TRUE, 
+                                  separateRanges=separateRanges, 
+                                  savePrecomputationResults=FALSE, 
+                                  precomputationFileNameRoot=precomputationFileNameRoot, 
+                                  previousFit=lastMod, diagonal=thisDiagonal)
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp2_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    totalTime = proc.time() - startTime
+    totalTime2 = Sys.time() - startTime2
+    lastMod = bcefELK$mod
+    bcefELK$mod$.args = NULL
+    bcefELK$mod$all.hyper = NULL
+    totalTime
+    totalTime2
+    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+  } else {
+    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+  }
+  print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
+  
+  
+  # (N, minutes) for laptop NC: 25, 100
+  # (1000, 10), (5000, 17), (25000, 46), (100000, 368 or 6:08)
+  
+  # (N, minutes) for cluster NC: 25, 50, 99
+  # (1000, 16), 
+  
+  # plot predictions ----
+  # preds = exp(bcefELK$preds)
+  preds = bcefELK$preds
+  predSDs = bcefELK$sigmas
+  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  predCIWidths = bcefELK$upper - bcefELK$lower
+  
+  predMatRestricted = bcefELK$predMat
+  predMatRestricted[predMatRestricted > 40] = 40
+  predMatRestricted[predMatRestricted < 0] = 0
+  predsRestricted = rowMeans(predMatRestricted)
+  lowerRestricted = apply(predMatRestricted, 1, quantile, prob=.1)
+  upperRestricted = apply(predMatRestricted, 1, quantile, prob=.9)
+  predSDsRestricted = apply(predMatRestricted, 1, sd)
+  predCIWidthsRestricted = upperRestricted - lowerRestricted
+  
+  png(paste0("Figures/BCEF/preds_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  quilt.plot(predPoints, preds, col=yellowBlueCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  png(paste0("Figures/BCEF/ELKpredsRestricted_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  quilt.plot(predPoints, predsRestricted, col=yellowBlueCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  require(viridis)
+  magmaCols = magma(64)
+  png(paste0("Figures/BCEF/CIWidth_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  quilt.plot(predPoints, predCIWidths, col=magmaCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  png(paste0("Figures/BCEF/ELKCIWidthRestricted_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  quilt.plot(predPoints, predCIWidthsRestricted, col=magmaCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)")
+  dev.off()
+  
+  # plot effect of PTC
+  rwKnots = bcefELK$rwKnots[[1]]
+  rwSummary = bcefELK$rwSummary
+  fixedSummary = bcefELK$fixedEffectSummary
+  fixedMat = bcefELK$fixedMat
+  # ptcMat = exp(bcefELK$rwMat + outer(rwKnots, fixedMat[2,]))
+  # # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
+  # # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
+  # # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
+  # rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
+  # rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
+  # rwEst = 100*(rowMeans(ptcMat)-1)
+  # ylim=range(c(rwEst, rwLower, rwUpper))
+  # pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, ".pdf"), width=5, height=5)
+  # plot(rwKnots, rwEst, ylim=ylim, type="l", 
+  #      xlab="Percent Tree Cover", ylab="Percent Change Forest Canopy Height")
+  # lines(rwKnots, rwLower, lty=2)
+  # lines(rwKnots, rwUpper, lty=2)
+  # dev.off()
+  
+  # rwLower = exp(rwSummary[,5] + fixedSummary[2,4]*rwKnots)
+  # rwUpper = exp(rwSummary[,6] + fixedSummary[2,4]*rwKnots)
+  # rwEst = exp(rwSummary[,3] + fixedSummary[2,4]*rwKnots)
+  if(family == "normal") {
+    ptcMat = bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,])
+    rwLower = apply(ptcMat, 1, quantile, prob=.1)
+    rwUpper = apply(ptcMat, 1, quantile, prob=.9)
+    rwEst = rowMeans(ptcMat)
+    ylab="Change forest canopy height (m)"
+  } else if(family == "gamma") {
+    ptcMat = exp(bcefELK$rwMats[[1]] + outer(rwKnots, fixedMat[2,]))
+    rwLower = 100*(apply(ptcMat, 1, quantile, prob=.1)-1)
+    rwUpper = 100*(apply(ptcMat, 1, quantile, prob=.9)-1)
+    rwEst = 100*(rowMeans(ptcMat)-1)
+    ylab="Percent change forest canopy height"
+  }
+  ylim=range(c(rwEst, rwLower, rwUpper))
+  pdf(paste0("Figures/BCEF/PTCNonlinear_", NCsText, "_N", sampleN, "_", family, ".pdf"), width=5, height=5)
+  plot(rwKnots, rwEst, ylim=ylim, type="l", 
+       xlab="Percent tree cover", ylab=ylab)
+  lines(rwKnots, rwLower, lty=2)
+  lines(rwKnots, rwUpper, lty=2)
+  dev.off()
+  
+  # plot individual spatial layers
+  for(i in 1:length(latInfo)) {
+    Amati = makeA(predPoints, latInfo, maxLayer=i, thisLayer=i)
+    predsi = as.numeric(Amati %*% bcefELK$coefPreds[[i]])
+    
+    png(paste0("Figures/BCEF/logPredsLayer", i, "_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+    quilt.plot(predPoints, predsi, col=yellowBlueCols, 
+               nx=length(xGrid)-1, ny=length(yGrid)-1, 
+               xlab="Easting (km)", ylab="Northing (km)")
+    dev.off()
+  }
+  
+  # plot predictions versus observed
+  preds = bcefELK$obsPreds
+  observed = BCEFSubset$FCH
+  pdf(paste0("Figures/BCEF/obsVsPred_", NCsText, "_N", sampleN, "_", family, ".pdf"), width=5, height=5)
+  plot(observed, exp(preds), pch=".", main="Observed Vs. Predicted FCH", 
+       xlab="Observed FCH (m)", ylab="Median Prediction (m)")
+  abline(0, 1, col="blue")
+  dev.off()
+  
+  # plot problem area
+  xlimTest = c(275, 279)
+  ylimTest = c(1651, 1654)
+  preds = bcefELK$preds
+  png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  par(oma=c(0,0,0,3))
+  quilt.plot(predPoints, exp(preds), col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)", 
+             xlim=xlimTest, ylim=ylimTest, #asp=1, 
+             legend.mar=10, smallplot= c(.81,.84,.1,.9))
+  # cols = c("blue", "purple", "red")
+  sizes = c(1.5, .75, .1)
+  zlim=range(unlist(bcefELK$coefPreds))
+  for(i in 1:length(latInfo)) {
+    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+    if(i == 1) {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                    zlim=zlim, colorName="bg")
+    } else {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    addColorBar=FALSE, zlim=zlim, colorName="bg")
+    }
+  }
+  dev.off()
+  
+  png(paste0("Figures/BCEF/FCHTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  par(oma=c(0,0,0,3))
+  quilt.plot(BCEF$x, BCEF$y, BCEF$FCH, col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)", 
+             xlim=xlimTest, ylim=ylimTest, #asp=1, 
+             legend.mar=10, smallplot= c(.81,.84,.1,.9))
+  # cols = c("blue", "purple", "red")
+  sizes = c(1.5, .75, .1)
+  zlim=range(unlist(bcefELK$coefPreds))
+  for(i in 1:length(latInfo)) {
+    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+    if(i == 1) {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                    zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+    } else {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+    }
+  }
+  dev.off()
+  
+  png(paste0("Figures/BCEF/FCHTestSubset_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+  par(oma=c(0,0,0,3))
+  quilt.plot(BCEFSubset$x, BCEFSubset$y, BCEFSubset$FCH, col=blueGreenCols, 
+             nx=length(xGrid)-1, ny=length(yGrid)-1, 
+             xlab="Easting (km)", ylab="Northing (km)", 
+             xlim=xlimTest, ylim=ylimTest, #asp=1, 
+             legend.mar=10, smallplot= c(.81,.84,.1,.9))
+  # cols = c("blue", "purple", "red")
+  sizes = c(1.5, .75, .1)
+  zlim=range(unlist(bcefELK$coefPreds))
+  for(i in 1:length(latInfo)) {
+    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+    if(i == 1) {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                    zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+    } else {
+      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                    addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+    }
+  }
+  dev.off()
+}
+
+# ****************************** ----
+
+# Validation ----
+##### construct rotated grid of lattice points ----
+# first get range of shifted and rotated data domain for lattice
+allPoints = cbind(BCEF$x, BCEF$y)
+rotationAngle = 49.5 * (pi/180)
+center = colMeans(allPoints)
+centered = sweep(allPoints, 2, center, "-")
+rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
+                    c(sin(rotationAngle), cos(rotationAngle)))
+rotationMatInverse = t(rotationMat)
+rotatedCentered = t(rotationMat %*% t(centered))
+xRange = range(rotatedCentered[,1])
+yRange = range(rotatedCentered[,2])
+BCEF$xTransformed = rotatedCentered[,1]
+BCEF$yTransformed = rotatedCentered[,2]
+
+# construct basis functions on the rotated centered coordinate system
+# NCs = c(13, 50) # 2km and .5km resolution (this results in memory explosion...)
+# separateRanges = TRUE
+# NCs = c(25, 50, 99) # 1km, .5km, and .25km resolution (matrix factorization explosion...)
+# separateRanges = FALSE
+# NCs = c(25, 100)
+# separateRanges = TRUE # 1km and .25km (killed on the cluster, bad sampling on laptop)
+# NCs = c(25, 50) # 1km and .5km (killed on cluster)
+# separateRanges = TRUE
+# NCs = c(13, 25, 50) # 2km, 1km and .5km
+# separateRanges = FALSE
+# NCs = c(25, 245) # 1km and .1km
+# separateRanges = TRUE
+# nLayer = length(NCs)
+# 
+# NCs = c(20) # 1km and .1km
+# separateRanges = FALSE
+# nLayer = 2
+
+NCs = c(40) # 1km and .1km
+separateRanges = FALSE
+nLayer = 4
+
+family = "gamma"
+family = "normal"
+
+latInfo = makeLatGrids(xRange, yRange, NC=NCs, nLayer=nLayer)
+NCs = sapply(latInfo, function(x) {x$NC})
+NCsText = paste(c("NC", NCs), collapse="_")
+Ms = getMs(latInfo=latInfo)
+Ms
+sapply(latInfo, function(x) {x$latWidth})
+
+# transform back to the original coordinate system
+for(i in 1:length(latInfo)) {
+  latInfo[[i]]$latCoords = t(t(rotationMat) %*% t(latInfo[[i]]$latCoords))
+  latInfo[[i]]$latCoords = sweep(latInfo[[i]]$latCoords, 2, center, "+")
+}
+
+# Run the ELK analysis ----
+fitModels=TRUE
+lastMod = NULL
+
+# do precomputations
+precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
+if(!file.exists(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))) {
+  comp.timeELKprecomputation = system.time({
+    precomputedMatrices = precomputationsQ2(latInfo)
+    precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
+                                                          plotNormalizationSplines=FALSE)
+  })
+  
+  save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
+       file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
+}
+
+sampleN = 100000
+sampleN = 1000
+
+set.seed(123)
+sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
+
+BCEFSubset = BCEF[sampleDataI,]
+ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+BCEFSubset$PTC = ptcSubset
+
+leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+BCEFLeftOutSubset = BCEF[leftOutDataI,]
+ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
+BCEFLeftOutSubset$PTC = ptcSubset
+leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
+
+# fit ELK model ----
+# priorPar are the spatial parameters
+# priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
+#                       latticeInfo=latInfo, useUrbanPrior=FALSE)
+priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=length(NCs), separateRanges=separateRanges, 
+                      latticeInfo=latInfo, useUrbanPrior=FALSE)
+if(fitModels) {
+  thisDiagonal = c(10, 2, 0)
+  thisIntStrategy = "eb"
+  
+  startTime = proc.time()
+  bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
+                                obsValues=BCEFSubset$FCH, 
+                                predCoords=leftOutPredPoints, 
+                                xObs=cbind(1, BCEFSubset$PTC), 
+                                xPred=cbind(1, BCEFLeftOutSubset$PTC), 
+                                nonlinearCovariateInds=c(2), 
+                                latInfo=latInfo, family=family, 
+                                seed=1, nKnotsNonlinear=30, 
+                                normalize=TRUE, fastNormalize=TRUE, 
+                                intStrategy=thisIntStrategy, strategy="gaussian", 
+                                printVerboseTimings=FALSE, priorPar=priorPar, 
+                                loadPrecomputationResults=TRUE, 
+                                separateRanges=separateRanges, 
+                                savePrecomputationResults=FALSE, 
+                                precomputationFileNameRoot=precomputationFileNameRoot, 
+                                previousFit=lastMod, diagonal=thisDiagonal)
+  totalTime = proc.time() - startTime
+  lastMod = bcefELK$mod
+  bcefELK$mod$.args = NULL
+  bcefELK$mod$all.hyper = NULL
+  save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELKvalidation_", NCsText, "_N", sampleN, "_", family, ".RData"))
+} else {
+  out = load(paste0("savedOutput/BCEF/bcefELKvalidation_", NCsText, "_N", sampleN, "_", family, ".RData"))
+}
+print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
+
+# score predictions ----
+
+
+
 
 
 

@@ -15,7 +15,7 @@ library(MCMCpack)
 library(numDeriv)
 library(INLA)
 library(spam64)
-
+library(tictoc)
 
 inf = sessionInfo()
 if(inf$platform != "x86_64-apple-darwin15.6.0 (64-bit)" && inf$platform != "x86_64-w64-mingw32/x64 (64-bit)" && inf$platform != "x86_64-pc-linux-gnu (64-bit)") {

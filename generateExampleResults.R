@@ -2,8 +2,8 @@
 
 # first name elements of ed to be the same as the corresponding elements of the simulated datasets
 
-generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=1, endI=Inf, family=c("betabinomial", "binomial"), 
-                                  urbanPrior=TRUE, nBuffer=15, skipThreeLayer=TRUE) {
+generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE, startI=7, endI=Inf, family=c("binomial", "betabinomial"), 
+                                  urbanPrior=FALSE, nBuffer=15, skipThreeLayer=FALSE) {
   family = match.arg(family)
   targetPop = match.arg(targetPop)
   if(targetPop == "women") {
@@ -51,10 +51,21 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
   }
   
   ##### run LK-INLA
+  dirichletConcentration1=1.5
+  dirichletConcentration2=3
+  dirichletConcentration3=5
   argList = list(list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE), 
                  list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE), 
                  list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE), 
-                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE))
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE), 
+                 list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE, dirichletConcentration=dirichletConcentration2), 
+                 list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE, dirichletConcentration=dirichletConcentration2), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE, dirichletConcentration=dirichletConcentration2), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE, dirichletConcentration=dirichletConcentration2), 
+                 list(dat = dat, separateRanges = FALSE, urbanEffect = FALSE, dirichletConcentration=dirichletConcentration3), 
+                 list(dat = dat, separateRanges = FALSE, urbanEffect = TRUE, dirichletConcentration=dirichletConcentration3), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = FALSE, dirichletConcentration=dirichletConcentration3), 
+                 list(dat = dat, separateRanges = TRUE, urbanEffect = TRUE, dirichletConcentration=dirichletConcentration3))
   otherArguments = list(dataType=dataType, verbose=verbose, family=family, clusterEffect=clusterEffect, 
                         useUrbanPrior=urbanPrior, nBuffer=nBuffer)
   
@@ -63,6 +74,7 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       args = argList[[i]]
       separateRanges = args$separateRanges
       urbanEffect = args$urbanEffect
+      dirichletConcentration = args$dirichletConcentration
       
       if(skipThreeLayer && !separateRanges) {
         next
@@ -72,10 +84,12 @@ generateExampleResults = function(targetPop=c("women", "children"), verbose=TRUE
       if(!urbanPrior && separateRanges)
         urbanPriorText = "_noUrbanPrior"
       
-      fileName = paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
-                        "_urbanEffect", urbanEffect, familyText, urbanPriorText, ".RData")
+      concentrationText = paste0("_conc", dirichletConcentration)
       
-      print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))
+      fileName = paste0("savedOutput/", resultNameRoot, "/resultsLKINLA", resultNameRootLower, "_separateRanges", separateRanges, 
+                        "_urbanEffect", urbanEffect, familyText, urbanPriorText, concentrationText, ".RData")
+      
+      print(paste0("Fitting LK-INLA model with separateRanges=", separateRanges, ", urbanEffect=", urbanEffect, ", and concentration parameter ", dirichletConcentration, "..."))
       lkinlaResults = do.call("fitLKINLAKenyaDat", c(args, otherArguments))
       
       print(paste0("Aggregating LK-INLA model with separateRanges=", separateRanges, " and urbanEffect=", urbanEffect, "..."))

@@ -22,7 +22,7 @@
 #           Used when optimization is numerically unstable. Last value should be 0.0 
 #           or else results will be less accurate
 fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5, seed=1, nLayer=3, NC=5,
-                              nBuffer=5, priorPar=NULL, 
+                              nBuffer=5, priorPar=NULL, dirichletConcentration=1.5, 
                               xObs=cbind(1, obsCoords), xPred=cbind(1, predCoords), normalize=TRUE, 
                               nonlinearCovariateInds=c(), nonlinearModels="rw1", 
                               nKnotsNonlinear=30, rwPriors=NULL, rwKnots=NULL, constrNonlinear=NULL, 
@@ -69,7 +69,7 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   ny = latInfo[[1]]$ny
   
   if(is.null(priorPar))
-    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior) # 1444.772/5
+    priorPar = getPCPrior(1444.772/5, .01, 1, nLayer=nLayer, separateRanges=separateRanges, latticeInfo=latInfo, useUrbanPrior=useUrbanPrior, dirichletConcentration=dirichletConcentration) # 1444.772/5
   
   # set up nonlinear covariate effects ----
   
@@ -1198,8 +1198,8 @@ get2dKnotCoords = function(coords, xlim=range(coords[,1]), ylim=range(coords[,2]
 
 # use the fitSPDE function to fit SPDE model to binomial data within Kenya
 fitLKINLAKenyaDat = function(dat=NULL, dataType=c("mort", "ed"), 
-                             nu=1.5, seed=1, nLayer=3, NC=14,
-                             nBuffer=5, priorPar=NULL, 
+                             nu=1.5, seed=1, nLayer=3, NC=14, 
+                             nBuffer=5, priorPar=NULL, dirichletConcentration=1.5, 
                              normalize=TRUE, fastNormalize=TRUE, latInfo=NULL, 
                              intStrategy="ccd", strategy="gaussian", 
                              significanceCI=.8, printVerboseTimings=FALSE, nPostSamples=1000, 
