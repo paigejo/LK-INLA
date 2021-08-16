@@ -778,11 +778,39 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
   
   # add in cluster effect if necessary
   if((family == "binomial" && clusterEffect) || family %in% c("normal", "gamma")) {
+    
     # get betabinomial overdispersion parameter
     clusterVarI = which(grepl("clusterVar", hyperNames))
     clusterVars = mat[clusterVarI,]
-    predMatClustEffect = predMat + sweep(matrix(rnorm(length(predMat), sd=rep(sqrt(clusterVars), each=nrow(predMat))), nrow=nrow(predMat)), 1, predClusterI, "*")
-    obsMatClustEffect = obsMat + matrix(rnorm(length(obsMat), sd=rep(sqrt(clusterVars), each=nrow(obsMat))), nrow=nrow(obsMat))
+    if(family != "gamma") {
+      predMatClustEffect = predMat + sweep(matrix(rnorm(length(predMat), sd=rep(sqrt(clusterVars), each=nrow(predMat))), nrow=nrow(predMat)), 1, predClusterI, "*")
+      obsMatClustEffect = obsMat + matrix(rnorm(length(obsMat), sd=rep(sqrt(clusterVars), each=nrow(obsMat))), nrow=nrow(obsMat))
+    } else {
+      predMat = exp(as.matrix(predMat))
+      obsMat = exp(as.matrix(obsMat))
+      
+      # see inla.doc("gamma") for INLA's weirdo parameterization of the gamma distribution: 
+      # the "precision" is actually the precision of the gamma distribution divided by the 
+      # square of the mean. The inverse of the "precision" is not the variance, but the 
+      # dispersion parameter
+      dispersions = clusterVars
+      names(clusterVars) = rep("dispersion", length(clusterVars))
+      
+      # the scale is the variance divided by the mean
+      # Work through the math to convert from dispersion to variance:
+      # scales = sweep(predMat, 2, dispersions, function(x, y) {(1/((1/y)/x^2))/x})
+      # scales = sweep(predMat, 2, dispersions, function(x, y) {(1/(1/(y*x^2)))/x})
+      # scales = sweep(predMat, 2, dispersions, function(x, y) {(y*x^2)/x})
+      # scales = sweep(predMat, 2, dispersions, function(x, y) {y*x})
+      scales = sweep(predMat, 2, dispersions, "*")
+      shapes = predMat / scales
+      predMatClustEffect = matrix(rgamma(length(predMat), shape=shapes, scale=scales), ncol=nPostSamples)
+      
+      # scales = sweep(obsMat, 2, clusterVars, function(x, y) {y/x})
+      scales = sweep(obsMat, 2, dispersions, "*")
+      shapes = obsMat / scales
+      obsMatClustEffect = matrix(rgamma(length(obsMat), shape=shapes, scale=scales), ncol=nPostSamples)
+    }
     rhos = NULL
   } else if(family == "betabinomial") {
     # get cluster induced overdispersion
@@ -810,11 +838,6 @@ fitLKINLAStandard2 = function(obsCoords, obsValues, predCoords=obsCoords, nu=1.5
     predMatClustEffect = expit(predMatClustEffect)
     obsMat = expit(obsMat)
     obsMatClustEffect = expit(obsMatClustEffect)
-  } else if(family == "gamma") {
-    predMat = exp(predMat)
-    predMatClustEffect = exp(predMatClustEffect)
-    obsMat = exp(obsMat)
-    obsMatClustEffect = exp(obsMatClustEffect)
   }
   
   # compute predictive credible intervals ----

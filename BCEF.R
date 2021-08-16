@@ -2,6 +2,9 @@ library(spNNGP)
 makeAllPlots = FALSE
 blueGreenCols = rev(makeGreenBlueSequentialColors(64))
 yellowBlueCols = makeBlueGreenYellowSequentialColors(64)
+
+inla.setOption(num.threads=8)
+
 # data(MI_TSCA)
 # 
 # head(MI_TSCA)
@@ -328,7 +331,7 @@ summary(mod)
 hist(residuals(mod))
 hist(BCEF$PTC)
 
-# Run the ELK analysis ----
+# ELK-F analysis ----
 fitModels=TRUE
 lastMod = NULL
 
@@ -373,7 +376,7 @@ for(i in startI:length(Ns)) {
   BCEFLeftOutSubset$PTC = ptcSubset
   leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
   
-  # fit ELK model ----
+  # * fit ELK model ----
   # priorPar are the spatial parameters
   # priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
   #                       latticeInfo=latInfo, useUrbanPrior=FALSE)
@@ -387,6 +390,7 @@ for(i in startI:length(Ns)) {
       thisIntStrategy = "eb"
       thisDiagonal = c(2, 0) # temp 5 and 6
       thisIntStrategy = "eb"
+      thisIntStrategy = "ccd"
     } else {
       thisDiagonal = 0 # temp 1 and 2
       thisIntStrategy = "ccd"
@@ -411,17 +415,18 @@ for(i in startI:length(Ns)) {
                                   savePrecomputationResults=FALSE, 
                                   precomputationFileNameRoot=precomputationFileNameRoot, 
                                   previousFit=lastMod, diagonal=thisDiagonal)
-    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp6_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp6_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
     totalTime = proc.time() - startTime
     totalTime2 = Sys.time() - startTime2
     lastMod = bcefELK$mod
     bcefELK$mod$.args = NULL
     bcefELK$mod$all.hyper = NULL
+    bcefELK$mod$misc = NULL
     totalTime
     totalTime2
-    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
   } else {
-    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
@@ -432,14 +437,17 @@ for(i in startI:length(Ns)) {
   # (N, minutes) for cluster NC: 25, 50, 99
   # (1000, 16), 
   
-  # plot predictions ----
-  # preds = exp(bcefELK$preds)
-  preds = bcefELK$preds
-  predSDs = bcefELK$sigmas
-  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
-  predCIWidths = bcefELK$upper - bcefELK$lower
+  # * plot predictions ----
+  predGridI = 1:nrow(predPoints)
+  predValidI = nrow(predPoints) + (1:nrow(BCEFLeftOutSubset))
   
-  predMatRestricted = bcefELK$predMat
+  # preds = exp(bcefELK$preds)
+  preds = bcefELK$preds[predGridI]
+  predSDs = bcefELK$sigmas[predGridI]
+  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  predCIWidths = bcefELK$upper[predGridI] - bcefELK$lower[predGridI]
+  
+  predMatRestricted = bcefELK$predMat[predGridI,]
   predMatRestricted[predMatRestricted > 40] = 40
   predMatRestricted[predMatRestricted < 0] = 0
   predsRestricted = rowMeans(predMatRestricted)
@@ -542,7 +550,7 @@ for(i in startI:length(Ns)) {
   # plot problem area
   xlimTest = c(275, 279)
   ylimTest = c(1651, 1654)
-  preds = bcefELK$preds
+  preds = bcefELK$preds[predGridI]
   png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
   par(oma=c(0,0,0,3))
   quilt.plot(predPoints, exp(preds), col=blueGreenCols, 
@@ -627,7 +635,7 @@ for(i in startI:length(Ns)) {
 
 
 
-# do the same thing but with LatticeKrig
+# LK analysis ----
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 Ns = c(1000, 5000, 25000, 100000)
 # NC = 25
@@ -661,7 +669,7 @@ for(i in startI:length(Ns)) {
   BCEFLeftOutSubset$PTC = ptcSubset
   leftOutPredPoints = cbind(BCEFLeftOutSubset$xTransformed, BCEFLeftOutSubset$yTransformed)
   
-  # fit LK model ----
+  # * fit LK model ----
   
   if(fitModels) {
     startTime = proc.time()
@@ -678,7 +686,7 @@ for(i in startI:length(Ns)) {
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
-  # plot predictions ----
+  # * plot predictions ----
   preds = bcefLK$preds
   predsRestricted = preds
   predMatRestricted = bcefLK$predMat
@@ -854,7 +862,7 @@ for(i in startI:length(Ns)) {
   # dev.off()
 }
 
-# do the same thing but with LatticeKrig
+# LK analysis (fixed nu) ----
 Ns = c(1000, 5000, 25000, sum(BCEF$holdout == 0))
 Ns = c(1000, 5000, 25000, 100000)
 NC = 40
@@ -878,7 +886,7 @@ for(i in startI:length(Ns)) {
   ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
   BCEFSubset$PTC = ptcSubset
   
-  # fit LK model (fixed nu) ----
+  # * fit LK model (fixed nu) ----
   
   if(fitModels) {
     startTime = proc.time()
@@ -892,7 +900,7 @@ for(i in startI:length(Ns)) {
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
-  # plot predictions ----
+  # * plot predictions ----
   preds = bcefLK$preds
   predsRestricted = preds
   predMatRestricted = bcefLK$predMat
@@ -1068,9 +1076,9 @@ for(i in startI:length(Ns)) {
   # dev.off()
 }
 
-# Run the ELK analysis with 2 separate layers ----
+# ELK-T analysis ----
 
-##### construct rotated grid of lattice points ----
+##### * construct rotated grid of lattice points ----
 
 # construct basis functions on the rotated centered coordinate system
 NCs = c(79, 313)
@@ -1193,7 +1201,7 @@ for(i in startI:length(Ns)) {
   BCEFLeftOutSubset$PTC = ptcSubset
   leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
   
-  # fit ELK model ----
+  # * fit ELK model ----
   # priorPar are the spatial parameters
   # priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
   #                       latticeInfo=latInfo, useUrbanPrior=FALSE)
@@ -1207,12 +1215,13 @@ for(i in startI:length(Ns)) {
       thisIntStrategy = "eb"
       thisDiagonal = c(2, 0) # temp 5 and 6
       thisIntStrategy = "eb"
+      thisIntStrategy = "ccd"
     } else {
       thisDiagonal = 0 # temp 1 and 2
       thisIntStrategy = "ccd"
     }
     temp=1
-    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
     startTime = proc.time()
     startTime2 = Sys.time()
     bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
@@ -1231,17 +1240,18 @@ for(i in startI:length(Ns)) {
                                   savePrecomputationResults=FALSE, 
                                   precomputationFileNameRoot=precomputationFileNameRoot, 
                                   previousFit=lastMod, diagonal=thisDiagonal)
-    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp2_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    save(temp, file=paste0("savedOutput/BCEF/bcefELKtemp2_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
     totalTime = proc.time() - startTime
     totalTime2 = Sys.time() - startTime2
     lastMod = bcefELK$mod
     bcefELK$mod$.args = NULL
     bcefELK$mod$all.hyper = NULL
+    bcefELK$mod$misc = NULL
     totalTime
     totalTime2
-    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
   } else {
-    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+    out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, "_", thisIntStrategy, ".RData"))
   }
   print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
   
@@ -1252,14 +1262,17 @@ for(i in startI:length(Ns)) {
   # (N, minutes) for cluster NC: 25, 50, 99
   # (1000, 16), 
   
-  # plot predictions ----
-  # preds = exp(bcefELK$preds)
-  preds = bcefELK$preds
-  predSDs = bcefELK$sigmas
-  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
-  predCIWidths = bcefELK$upper - bcefELK$lower
+  # * plot predictions ----
+  predGridI = 1:nrow(predPoints)
+  predValidI = nrow(predPoints) + (1:nrow(BCEFLeftOutSubset))
   
-  predMatRestricted = bcefELK$predMat
+  # preds = exp(bcefELK$preds)
+  preds = bcefELK$preds[predGridI]
+  predSDs = bcefELK$sigmas[predGridI]
+  # predCIWidths = exp(bcefELK$upper) - exp(bcefELK$lower)
+  predCIWidths = bcefELK$upper[predGridI] - bcefELK$lower[predGridI]
+  
+  predMatRestricted = bcefELK$predMat[predGridI,]
   predMatRestricted[predMatRestricted > 40] = 40
   predMatRestricted[predMatRestricted < 0] = 0
   predsRestricted = rowMeans(predMatRestricted)
@@ -1359,226 +1372,278 @@ for(i in startI:length(Ns)) {
   abline(0, 1, col="blue")
   dev.off()
   
-  # plot problem area
-  xlimTest = c(275, 279)
-  ylimTest = c(1651, 1654)
-  preds = bcefELK$preds
-  png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
-  par(oma=c(0,0,0,3))
-  quilt.plot(predPoints, exp(preds), col=blueGreenCols, 
-             nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)", 
-             xlim=xlimTest, ylim=ylimTest, #asp=1, 
-             legend.mar=10, smallplot= c(.81,.84,.1,.9))
-  # cols = c("blue", "purple", "red")
-  sizes = c(1.5, .75, .1)
-  zlim=range(unlist(bcefELK$coefPreds))
-  for(i in 1:length(latInfo)) {
-    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
-    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
-      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
-    if(i == 1) {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
-                    zlim=zlim, colorName="bg")
-    } else {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    addColorBar=FALSE, zlim=zlim, colorName="bg")
+  if(FALSE) {
+    # plot problem area
+    xlimTest = c(275, 279)
+    ylimTest = c(1651, 1654)
+    preds = bcefELK$preds
+    png(paste0("Figures/BCEF/predsTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+    par(oma=c(0,0,0,3))
+    quilt.plot(predPoints, exp(preds), col=blueGreenCols, 
+               nx=length(xGrid)-1, ny=length(yGrid)-1, 
+               xlab="Easting (km)", ylab="Northing (km)", 
+               xlim=xlimTest, ylim=ylimTest, #asp=1, 
+               legend.mar=10, smallplot= c(.81,.84,.1,.9))
+    # cols = c("blue", "purple", "red")
+    sizes = c(1.5, .75, .1)
+    zlim=range(unlist(bcefELK$coefPreds))
+    for(i in 1:length(latInfo)) {
+      # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+      inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+        (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+      if(i == 1) {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                      zlim=zlim, colorName="bg")
+      } else {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      addColorBar=FALSE, zlim=zlim, colorName="bg")
+      }
     }
+    dev.off()
+    
+    png(paste0("Figures/BCEF/FCHTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+    par(oma=c(0,0,0,3))
+    quilt.plot(BCEF$x, BCEF$y, BCEF$FCH, col=blueGreenCols, 
+               nx=length(xGrid)-1, ny=length(yGrid)-1, 
+               xlab="Easting (km)", ylab="Northing (km)", 
+               xlim=xlimTest, ylim=ylimTest, #asp=1, 
+               legend.mar=10, smallplot= c(.81,.84,.1,.9))
+    # cols = c("blue", "purple", "red")
+    sizes = c(1.5, .75, .1)
+    zlim=range(unlist(bcefELK$coefPreds))
+    for(i in 1:length(latInfo)) {
+      inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+        (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+      # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+      if(i == 1) {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                      zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+      } else {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+      }
+    }
+    dev.off()
+    
+    png(paste0("Figures/BCEF/FCHTestSubset_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
+    par(oma=c(0,0,0,3))
+    quilt.plot(BCEFSubset$x, BCEFSubset$y, BCEFSubset$FCH, col=blueGreenCols, 
+               nx=length(xGrid)-1, ny=length(yGrid)-1, 
+               xlab="Easting (km)", ylab="Northing (km)", 
+               xlim=xlimTest, ylim=ylimTest, #asp=1, 
+               legend.mar=10, smallplot= c(.81,.84,.1,.9))
+    # cols = c("blue", "purple", "red")
+    sizes = c(1.5, .75, .1)
+    zlim=range(unlist(bcefELK$coefPreds))
+    for(i in 1:length(latInfo)) {
+      inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
+        (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
+      # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
+      if(i == 1) {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
+                      zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+      } else {
+        plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
+                      bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
+                      addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
+      }
+    }
+    dev.off()
   }
-  dev.off()
   
-  png(paste0("Figures/BCEF/FCHTest_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
-  par(oma=c(0,0,0,3))
-  quilt.plot(BCEF$x, BCEF$y, BCEF$FCH, col=blueGreenCols, 
-             nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)", 
-             xlim=xlimTest, ylim=ylimTest, #asp=1, 
-             legend.mar=10, smallplot= c(.81,.84,.1,.9))
-  # cols = c("blue", "purple", "red")
-  sizes = c(1.5, .75, .1)
-  zlim=range(unlist(bcefELK$coefPreds))
-  for(i in 1:length(latInfo)) {
-    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
-      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
-    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
-    if(i == 1) {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
-                    zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
-    } else {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
-    }
-  }
-  dev.off()
-  
-  png(paste0("Figures/BCEF/FCHTestSubset_", NCsText, "_N", sampleN, "_", family, ".png"), width=500, height=500)
-  par(oma=c(0,0,0,3))
-  quilt.plot(BCEFSubset$x, BCEFSubset$y, BCEFSubset$FCH, col=blueGreenCols, 
-             nx=length(xGrid)-1, ny=length(yGrid)-1, 
-             xlab="Easting (km)", ylab="Northing (km)", 
-             xlim=xlimTest, ylim=ylimTest, #asp=1, 
-             legend.mar=10, smallplot= c(.81,.84,.1,.9))
-  # cols = c("blue", "purple", "red")
-  sizes = c(1.5, .75, .1)
-  zlim=range(unlist(bcefELK$coefPreds))
-  for(i in 1:length(latInfo)) {
-    inRange = (latInfo[[i]]$latCoords[,1] >= xlimTest[1]) & (latInfo[[i]]$latCoords[,1] <= xlimTest[2]) & 
-      (latInfo[[i]]$latCoords[,2] >= ylimTest[1]) & ((latInfo[[i]]$latCoords[,2] <= ylimTest[2]))
-    # plotPlusAtAngle(latInfo[[i]]$latCoords, col=cols[i], size=sizes[i], angle=-rotationAngle)
-    if(i == 1) {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    legendArgs=list(legend.mar=10, smallplot=c(.97,1,.1,.9)), 
-                    zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
-    } else {
-      plotWithColor(latInfo[[i]]$latCoords[inRange,1], latInfo[[i]]$latCoords[inRange,2], 
-                    bcefELK$coefPreds[[i]][inRange], cex=sizes[i], pch=21, new=FALSE, 
-                    addColorBar=FALSE, zlim=zlim, xlim=xlimTest, ylim=ylimTest, colorName="bg")
-    }
-  }
-  dev.off()
 }
 
 # ****************************** ----
-
 # Validation ----
-##### construct rotated grid of lattice points ----
-# first get range of shifted and rotated data domain for lattice
-allPoints = cbind(BCEF$x, BCEF$y)
-rotationAngle = 49.5 * (pi/180)
-center = colMeans(allPoints)
-centered = sweep(allPoints, 2, center, "-")
-rotationMat = rbind(c(cos(rotationAngle), -sin(rotationAngle)), 
-                    c(sin(rotationAngle), cos(rotationAngle)))
-rotationMatInverse = t(rotationMat)
-rotatedCentered = t(rotationMat %*% t(centered))
-xRange = range(rotatedCentered[,1])
-yRange = range(rotatedCentered[,2])
-BCEF$xTransformed = rotatedCentered[,1]
-BCEF$yTransformed = rotatedCentered[,2]
+# ****************************** ----
 
-# construct basis functions on the rotated centered coordinate system
-# NCs = c(13, 50) # 2km and .5km resolution (this results in memory explosion...)
-# separateRanges = TRUE
-# NCs = c(25, 50, 99) # 1km, .5km, and .25km resolution (matrix factorization explosion...)
-# separateRanges = FALSE
-# NCs = c(25, 100)
-# separateRanges = TRUE # 1km and .25km (killed on the cluster, bad sampling on laptop)
-# NCs = c(25, 50) # 1km and .5km (killed on cluster)
-# separateRanges = TRUE
-# NCs = c(13, 25, 50) # 2km, 1km and .5km
-# separateRanges = FALSE
-# NCs = c(25, 245) # 1km and .1km
-# separateRanges = TRUE
-# nLayer = length(NCs)
-# 
-# NCs = c(20) # 1km and .1km
-# separateRanges = FALSE
-# nLayer = 2
-
+# ELK-F ----
+# get lattice and model info
 NCs = c(40) # 1km and .1km
 separateRanges = FALSE
 nLayer = 4
 
+latInfo = makeLatGrids(xRange, yRange, NC=NCs, nLayer=nLayer)
+cbind(sapply(latInfo, function(x){x$nx}), sapply(latInfo, function(x){x$ny}))
+Ms = getMs(latInfo=latInfo)
+NCs = sapply(latInfo, function(x) {x$NC})
+NCsText = paste(c("NC", NCs), collapse="_")
+
 family = "gamma"
-family = "normal"
+
+sampleN = 100000
+
+# load the model
+out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+modELKF = bcefELK
+totalTimeELKF = totalTime
+
+# get predictions
+sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
+leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+validationI = nrow(predPoints) + 1:length(leftOutDataI)
+preds = modELKF$preds[validationI]
+
+# calculate scores
+# sds = rowMeans(outer(modELKF$sigmasNoNugget[leftOutDataI]^2, modELKF$clusterVars, function(x, y) {sqrt(x + y)}))
+scoresELKF = getScores(BCEF$FCH[leftOutDataI], est=modELKF$preds[validationI], var=NULL, lower=NULL, upper=NULL, estMat=bcefELK$predMat[validationI,], significance=.95, 
+                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+scoresELKF = cbind(scoresELKF, Time=totalTime[3]/60/60)
+colMeans(scoresELKF)
+
+# ELK-T ----
+# get lattice and model info
+NCs = c(79, 313)
+separateRanges = TRUE
+nLayer = 2
+
+family = "gamma"
 
 latInfo = makeLatGrids(xRange, yRange, NC=NCs, nLayer=nLayer)
 NCs = sapply(latInfo, function(x) {x$NC})
 NCsText = paste(c("NC", NCs), collapse="_")
-Ms = getMs(latInfo=latInfo)
-Ms
-sapply(latInfo, function(x) {x$latWidth})
-
-# transform back to the original coordinate system
-for(i in 1:length(latInfo)) {
-  latInfo[[i]]$latCoords = t(t(rotationMat) %*% t(latInfo[[i]]$latCoords))
-  latInfo[[i]]$latCoords = sweep(latInfo[[i]]$latCoords, 2, center, "+")
-}
-
-# Run the ELK analysis ----
-fitModels=TRUE
-lastMod = NULL
-
-# do precomputations
-precomputationFileNameRoot=paste(c("BCEFprecomputations", NCsText, "sepR", separateRanges), collapse="_")
-if(!file.exists(paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))) {
-  comp.timeELKprecomputation = system.time({
-    precomputedMatrices = precomputationsQ2(latInfo)
-    precomputedNormalizationFun = precomputeNormalization(saveResults=FALSE, latticeInfo=latInfo, effRangeRange=NULL, 
-                                                          plotNormalizationSplines=FALSE)
-  })
-  
-  save(precomputedMatrices, precomputedNormalizationFun, comp.timeELKprecomputation, 
-       file=paste0("savedOutput/precomputations/", precomputationFileNameRoot, ".RData"))
-}
 
 sampleN = 100000
-sampleN = 1000
 
-set.seed(123)
+# load the model
+out = load(paste0("savedOutput/BCEF/bcefELK_", NCsText, "_N", sampleN, "_", family, ".RData"))
+modELKT = bcefELK
+totalTimeELKT = totalTime
+
+# get predictions
 sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
-
-BCEFSubset = BCEF[sampleDataI,]
-ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFSubset$x, BCEFSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
-BCEFSubset$PTC = ptcSubset
-
 leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
-BCEFLeftOutSubset = BCEF[leftOutDataI,]
-ptcSubset = extract(ptc, SpatialPoints(cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y), proj4string=CRS("+proj=aea +lat_1=55 +lat_2=65 +lat_0=50 +lon_0=-154 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=km +no_defs")),method="bilinear")
-BCEFLeftOutSubset$PTC = ptcSubset
-leftOutPredPoints = cbind(BCEFLeftOutSubset$x, BCEFLeftOutSubset$y)
+validationI = nrow(predPoints) + 1:length(leftOutDataI)
+preds = bcefELK$preds[validationI]
 
-# fit ELK model ----
-# priorPar are the spatial parameters
-# priorPar = getPCPrior(diff(range(BCEF$x))/5, .01, 1, nLayer=2, separateRanges=TRUE, 
-#                       latticeInfo=latInfo, useUrbanPrior=FALSE)
-priorPar = getPCPrior(diff(latInfo[[1]]$yRangeDat)/5, .01, 1, nLayer=length(NCs), separateRanges=separateRanges, 
-                      latticeInfo=latInfo, useUrbanPrior=FALSE)
-if(fitModels) {
-  thisDiagonal = c(10, 2, 0)
-  thisIntStrategy = "eb"
+# calculate scores
+# sds = rowMeans(outer(bcefELK$sigmasNoNugget[leftOutDataI]^2, bcefELK$clusterVars, function(x, y) {sqrt(x + y)}))
+scoresELKT = getScores(BCEF$FCH[leftOutDataI], est=bcefELK$preds[validationI], var=NULL, lower=NULL, upper=NULL, estMat=bcefELK$predMat[validationI,], significance=.95, 
+                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+scoresELKT = cbind(scoresELKT, Time=totalTime[3]/60/60)
+colMeans(scoresELKT)
+
+# LK ----
+# get lattice and model info
+NC = 40
+nlevel = 4
+thisNCsText = paste0("L", nlevel, "_NC", NC)
+
+sampleN = 100000
+
+# load the model
+out = load(paste0("savedOutput/BCEF/bcefLK_", thisNCsText, "_N", sampleN, "_grid.RData"))
+
+# get predictions
+sampleDataI = sample(1:nrow(BCEF), sampleN, replace=FALSE)
+leftOutDataI = (1:nrow(BCEF))[-sampleDataI]
+validationI = nrow(predPoints) + 1:length(leftOutDataI)
+preds = bcefLK$preds[validationI]
+
+# calculate scores
+# sds = rowMeans(outer(bcefELK$sigmasNoNugget[leftOutDataI]^2, bcefELK$clusterVars, function(x, y) {sqrt(x + y)}))
+scoresLK = getScores(BCEF$FCH[leftOutDataI], est=bcefLK$preds[validationI], var=bcefLK$sigmas[validationI]^2, lower=NULL, upper=NULL, significance=.95, 
+                       distances=NULL, breaks=30, doFuzzyReject=FALSE, getAverage=FALSE)
+scoresLK = cbind(scoresLK, Time=totalTime[3]/60/60)
+colMeans(scoresLK)
+
+
+# Combined scoring rule table ----
+# calculate distance to nearest observation for each left out observation
+mean.neighbor = 500
+dists = fields.rdist.near(cbind(BCEF$x, BCEF$y)[leftOutDataI,], cbind(BCEF$x, BCEF$y)[sampleDataI,], .2, mean.neighbor=mean.neighbor)
+out = aggregate(dists$ra, by=list(dists$ind[,1]), FUN=min)
+nndists = out[,2]
+
+# add distances to scoring rules
+scoresELKF = cbind(NNDist=nndists, scoresELKF)
+scoresELKT = cbind(NNDist=nndists, scoresELKT)
+scoresLK = cbind(NNDist=nndists, scoresLK)
+
+allScores = rbind(colMeans(scoresELKF), 
+                  colMeans(scoresELKT), 
+                  colMeans(scoresLK))
+
+allScores
+print(xtable(allScores[,-c(1, 3, 4)]), digits=2)
+
+# average scoring rules within distance bins
+scoresELKFBinned = aggregateScoresByDistanceBasic(scoresELKF, breaks=10)
+scoresELKTBinned = aggregateScoresByDistanceBasic(scoresELKT, breaks=10)
+scoresLKBinned = aggregateScoresByDistanceBasic(scoresLK, breaks=10)
+
+# plot results
+thisFileNameRoot = "BCEF"
+xrange = range(BCEF$x)
+yrange = range(BCEF$y)
+for(i in 2:(ncol(scoresLK)-1)) {
+  scoreName = colnames(scoresLK)[i]
   
-  startTime = proc.time()
-  bcefELK <- fitLKINLAStandard2(cbind(BCEFSubset$x, BCEFSubset$y), 
-                                obsValues=BCEFSubset$FCH, 
-                                predCoords=leftOutPredPoints, 
-                                xObs=cbind(1, BCEFSubset$PTC), 
-                                xPred=cbind(1, BCEFLeftOutSubset$PTC), 
-                                nonlinearCovariateInds=c(2), 
-                                latInfo=latInfo, family=family, 
-                                seed=1, nKnotsNonlinear=30, 
-                                normalize=TRUE, fastNormalize=TRUE, 
-                                intStrategy=thisIntStrategy, strategy="gaussian", 
-                                printVerboseTimings=FALSE, priorPar=priorPar, 
-                                loadPrecomputationResults=TRUE, 
-                                separateRanges=separateRanges, 
-                                savePrecomputationResults=FALSE, 
-                                precomputationFileNameRoot=precomputationFileNameRoot, 
-                                previousFit=lastMod, diagonal=thisDiagonal)
-  totalTime = proc.time() - startTime
-  lastMod = bcefELK$mod
-  bcefELK$mod$.args = NULL
-  bcefELK$mod$all.hyper = NULL
-  save(bcefELK, totalTime, file=paste0("savedOutput/BCEF/bcefELKvalidation_", NCsText, "_N", sampleN, "_", family, ".RData"))
-} else {
-  out = load(paste0("savedOutput/BCEF/bcefELKvalidation_", NCsText, "_N", sampleN, "_", family, ".RData"))
+  # spatial plots
+  zlim = range(c(scoresLK[,i], scoresELKF[,i], scoresELKT[,i]), na.rm=TRUE)
+  
+  pdf(paste0("Figures/BCEF/LKSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(BCEF$x[leftOutDataI], BCEF$y[leftOutDataI]), scoresLK[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("LK ", scoreName), 
+             xlab="Easting (km)", ylab="Northing (km)", zlim=zlim)
+  dev.off()
+  
+  pdf(paste0("Figures/BCEF/ELKFSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(BCEF$x[leftOutDataI], BCEF$y[leftOutDataI]), scoresELKF[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("ELK-F ", scoreName), 
+             xlab="Easting (km)", ylab="Northing (km)", zlim=zlim)
+  dev.off()
+  
+  pdf(paste0("Figures/BCEF/ELKTSpatialScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  quilt.plot(cbind(BCEF$x[leftOutDataI], BCEF$y[leftOutDataI]), scoresELKT[,i], nx=500, ny=300, 
+             xlim=xrange, ylim=yrange, main=paste0("ELK-T ", scoreName), 
+             xlab="Easting (km)", ylab="Northing (km)", zlim=zlim)
+  dev.off()
+  
+  # binned by distance plots
+  ylim = range(c(scoresLKBinned[,i], scoresELKFBinned[,i], scoresELKTBinned[,i]), na.rm=TRUE)
+  cols = c("black", "blue", "purple")
+  pch = c(15, 16, 17)
+  lty = c(5, 4, 3)
+  pdf(paste0("Figures/BCEF/distanceBinnedScores", scoreName, thisFileNameRoot, ".pdf"), width=5, height=5)
+  plot(scoresLKBinned$NNDist, scoresLKBinned[,i], 
+       main=paste0(scoreName, " versus distance"), ylim=ylim, 
+       xlab="Nearest neighbor distance", ylab=scoreName, 
+       col=cols[1], pch=pch[1])
+  lines(scoresLKBinned$NNDist, scoresLKBinned[,i], 
+        col=cols[1], pch=pch[1], lty=lty[1])
+  
+  points(scoresELKFBinned$NNDist, scoresELKFBinned[,i],  
+         col=cols[2], pch=pch[2])
+  lines(scoresELKFBinned$NNDist, scoresELKFBinned[,i], 
+        col=cols[2], pch=pch[2], lty=lty[2])
+  
+  points(scoresELKTBinned$NNDist, scoresELKTBinned[,i],  
+         col=cols[3], pch=pch[3])
+  lines(scoresELKTBinned$NNDist, scoresELKTBinned[,i], 
+        col=cols[3], pch=pch[3], lty=lty[3])
+  
+  legend("bottomright", legend=c("LK", "ELK-F", "ELK-T"), 
+         pch=pch, lty=lty, col=cols)
+  dev.off()
 }
-print(paste0("N: ", sampleN, ", total time (min): ", totalTime[3]/60))
 
-# score predictions ----
+mean(nndists <= 0.020)
 
-
-
-
-
-
+# ****************************** ----
+# Parameter tables ----
+# ****************************** ----
+modELKF$parameterSummaryTable
+modELKT$parameterSummaryTable
+modLK$parameterSummaryTable
 
 
 
